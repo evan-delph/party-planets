@@ -265,7 +265,8 @@ function resetHeat(w: Arena, heat: number) {
 }
 export function startRemix(w: Arena) {
   const meta = remixInfo(w.kind)!;
-  w.duration = meta.duration;
+  // A board 1 vs 3 plays one long heat with a fixed solo alien in seat 0.
+  w.duration = w.mode === '1v3' && meta.heats ? 30 : meta.duration;
   w.remix = {
     revision: 1,
     objects: [],
@@ -548,7 +549,8 @@ export function stepRemix(w: Arena) {
     kind = w.kind,
     meta = remixInfo(kind)!;
   if (meta.heats) {
-    const heat = Math.min(3, Math.floor((w.tick - 1) / 780));
+    const heat =
+      w.mode === '1v3' ? 0 : Math.min(3, Math.floor((w.tick - 1) / 780));
     if (heat !== r.heat) resetHeat(w, heat);
   }
   if (kind === 'picklepatrol') {
@@ -1257,8 +1259,15 @@ export function stepRemix(w: Arena) {
     w.endAt = w.time + 2;
   if (kind === 'prickleice' && w.actors.every((p) => !p.alive || p.finish))
     w.endAt = w.time;
+  const soloHeld =
+    kind === 'skewergallery' ? w.actors[0].lives > 0 : w.actors[0].alive;
+  if (w.mode === '1v3' && meta.heats && !soloHeld && !w.endAt)
+    w.endAt = w.time + 1.5;
   if (w.time >= w.duration || (w.endAt > 0 && w.time >= w.endAt)) {
     w.done = true;
+    // The solo alien wins by keeping the beacon lit / staying on the saucer.
+    if (w.mode === '1v3' && meta.heats)
+      w.actors.forEach((p, i) => (p.score = (i === 0) === soloHeld ? 1 : 0));
     if (meta.policy === 'survival')
       w.actors
         .filter((p) => p.alive)
@@ -1346,6 +1355,18 @@ export function remixReadout(w: Arena, id: string) {
     // Older saves can have heat=-1 until the first simulation step.
     const heat = Math.max(0, Math.min(w.actors.length - 1, r.heat));
     const solo = w.actors[heat];
+    if (w.mode === '1v3')
+      return {
+        title: w.done
+          ? 'Showdown complete'
+          : solo?.id === id
+            ? `YOU ARE SOLO · hold out ${Math.max(0, Math.ceil(w.duration - w.time))}s`
+            : 'TEAM OF THREE · take the solo alien down',
+        detail:
+          w.kind === 'skewergallery'
+            ? `Beacon ${solo?.lives ?? 3} / 3`
+            : 'Waves knock the solo alien off the saucer',
+      };
     return {
       title: w.done
         ? 'All heats complete'

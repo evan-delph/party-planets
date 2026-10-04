@@ -2017,6 +2017,14 @@ function makeBoard(index: number) {
     const id = candidates[Math.floor(candidates.length / 2)];
     if (id !== undefined) spaces[id].type = 'lottery';
   }
+  // Captain Klaxon claims a red tile on every third road (at least two per board).
+  const villainRoads = districtRoads.filter((_, r) => r % 3 === 2);
+  for (const road of villainRoads.length >= 2
+    ? villainRoads
+    : districtRoads.slice(-2)) {
+    const id = road.spaceIds.find((id) => spaces[id].type === 'red');
+    if (id !== undefined) spaces[id].type = 'villain';
+  }
   if (!spaces.some((n) => n.type === 'shop')) {
     const candidate = spaces.find(
       (n) => n.type === 'blue' && n.id > plan.junctions.length,

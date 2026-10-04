@@ -10,7 +10,6 @@ export type GrandPolicy = 'survival' | 'race' | 'points' | 'accuracy';
 function game<I extends string>(
   id: I,
   name: string,
-  reference: string,
   family: GrandFamily,
   duration: number,
   world: string,
@@ -24,7 +23,6 @@ function game<I extends string>(
   return {
     id,
     name,
-    reference,
     family,
     duration,
     world,
@@ -67,7 +65,6 @@ export const GRAND_CATALOG = [
   game(
     'tidetiles',
     'Tide Tiles',
-    'Mushroom Mix-Up',
     'survival',
     45,
     'Mangrove beacon lagoon',
@@ -79,7 +76,6 @@ export const GRAND_CATALOG = [
   game(
     'cannoncay',
     'Cannonball Cay',
-    'Bombs Away',
     'survival',
     45,
     'Pirate raft cove',
@@ -91,7 +87,6 @@ export const GRAND_CATALOG = [
   game(
     'prickleice',
     'Prickle on Ice',
-    'Ice-Rink Risk',
     'survival',
     40,
     'Frozen urchin tidepool',
@@ -103,7 +98,6 @@ export const GRAND_CATALOG = [
   game(
     'crabtraffic',
     'Crab Traffic',
-    'Pushy Penguins',
     'survival',
     45,
     'Crab migration pier',
@@ -115,7 +109,6 @@ export const GRAND_CATALOG = [
   game(
     'crumbleclock',
     'Crumble Clock',
-    'The Final Countdown',
     'survival',
     40,
     'Cenote countdown ruins',
@@ -127,7 +120,6 @@ export const GRAND_CATALOG = [
   game(
     'lanternlurk',
     'Lantern Lurk',
-    "Dark 'n Crispy",
     'survival',
     45,
     'Moonlit salamander temple',
@@ -139,7 +131,6 @@ export const GRAND_CATALOG = [
   game(
     'vinevault',
     'Vine Vault',
-    'Leaf Leap',
     'course',
     45,
     'Giant-vine canopy',
@@ -151,7 +142,6 @@ export const GRAND_CATALOG = [
   game(
     'mangrovemotors',
     'Mangrove Motors',
-    'Rapid River Race',
     'course',
     50,
     'Winding mangrove rapids',
@@ -163,7 +153,6 @@ export const GRAND_CATALOG = [
   game(
     'bubbletrouble',
     'Bubble Trouble',
-    'Cheep Cheep Chase',
     'course',
     45,
     'Coral reef tunnel',
@@ -175,7 +164,6 @@ export const GRAND_CATALOG = [
   game(
     'frostyfreight',
     'Frosty Freight',
-    'Bobsled Run',
     'course',
     55,
     'Banked glacier chute',
@@ -188,7 +176,6 @@ export const GRAND_CATALOG = [
   game(
     'pelicanpilots',
     'Pelican Pilots',
-    'Sky Pilots',
     'course',
     55,
     'Sea-stack flight corridor',
@@ -201,7 +188,6 @@ export const GRAND_CATALOG = [
   game(
     'hotelhiccup',
     'Hotel Hiccup',
-    'Manor of Escape',
     'course',
     50,
     'Moonflower door hotel',
@@ -213,7 +199,6 @@ export const GRAND_CATALOG = [
   game(
     'picklepatrol',
     'Pickle Patrol',
-    'Tread Carefully',
     'target',
     45,
     'Cracker-wall tank courtyard',
@@ -225,7 +210,6 @@ export const GRAND_CATALOG = [
   game(
     'mangosluggers',
     'Mango Sluggers',
-    'Dinger Derby',
     'target',
     35,
     'Sunset batting cages',
@@ -236,7 +220,6 @@ export const GRAND_CATALOG = [
   game(
     'geckograffiti',
     'Gecko Graffiti',
-    "Paint Misbehavin'",
     'target',
     45,
     'Toy-gecko paint pond',
@@ -249,7 +232,6 @@ export const GRAND_CATALOG = [
   game(
     'skewergallery',
     'Skewer Gallery',
-    'Archer-ival',
     'target',
     52,
     'Moving-cover carnival',
@@ -263,7 +245,6 @@ export const GRAND_CATALOG = [
   game(
     'boulderbuffet',
     'Boulder Buffet',
-    'Boulder Ball',
     'target',
     52,
     'Volcanic climbing slope',
@@ -277,7 +258,6 @@ export const GRAND_CATALOG = [
   game(
     'returnsender',
     'Return to Sender',
-    'Revers-a-Bomb',
     'target',
     45,
     'Six-belt parcel depot',
@@ -290,7 +270,6 @@ export const GRAND_CATALOG = [
   game(
     'sundaesummit',
     'Sundae Summit',
-    'Coney Island',
     'collect',
     40,
     'Floating sundae plaza',
@@ -301,7 +280,6 @@ export const GRAND_CATALOG = [
   game(
     'postcardpanic',
     'Postcard Panic',
-    'Catch You Letter',
     'collect',
     45,
     'Breezy beach post office',
@@ -312,7 +290,6 @@ export const GRAND_CATALOG = [
   game(
     'raingarden',
     'Rain Garden',
-    'Storm Chasers',
     'collect',
     45,
     'Glasshouse cloud garden',
@@ -323,7 +300,6 @@ export const GRAND_CATALOG = [
   game(
     'parasolpearls',
     'Parasol Pearls',
-    'Parasol Plummet',
     'collect',
     40,
     'Pearl-filled cloud shaft',
@@ -334,7 +310,6 @@ export const GRAND_CATALOG = [
   game(
     'coinquake',
     'Coinquake',
-    'Hammer Drop',
     'collect',
     40,
     'Lighthouse crane roof',
@@ -345,7 +320,6 @@ export const GRAND_CATALOG = [
   game(
     'hooklinelunch',
     'Hook, Line & Lunch',
-    'Cast Aways',
     'collect',
     45,
     'Three-lane fishing pier',
@@ -356,7 +330,6 @@ export const GRAND_CATALOG = [
   game(
     'coconutcompass',
     'Coconut Compass',
-    'Tipsy Tourney',
     'puzzle',
     40,
     'Tilt-table coconut workshop',
@@ -368,7 +341,6 @@ export const GRAND_CATALOG = [
   game(
     'fossilfillet',
     'Fossil Fillet',
-    'Crazy Cutters',
     'puzzle',
     35,
     'Fossil engraving quarry',
@@ -380,7 +352,6 @@ export const GRAND_CATALOG = [
   game(
     'lostluggage',
     'Lost Luggage',
-    'Messy Memory',
     'puzzle',
     42,
     'Patterned baggage hall',
@@ -392,7 +363,6 @@ export const GRAND_CATALOG = [
   game(
     'doughdouble',
     'Dough Doppelganger',
-    'Face Lift',
     'puzzle',
     35,
     'Dumpling sculpture studio',
@@ -404,7 +374,6 @@ export const GRAND_CATALOG = [
   game(
     'bentoblocks',
     'Bento Blocks',
-    "Mario's Puzzle Party",
     'puzzle',
     50,
     'Stacking lunchbox factory',
@@ -415,7 +384,6 @@ export const GRAND_CATALOG = [
   game(
     'picnicpartition',
     'Picnic Partition',
-    'Eatsa Pizza',
     'puzzle',
     45,
     'Giant sandwich picnic',
@@ -428,7 +396,6 @@ export const GRAND_CATALOG = [
   game(
     'volleybuns',
     'Volley Buns',
-    'Beach Volley Folly',
     'sport',
     60,
     'Seaside volleyball court',
@@ -441,7 +408,6 @@ export const GRAND_CATALOG = [
   game(
     'puckpicnic',
     'Puck Picnic',
-    'Ice Hockey',
     'sport',
     60,
     'Lantern-lit hockey rink',
@@ -454,7 +420,6 @@ export const GRAND_CATALOG = [
   game(
     'pineapplestrikers',
     'Pineapple Strikers',
-    'Shell Soccer',
     'sport',
     55,
     'Pineapple target stadium',
@@ -467,7 +432,6 @@ export const GRAND_CATALOG = [
   game(
     'goalguava',
     'Goal Guava',
-    'GOOOOOOOAL!!',
     'sport',
     52,
     'Guava goalkeeper arena',
@@ -481,7 +445,6 @@ export const GRAND_CATALOG = [
   game(
     'touchdowntiki',
     'Touchdown Tiki',
-    'Tackle Takedown',
     'sport',
     52,
     'Three-arch tiki field',
@@ -495,7 +458,6 @@ export const GRAND_CATALOG = [
   game(
     'paddleplunder',
     'Paddle Plunder',
-    'Puddle Paddle',
     'sport',
     45,
     'Current-ring mangrove lake',
@@ -508,7 +470,6 @@ export const GRAND_CATALOG = [
   game(
     'crateescape',
     'Crate Escape',
-    'Squared Away',
     'tactics',
     52,
     'Tumbling crate warehouse',
@@ -522,7 +483,6 @@ export const GRAND_CATALOG = [
   game(
     'rubblerunners',
     'Rubble Runners',
-    'Rocky Road',
     'tactics',
     55,
     'Snack-cart canyon',

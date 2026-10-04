@@ -9,7 +9,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { Game } from '../engine';
+import { Game, arenaFor, arenaPlayers } from '../engine';
 import { scoreLabel, arcadeInfo } from './catalog';
 import { remixInfo } from './remix-catalog';
 import { remixReadout } from './remix';
@@ -46,15 +46,11 @@ export default function ArcadeGame(props: Props) {
     root = useRef<HTMLDivElement>(null),
     latest = useRef(props);
   latest.current = props;
+  // Arena seats can be regrouped into teams, so never index board turn order.
+  const seats = arenaPlayers(props.game);
   const world = useRef<Arena>(
     structuredClone(
-      props.game.arcade ??
-        createArena(
-          props.game.mini,
-          props.game.players,
-          props.game.difficulty,
-          props.game.seed,
-        ),
+      props.game.arcade ?? arenaFor(props.game, props.game.mini, props.game.seed),
     ),
   );
   const [hud, setHud] = useState(() => structuredClone(world.current)),
@@ -198,7 +194,7 @@ export default function ArcadeGame(props: Props) {
     try {
       view = createRenderer(
         root.current,
-        props.game.players,
+        arenaPlayers(props.game),
         info.id,
         props.low,
         props.game.boardId,
@@ -419,6 +415,9 @@ export default function ArcadeGame(props: Props) {
     };
   }, [props.game.seed, props.game.mini, props.game.boardId, props.low]);
   const me = hud.actors.find((p) => p.id === props.meId) ?? hud.actors[0],
+    mates = hud.actors
+      .filter((a) => a.team === me.team && a.id !== me.id)
+      .map((a) => seats.find((p) => p.id === a.id)?.avatar.name ?? '?'),
     alive = hud.actors.filter((p) => p.alive).length;
   const team = hud.teams[me.team];
   const grand = remixInfo(info.id) ?? grandInfo(info.id),
@@ -524,7 +523,7 @@ export default function ArcadeGame(props: Props) {
             }
           >
             <b>
-              {props.game.players[i].avatar.name}
+              {seats[i]?.avatar.name}
               {a.id === props.meId ? ' · YOU' : ''}
             </b>
             <span>
@@ -653,7 +652,7 @@ export default function ArcadeGame(props: Props) {
                   : team.stage === 1
                     ? 'Space to jump. Falling returns you to the ledge.'
                     : team.stage === 2
-                      ? `${Math.min(10, team.work)} / 10 · ${props.game.players[me.team * 2 + team.turn].avatar.name}’s stroke — tap E`
+                      ? `${Math.min(10, team.work)} / 10 · ${seats[me.team * 2 + team.turn]?.avatar.name}’s stroke — tap E`
                       : ''}
               </small>
             </>
@@ -851,8 +850,15 @@ export default function ArcadeGame(props: Props) {
                 </div>
                 <p className="brief-tip">{info.tip}</p>
                 <div className="brief-team">
-                  {grand?.teams || info.id === 'duos' || info.id === 'factory'
-                    ? `Your partner: ${props.game.players[me.team * 2 + (props.game.players.findIndex((p) => p.id === props.meId) % 2 === 0 ? 1 : 0)].avatar.name}`
+                  {hud.mode === '1v3'
+                    ? me.team === 0
+                      ? 'SOLO SHOWDOWN · You against all three!'
+                      : `TEAM OF THREE · with ${mates.join(' & ')}`
+                    : hud.mode === '2v2' ||
+                        grand?.teams ||
+                        info.id === 'duos' ||
+                        info.id === 'factory'
+                    ? `Your partner: ${mates[0] ?? '—'}`
                     : grand?.heats
                       ? 'Four 12-second heats. Everyone gets the solo role once.'
                       : 'Four rivals. Every move counts.'}

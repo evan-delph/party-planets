@@ -10,6 +10,7 @@ for (const name of [
   'controller-ui',
   'lottery-music',
   'arcade-overhaul',
+  'party-rules',
 ]) {
   const run = spawnSync(
     process.execPath,

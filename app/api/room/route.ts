@@ -238,6 +238,7 @@ export async function POST(request: Request) {
             'use',
             'buy',
             'diamond',
+            'steal',
             'lotteryPick',
             'lotteryScratch',
             'lotteryContinue',

@@ -4233,3 +4233,212 @@ button {
     width: 240px;
   }
 }
+
+/* v0.8 party rules: team colors, Nabbit, Captain Klaxon, last turns. */
+.team-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #0002;
+  vertical-align: middle;
+}
+.team-dot.team-blue {
+  background: #23b5ee;
+}
+.team-dot.team-red {
+  background: #f66c6b;
+}
+.steal-panel {
+  width: min(560px, calc(100% - 32px));
+}
+.steal-symbol {
+  font-size: 46px;
+  line-height: 1;
+  animation: nab-bob 1.4s ease-in-out infinite;
+}
+@keyframes nab-bob {
+  50% {
+    transform: translateY(-6px) rotate(-6deg);
+  }
+}
+.steal-targets {
+  display: grid;
+  gap: 8px;
+}
+.steal-target {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #00000008;
+  text-align: left;
+}
+.steal-target small {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.steal-target button {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.steal-target .player-badge,
+.last-turns-standings .player-badge {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+@media (max-width: 560px) {
+  .steal-target {
+    grid-template-columns: auto 1fr auto;
+  }
+  .steal-target small {
+    display: none;
+  }
+}
+.last-turns-panel {
+  z-index: 18;
+  width: min(520px, calc(100% - 32px));
+  text-align: center;
+  display: grid;
+  gap: 12px;
+  border: 3px solid #f6c544;
+  animation: last-turns-in 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.last-turns-title {
+  margin: 0;
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: #e2453f;
+  text-shadow: 0 3px 0 #f6c544;
+}
+@keyframes last-turns-in {
+  from {
+    transform: translate(-50%, -45%) scale(0.6);
+    opacity: 0;
+  }
+}
+.last-turns-standings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  counter-reset: place;
+}
+.last-turns-standings li {
+  counter-increment: place;
+  display: grid;
+  grid-template-columns: 22px auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #00000008;
+  text-align: left;
+}
+.last-turns-standings li::before {
+  content: counter(place);
+  font-weight: 900;
+}
+.last-turns-standings li span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.last-turns-standings li.trailing {
+  background: #fff1c2;
+  outline: 2px solid #f6c544;
+}
+.last-turns-bonus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 800;
+}
+.board-label .last-turns-tag {
+  background: #e2453f;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 900;
+}
+.villain-banner {
+  position: absolute;
+  z-index: 17;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(520px, calc(100% - 32px));
+  padding: 14px 20px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #2b1d3f, #4a3366);
+  border: 2px solid #b48cff;
+  color: #f4ecff;
+  box-shadow: 0 16px 60px #1a0d3380;
+  animation: villain-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+.villain-banner > span {
+  font-size: 40px;
+}
+.villain-banner b {
+  letter-spacing: 0.08em;
+  color: #ffcf5c;
+}
+.villain-banner p {
+  margin: 4px 0 0;
+}
+@keyframes villain-in {
+  from {
+    transform: translateX(-50%) translateY(-30px) scale(0.8);
+    opacity: 0;
+  }
+}
+.mode-banner {
+  position: absolute;
+  z-index: 12;
+  top: 118px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 8px 30px #0003;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.mode-banner b {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #23b5ee;
+  color: #fff;
+  letter-spacing: 0.06em;
+}
+.mode-banner.mode-1v3 b {
+  background: #f66c6b;
+}
+.mode-banner.mode-2v2 b {
+  background: linear-gradient(90deg, #23b5ee 50%, #f66c6b 50%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .last-turns-panel,
+  .villain-banner,
+  .steal-symbol {
+    animation: none;
+  }
+}

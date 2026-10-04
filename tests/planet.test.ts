@@ -108,6 +108,8 @@ function endTurn(f: Fixture, rng = constant(0)) {
 function beginVote(rng = constant(0)): Fixture {
   const f = fresh();
   f.game.active = 3;
+  // Earlier seats skipped their turns; give them blue landings (free-for-all).
+  f.game.players.forEach((p) => (p.color = 'blue'));
   f.game.phase = 'landed';
   f.game.presentUntil = f.now;
   endTurn(f, rng);

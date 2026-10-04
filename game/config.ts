@@ -7,7 +7,17 @@ export const RULES = {
   lapReward: 10,
   inventorySize: 3,
   minigameReward: [10, 6, 3, 1],
+  // Team minigames: each winner gets teamWin; a lone 1-vs-3 winner gets soloWin.
+  teamWin: 10,
+  soloWin: 15,
+  teamTie: 3,
   diceSides: 10,
+  miniDiceSides: 5,
+  megaStomp: 10,
+  nabPointsCost: 5,
+  nabDiamondCost: 50,
+  // Last-turns event: the final 5 rounds (final 3 in short games).
+  lastTurnsBonus: 20,
   minigameSeconds: 20,
   turnTimeout: 60000,
 };
@@ -119,6 +129,18 @@ export const ITEMS = [
     cost: 11,
     description: 'Add 5 spaces to your next dice roll.',
   },
+  {
+    id: 'mini',
+    name: 'Shrink Ray',
+    cost: 5,
+    description: 'Roll 1–5 and squeeze through tiny wormhole shortcuts.',
+  },
+  {
+    id: 'mega',
+    name: 'Growth Ray',
+    cost: 12,
+    description: 'Roll two dice and stomp rivals you pass for 10 points each.',
+  },
 ] as const;
 export type SpaceKind =
   | 'blue'
@@ -133,6 +155,7 @@ export type SpaceKind =
   | 'spring'
   | 'portal'
   | 'thief'
+  | 'villain'
   | 'switch';
 export type Space = {
   id: number;
@@ -140,7 +163,18 @@ export type Space = {
   z: number;
   type: SpaceKind;
   next: number[];
+  /** Wormhole shortcuts only a Shrink Ray traveller can enter. */
+  miniNext?: number[];
 };
+export type TeamColor = 'blue' | 'red';
+/** Landing color decides minigame teams. Other spaces flip a coin. */
+export function spaceColor(kind: SpaceKind): TeamColor | undefined {
+  if (kind === 'blue' || kind === 'start') return 'blue';
+  if (kind === 'red' || kind === 'hazard' || kind === 'villain') return 'red';
+  return undefined;
+}
+export const NABBER = 'Nabbit';
+export const VILLAIN = 'Captain Klaxon';
 export const SPACE_INFO = {
   lottery: {
     color: '#ed91ee',
@@ -155,7 +189,16 @@ export const SPACE_INFO = {
   hazard: { color: '#eb7649', name: 'Ecosystem hazard', mark: '!' },
   spring: { color: '#75e0cc', name: 'Ecosystem treasure +8', mark: '+8' },
   portal: { color: '#75a4fa', name: 'Portal to the next district', mark: '»' },
-  thief: { color: '#c68cef', name: 'Take 6 from a rival', mark: 'STEAL' },
+  thief: {
+    color: '#c68cef',
+    name: 'Nabbit: pay to steal points or a diamond',
+    mark: 'NAB',
+  },
+  villain: {
+    color: '#4a3366',
+    name: 'Captain Klaxon: something nasty happens',
+    mark: '☠',
+  },
   switch: { color: '#ffbfa4', name: 'Shortcut switch +4', mark: '⇄' },
   blue: { color: '#23b5ee', name: 'Points +3', mark: '+' },
   red: { color: '#f66c6b', name: 'Points −3', mark: '−' },

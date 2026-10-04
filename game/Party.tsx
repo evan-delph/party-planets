@@ -51,6 +51,7 @@ import {
   arcadeInfo,
   AVAILABLE_ARCADE,
   DEFAULT_MINIGAME_POOL,
+  MODE_LABEL,
   normalizeMinigamePool,
 } from './arcade/catalog';
 import {
@@ -59,13 +60,17 @@ import {
   DEFAULT_AVATAR,
   ITEMS,
   MINIGAMES,
+  NABBER,
   OUTFITS,
   RULES,
   SPACE_INFO,
+  VILLAIN,
 } from './config';
 import {
   Action,
   Game,
+  arenaPlayers,
+  lastTurnsCount,
   newGame,
   prepareMinigame,
   reduceGame,
@@ -1936,6 +1941,164 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               </small>
             </section>
           )}
+          {game.phase === 'steal' && (
+            <section
+              className="center-panel diamond-panel steal-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="steal-title"
+            >
+              <span className="steal-symbol" aria-hidden="true">
+                🦝
+              </span>
+              <span className="eyebrow">{NABBER.toUpperCase()}’S DEN</span>
+              <h2 id="steal-title">“Want me to nab something?”</h2>
+              <p>
+                Pay {RULES.nabPointsCost} points to steal 5–15 points, or{' '}
+                {RULES.nabDiamondCost} points to steal a diamond.{' '}
+                {active?.avatar.name} has {active!.shells} points.
+              </p>
+              {myTurn ? (
+                <div className="steal-targets">
+                  {game.players
+                    .filter((p) => p.id !== active!.id)
+                    .map((p) => (
+                      <div className="steal-target" key={p.id}>
+                        <span
+                          className="player-badge"
+                          style={{ background: p.avatar.shirt }}
+                        >
+                          {p.avatar.name.slice(0, 1)}
+                        </span>
+                        <strong>{p.avatar.name}</strong>
+                        <small>
+                          <Gem size={13} /> {p.pearls} · <Coins size={13} />{' '}
+                          {p.shells}
+                        </small>
+                        <button
+                          className="secondary"
+                          disabled={
+                            busy ||
+                            p.shells <= 0 ||
+                            active!.shells < RULES.nabPointsCost
+                          }
+                          onClick={() =>
+                            dispatch({ type: 'steal', value: 1, target: p.id })
+                          }
+                        >
+                          <Coins size={15} /> Points
+                        </button>
+                        <button
+                          className="primary"
+                          disabled={
+                            busy ||
+                            p.pearls <= 0 ||
+                            active!.shells < RULES.nabDiamondCost
+                          }
+                          onClick={() =>
+                            dispatch({ type: 'steal', value: 2, target: p.id })
+                          }
+                        >
+                          <Gem size={15} /> Diamond
+                        </button>
+                      </div>
+                    ))}
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => dispatch({ type: 'steal', value: 0 })}
+                  >
+                    No thanks <ArrowRight size={15} />
+                  </button>
+                </div>
+              ) : (
+                <p>{active?.avatar.name} is haggling with {NABBER}…</p>
+              )}
+            </section>
+          )}
+          {game.phase === 'lastTurns' && game.lastTurns && (
+            <section
+              className="center-panel last-turns-panel"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="eyebrow">THE FINAL STRETCH</span>
+              <h2 className="last-turns-title">
+                LAST {lastTurnsCount(game.rounds)} TURNS!
+              </h2>
+              <p>Blue and red spaces now pay double. Here are the standings:</p>
+              <ol className="last-turns-standings">
+                {[...game.players]
+                  .sort((a, b) => b.pearls - a.pearls || b.shells - a.shells)
+                  .map((p) => (
+                    <li
+                      key={p.id}
+                      className={
+                        game.lastTurns!.trailing.includes(p.id) ? 'trailing' : ''
+                      }
+                    >
+                      <span
+                        className="player-badge"
+                        style={{ background: p.avatar.shirt }}
+                      >
+                        {p.avatar.name.slice(0, 1)}
+                      </span>
+                      <strong>{p.avatar.name}</strong>
+                      <span>
+                        <Gem size={14} /> {p.pearls} · <Coins size={14} />{' '}
+                        {p.shells}
+                      </span>
+                    </li>
+                  ))}
+              </ol>
+              <div className="last-turns-bonus">
+                {game.lastTurns.stage === 'standings' ? (
+                  <>
+                    <Shuffle size={18} /> Spinning a catch-up boost for{' '}
+                    {game.lastTurns.trailing
+                      .map(
+                        (id) =>
+                          game.players.find((p) => p.id === id)?.avatar.name,
+                      )
+                      .join(' & ')}
+                    …
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} /> {game.log[0]}
+                  </>
+                )}
+              </div>
+            </section>
+          )}
+          {game.phase === 'landed' &&
+            game.effect?.kind === 'villain' &&
+            game.effect.detail &&
+            clock < (game.presentUntil ?? 0) && (
+              <div className="villain-banner" role="status" key={game.effect.id}>
+                <span aria-hidden="true">☠</span>
+                <div>
+                  <b>{VILLAIN.toUpperCase()} STRIKES!</b>
+                  <p>{game.effect.detail}</p>
+                </div>
+              </div>
+            )}
+          {game.vote && game.phase === 'vote' && game.miniMode && (
+            <div className={`mode-banner mode-${game.miniMode}`} role="status">
+              <b>{MODE_LABEL[game.miniMode]}</b>
+              {game.miniMode !== 'ffa' && (
+                <span>
+                  {(() => {
+                    const seats = arenaPlayers(game),
+                      split = game.miniMode === '1v3' ? 1 : 2;
+                    const names = (list: typeof seats) =>
+                      list.map((p) => p.avatar.name).join(' & ');
+                    return `${names(seats.slice(0, split))} vs ${names(seats.slice(split))}`;
+                  })()}
+                </span>
+              )}
+            </div>
+          )}
           {game.phase === 'vote' && game.vote && (
             <section className="center-panel vote-panel">
               <div className="panel-heading">
@@ -2041,10 +2204,19 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   {i + 1}
                 </span>
                 <div className="player-info">
-                  <strong>{p.avatar.name}</strong>
+                  <strong>
+                    {p.avatar.name}
+                    {p.color && (
+                      <span
+                        className={`team-dot team-${p.color}`}
+                        title={`${p.color} team this round`}
+                      />
+                    )}
+                  </strong>
                   <small>
                     {p.cpu ? 'CPU' : p.id === me?.id ? 'YOU' : 'PLAYER'}{' '}
                     {p.shield ? '· SHIELDED' : ''}
+                    {p.size === 'mini' ? '· TINY' : p.size === 'mega' ? '· GIANT' : ''}
                   </small>
                 </div>
                 <div className="currency">
@@ -2073,6 +2245,11 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   BANK: {game.bank ?? 0} points · Shortcuts{' '}
                   {game.routesOpen === false ? 'closed' : 'open'}
                 </span>
+                {game.lastTurns && (
+                  <span className="last-turns-tag">
+                    LAST {lastTurnsCount(game.rounds)} TURNS · ×2 spaces
+                  </span>
+                )}
               </div>
               <div className="activity">
                 <span className="eyebrow">EARTH ENCOUNTERS</span>
@@ -2360,7 +2537,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                         <b>
                           {game.phase === 'finished'
                             ? `${p.pearls} diamonds · ${p.shells} points`
-                            : `${scoreLabel(game.mini, p.score)} · +${RULES.minigameReward[rank - 1]} points`}
+                            : `${scoreLabel(game.mini, p.score)} · +${p.prize ?? RULES.minigameReward[rank - 1]} points`}
                         </b>
                       </div>
                     );

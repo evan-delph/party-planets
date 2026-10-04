@@ -2,7 +2,9 @@ import { getBoard, pearlDestinations, BOARD_WALK_SPEED } from './boards';
 import {
   arcadeInfo,
   AVAILABLE_ARCADE,
+  miniMode,
   normalizeMinigamePool,
+  type MiniMode,
 } from './arcade/catalog';
 import { OVERHAUL } from './arcade/overhaul';
 import { remixInfo } from './arcade/remix-catalog';
@@ -20,9 +22,31 @@ import {
   DEFAULT_AVATAR,
   ITEMS,
   MINIGAMES,
+  NABBER,
   OUTFITS,
   RULES,
+  spaceColor,
+  VILLAIN,
+  type TeamColor,
 } from './config';
+/** Discrete board moments for presentation (stomps, steals, villain strikes…). */
+export type BoardEvent = {
+  id: number;
+  kind: 'stomp' | 'steal' | 'villain' | 'lastTurns' | 'size';
+  player: string;
+  target?: string;
+  space: number;
+  delta: number;
+  text: string;
+  at: number;
+};
+export type VillainStrike =
+  | 'shakedown'
+  | 'toll'
+  | 'equalize'
+  | 'relocate'
+  | 'swap';
+export type LastTurnsBonus = 'points' | 'items' | 'bailout';
 export type Player = {
   stats?: { lossSpaces: number; eventSpaces: number };
   id: string;
@@ -40,9 +64,30 @@ export type Player = {
   score: number;
   answered: number[];
   memory: number[];
+  /** Team color from this round's final space; decides the minigame shape. */
+  color?: TeamColor;
+  /** Shrink/Growth Ray effect for the current turn only. */
+  size?: 'mini' | 'mega';
+  /** Points paid by the latest minigame. */
+  prize?: number;
 };
 export type Game = {
-  contentRevision?: 7 | 8 | 9;
+  contentRevision?: 7 | 8 | 9 | 10;
+  /** Arena seat order (player ids), grouped by team for 1 vs 3 and 2 vs 2. */
+  lineup?: string[];
+  miniMode?: MiniMode;
+  teamDecks?: Partial<Record<'1v3' | '2v2', number[]>>;
+  lastTurns?: {
+    startRound: number;
+    startedAt: number;
+    trailing: string[];
+    bonus: LastTurnsBonus;
+    stage: 'standings' | 'bonus';
+  };
+  steal?: { player: string; space: number };
+  /** Rivals already flattened by this turn's Growth Ray. */
+  stomped?: string[];
+  events?: BoardEvent[];
   minigamePool?: string[];
   shopStock?: string[];
   lottery?: {
@@ -78,6 +123,7 @@ export type Game = {
     delta: number;
     losses?: { player: string; delta: number; space: number }[];
     startedAt?: number;
+    detail?: string;
   };
   players: Player[];
   round: number;
@@ -90,8 +136,10 @@ export type Game = {
     | 'moving'
     | 'fork'
     | 'diamond'
+    | 'steal'
     | 'lottery'
     | 'landed'
+    | 'lastTurns'
     | 'vote'
     | 'minigame'
     | 'results'
@@ -147,6 +195,7 @@ export type Action = {
     | 'use'
     | 'buy'
     | 'diamond'
+    | 'steal'
     | 'lotteryPick'
     | 'lotteryScratch'
     | 'lotteryContinue'
@@ -158,6 +207,8 @@ export type Action = {
   route?: string; // Legacy saves/actions: never used to choose a pre-roll route.
   voteId?: string;
   lotteryId?: string;
+  /** Rival player id for a Nabbit steal. */
+  target?: string;
   item?: string;
   value?: number;
   tick?: number;
@@ -198,7 +249,7 @@ export function newGame(
   const now = Date.now();
   return {
     version: 1,
-    contentRevision: 9,
+    contentRevision: 10,
     minigamePool: normalizeMinigamePool(minigamePool),
     boardId: getBoard(boardId).id,
     bank: 0,
@@ -248,8 +299,49 @@ export function newGame(
 function log(s: Game, msg: string) {
   s.log = [msg, ...s.log].slice(0, 30);
 }
-function rollDie(rng: () => number) {
-  return 1 + Math.floor(rng() * RULES.diceSides);
+function rollDie(rng: () => number, sides: number = RULES.diceSides) {
+  return 1 + Math.floor(rng() * sides);
+}
+function pushEvent(s: Game, e: Omit<BoardEvent, 'id'>) {
+  const id = (s.events?.at(-1)?.id ?? 0) + 1;
+  s.events = [...(s.events ?? []), { id, ...e }].slice(-12);
+}
+const playerName = (s: Game, id: string) =>
+  s.players.find((p) => p.id === id)?.avatar.name ?? 'Someone';
+/** Players in arena seat order. Falls back to turn order for older saves. */
+export function arenaPlayers(s: Game): Player[] {
+  const seated = s.lineup?.map((id) => s.players.find((p) => p.id === id));
+  return seated?.length === s.players.length && seated.every(Boolean)
+    ? (seated as Player[])
+    : s.players;
+}
+export function arenaFor(s: Game, index: number, seed: number) {
+  const mode =
+    s.miniMode && miniMode(index) === s.miniMode ? s.miniMode : undefined;
+  return createArena(index, arenaPlayers(s), s.difficulty, seed, mode);
+}
+/** Fewest forward steps between two spaces (main roads only). */
+export function stepsTo(boardId: string | undefined, from: number, to: number) {
+  const board = getBoard(boardId).spaces,
+    distance = new Map([[from, 0]]),
+    queue = [from];
+  for (let k = 0; k < queue.length; k++) {
+    const at = queue[k];
+    if (at === to) return distance.get(at)!;
+    for (const n of board[at].next)
+      if (!distance.has(n)) {
+        distance.set(n, distance.get(at)! + 1);
+        queue.push(n);
+      }
+  }
+  return undefined;
+}
+function deckOf(s: Game, mode: MiniMode) {
+  return mode === 'ffa' ? s.miniOrder : s.teamDecks?.[mode];
+}
+function setDeck(s: Game, mode: MiniMode, deck: number[]) {
+  if (mode === 'ffa') s.miniOrder = deck;
+  else (s.teamDecks ??= {})[mode] = deck;
 }
 function movePearl(s: Game, rng: () => number) {
   const candidates = pearlDestinations(
@@ -271,7 +363,7 @@ export function prepareMinigame(
   s.seed = seed;
   s.miniReady = [];
   s.miniVersion = 2;
-  s.arcade = createArena(index, s.players, s.difficulty, seed);
+  s.arcade = arenaFor(s, index, seed);
   s.players.forEach((p) => {
     p.score = 0;
     p.answered = [];
@@ -280,27 +372,60 @@ export function prepareMinigame(
   return s;
 }
 function startMini(s: Game, now: number, rng: () => number) {
-  const pool = AVAILABLE_ARCADE.filter((m) =>
+  const enabled = AVAILABLE_ARCADE.filter((m) =>
     normalizeMinigamePool(s.minigamePool).includes(m.id),
   ).map((m) => m.index);
+  // Space colors decide the shape: 4–0 free-for-all, 3–1 solo showdown, 2–2 teams.
+  const blues = s.players.filter((p) => p.color === 'blue'),
+    reds = s.players.filter((p) => p.color !== 'blue');
+  let mode: MiniMode =
+    blues.length === 2
+      ? '2v2'
+      : blues.length === 1 || blues.length === 3
+        ? '1v3'
+        : 'ffa';
+  let pool = enabled.filter((n) => miniMode(n) === mode);
+  if (!pool.length) {
+    mode = 'ffa';
+    pool = enabled.filter((n) => miniMode(n) === 'ffa');
+  }
+  // Only team games enabled: play them with seat-paired teams.
+  if (!pool.length) pool = enabled;
+  const solo = blues.length === 1 ? blues[0] : reds[0];
+  s.miniMode = mode;
+  s.lineup = (
+    mode === '2v2'
+      ? [...blues, ...reds]
+      : mode === '1v3'
+        ? [solo, ...s.players.filter((p) => p !== solo)]
+        : s.players
+  ).map((p) => p.id);
   const count = Math.min(3, pool.length);
-  s.miniOrder = s.miniOrder?.filter((n) => pool.includes(n));
-  if ((s.miniOrder?.length ?? 0) < count) {
-    s.miniOrder = [...pool];
-    for (let i = s.miniOrder.length - 1; i > 0; i--) {
+  let deck = deckOf(s, mode)?.filter((n) => pool.includes(n));
+  if ((deck?.length ?? 0) < count) {
+    deck = [...pool];
+    for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
-      [s.miniOrder[i], s.miniOrder[j]] = [s.miniOrder[j], s.miniOrder[i]];
+      [deck[i], deck[j]] = [deck[j], deck[i]];
     }
   }
+  setDeck(s, mode, deck!);
   s.phase = 'vote';
   s.vote = {
     id: s.round + ':' + now,
-    choices: s.miniOrder!.slice(-count),
+    choices: deck!.slice(-count),
     ballots: {},
     endsAt: now + 20000,
   };
   s.due = now + 1000;
-  log(s, 'Choose our next adventure! Everyone gets one vote.');
+  log(
+    s,
+    mode === '2v2'
+      ? `Team battle! ${blues.map((p) => p.avatar.name).join(' & ')} vs ${reds.map((p) => p.avatar.name).join(' & ')}.`
+      : mode === '1v3'
+        ? `Solo showdown! ${solo.avatar.name} takes on the other three.`
+        : 'Free-for-all! Choose our next adventure.',
+  );
 }
 function resolveVote(s: Game, now: number, rng: () => number) {
   const v = s.vote!;
@@ -314,10 +439,11 @@ function resolveVote(s: Game, now: number, rng: () => number) {
   v.resolvedAt = now;
   s.due = now + 2400;
   // Unselected candidates rotate away; the winning game leaves the deck.
-  s.miniOrder = [
+  const mode = s.miniMode ?? 'ffa';
+  setDeck(s, mode, [
     ...v.choices.filter((n) => n !== v.winner),
-    ...(s.miniOrder ?? []).filter((n) => !v.choices.includes(n)),
-  ];
+    ...(deckOf(s, mode) ?? []).filter((n) => !v.choices.includes(n)),
+  ]);
   log(
     s,
     (tied.length > 1 ? 'Random tiebreak: ' : 'Vote winner: ') +
@@ -344,8 +470,12 @@ function beginTurn(s: Game, now: number) {
   s.due = now + (p.cpu ? 2600 : RULES.turnTimeout);
 }
 export function routeChoices(s: Game): number[] {
-  const next = getBoard(s.boardId).spaces[s.players[s.active].pos].next;
-  return s.routesOpen === false ? next.slice(0, 1) : next;
+  const p = s.players[s.active],
+    space = getBoard(s.boardId).spaces[p.pos];
+  const roads = s.routesOpen === false ? space.next.slice(0, 1) : space.next;
+  return p.size === 'mini' && space.miniNext?.length
+    ? [...roads, ...space.miniNext]
+    : roads;
 }
 function beginEdge(s: Game, to: number, now: number) {
   const from = s.players[s.active].pos,
@@ -371,13 +501,39 @@ function continueWalk(s: Game, now: number) {
   } else beginEdge(s, choices[0], now);
 }
 function finishMini(s: Game, now: number, scores?: number[]) {
-  s.players.forEach(
-    (p, i) => (p.score = scores?.[i] ?? s.arcade?.actors[i].score ?? 0),
+  // Scores arrive in arena seat order.
+  const seats = arenaPlayers(s);
+  seats.forEach(
+    (p, i) =>
+      (p.score =
+        scores?.[i] ??
+        s.arcade?.actors.find((a) => a.id === p.id)?.score ??
+        0),
   );
-  for (const p of s.players) {
-    const rank = s.players.filter((q) => q.score > p.score).length;
-    p.shells += RULES.minigameReward[rank] ?? 1;
-  }
+  const mode = s.arcade?.mode;
+  if (mode === '1v3' || mode === '2v2') {
+    const split = mode === '1v3' ? 1 : 2,
+      sides = [seats.slice(0, split), seats.slice(split)],
+      best = sides.map((side) => Math.max(...side.map((p) => p.score)));
+    sides.forEach((side, t) =>
+      side.forEach(
+        (p) =>
+          (p.prize =
+            best[0] === best[1]
+              ? RULES.teamTie
+              : best[t] > best[1 - t]
+                ? side.length === 1
+                  ? RULES.soloWin
+                  : RULES.teamWin
+                : 0),
+      ),
+    );
+  } else
+    for (const p of s.players) {
+      const rank = s.players.filter((q) => q.score > p.score).length;
+      p.prize = RULES.minigameReward[rank] ?? 1;
+    }
+  s.players.forEach((p) => (p.shells += p.prize ?? 0));
   s.phase = 'results';
   s.due = now + 15000;
   log(s, arcadeInfo(s.mini).name + ' finished! Point prizes awarded.');
@@ -452,6 +608,13 @@ function scratchLottery(s: Game, now: number) {
 function nextBoardTurn(s: Game, now: number, rng: () => number) {
   s.lottery = undefined;
   s.shopStock = undefined;
+  s.steal = undefined;
+  const p = s.players[s.active];
+  // The space a turn ends on sets the team color; other spaces flip a coin.
+  p.color =
+    spaceColor(getBoard(s.boardId).spaces[p.pos].type) ??
+    (rng() < 0.5 ? 'blue' : 'red');
+  p.size = undefined;
   s.active++;
   if (s.active >= s.players.length) {
     s.active = 0;
@@ -473,6 +636,257 @@ function finishLottery(s: Game, now: number, rng: () => number) {
     s.due = now + (p.cpu ? 1800 : RULES.turnTimeout);
   } else if ((s.remaining ?? 0) > 0 && !l.landingResolved) continueWalk(s, now);
   else nextBoardTurn(s, now, rng);
+}
+/** Captain Klaxon's villain space: one random strike. */
+function villainStrike(s: Game, p: Player, now: number, rng: () => number) {
+  const strikes: VillainStrike[] = [
+    'shakedown',
+    'toll',
+    'equalize',
+    'relocate',
+    'swap',
+  ];
+  const strike = strikes[Math.floor(rng() * strikes.length)];
+  let losses: NonNullable<Game['effect']>['losses'];
+  let text: string;
+  if (strike === 'shakedown') {
+    if (p.shield) {
+      p.shield = false;
+      text = `${VILLAIN} demanded 20 points, but the Orbit Shield held!`;
+    } else {
+      const n = Math.min(20, p.shells);
+      p.shells -= n;
+      text = `${VILLAIN}'s shakedown! ${p.avatar.name} hands over ${n} points.`;
+    }
+  } else if (strike === 'toll') {
+    losses = s.players.map((q) => {
+      const n = Math.min(10, q.shells);
+      q.shells -= n;
+      return { player: q.id, delta: -n, space: q.pos };
+    });
+    text = `${VILLAIN}'s space toll! Everyone pays up to 10 points.`;
+  } else if (strike === 'equalize') {
+    const total = s.players.reduce((sum, q) => sum + q.shells, 0),
+      share = Math.floor(total / s.players.length);
+    losses = s.players.map((q) => {
+      const delta = share - q.shells;
+      q.shells = share;
+      return { player: q.id, delta, space: q.pos };
+    });
+    s.bank = (s.bank ?? 0) + (total - share * s.players.length);
+    text = `${VILLAIN}'s Equalizer Ray! Everyone now has ${share} points.`;
+  } else if (strike === 'relocate') {
+    const from = s.pearl;
+    movePearl(s, rng);
+    text =
+      s.pearl === from
+        ? `${VILLAIN} tried to hide the diamond, but it would not budge.`
+        : `${VILLAIN} teleported the diamond to space ${s.pearl + 1}!`;
+  } else {
+    const rivals = s.players.filter((q) => q.id !== p.id),
+      rival = rivals[Math.floor(rng() * rivals.length)];
+    [p.pos, rival.pos] = [rival.pos, p.pos];
+    text = `${VILLAIN}'s Switcheroo! ${p.avatar.name} and ${rival.avatar.name} swap places.`;
+  }
+  log(s, text);
+  pushEvent(s, {
+    kind: 'villain',
+    player: p.id,
+    space: p.pos,
+    delta: 0,
+    text,
+    at: now,
+  });
+  return { strike, losses, text };
+}
+function canNab(s: Game, p: Player) {
+  return (
+    p.size !== 'mega' &&
+    s.players.some(
+      (q) =>
+        q.id !== p.id &&
+        ((q.shells > 0 && p.shells >= RULES.nabPointsCost) ||
+          (q.pearls > 0 && p.shells >= RULES.nabDiamondCost)),
+    )
+  );
+}
+/** CPU Nabbit choice: a diamond when affordable, otherwise the richest wallet. */
+export function cpuSteal(s: Game, p: Player): Action {
+  const rivals = s.players.filter((q) => q.id !== p.id);
+  const gem = [...rivals]
+    .filter((q) => q.pearls > 0)
+    .sort((a, b) => b.pearls - a.pearls || b.shells - a.shells)[0];
+  if (gem && p.shells >= RULES.nabDiamondCost && s.difficulty > 0)
+    return { type: 'steal', value: 2, target: gem.id };
+  const rich = [...rivals].sort((a, b) => b.shells - a.shells)[0];
+  if (rich.shells >= 8 && p.shells >= RULES.nabPointsCost)
+    return { type: 'steal', value: 1, target: rich.id };
+  return { type: 'steal', value: 0 };
+}
+function resolveSteal(
+  s: Game,
+  choice: number,
+  target: string | undefined,
+  now: number,
+  rng: () => number,
+) {
+  const p = s.players[s.active],
+    rival = s.players.find((q) => q.id === target && q.id !== p.id);
+  if (choice === 1) {
+    if (!rival || rival.shells <= 0) throw Error('Choose a rival with points.');
+    if (p.shells < RULES.nabPointsCost)
+      throw Error(`Nabbit charges ${RULES.nabPointsCost} points.`);
+  }
+  if (choice === 2) {
+    if (!rival || rival.pearls <= 0)
+      throw Error('Choose a rival with a diamond.');
+    if (p.shells < RULES.nabDiamondCost)
+      throw Error(`Nabbit charges ${RULES.nabDiamondCost} points for a diamond.`);
+  }
+  s.steal = undefined;
+  if (choice === 1 && rival) {
+    p.shells -= RULES.nabPointsCost;
+    const n = Math.min(rival.shells, 5 + Math.floor(rng() * 11));
+    rival.shells -= n;
+    p.shells += n;
+    const text = `${NABBER} swiped ${n} points from ${rival.avatar.name} for ${p.avatar.name}!`;
+    log(s, text);
+    pushEvent(s, {
+      kind: 'steal',
+      player: p.id,
+      target: rival.id,
+      space: p.pos,
+      delta: n,
+      text,
+      at: now,
+    });
+    s.effect = {
+      id: (s.effect?.id ?? 0) + 1,
+      kind: 'steal',
+      player: p.id,
+      space: p.pos,
+      delta: n - RULES.nabPointsCost,
+      losses: [{ player: rival.id, delta: -n, space: rival.pos }],
+      startedAt: now,
+      detail: text,
+    };
+  } else if (choice === 2 && rival) {
+    p.shells -= RULES.nabDiamondCost;
+    rival.pearls--;
+    p.pearls++;
+    s.diamondPickup = { player: p.id, space: p.pos, startedAt: now };
+    const text = `${NABBER} snatched a diamond from ${rival.avatar.name} for ${p.avatar.name}!`;
+    log(s, text);
+    pushEvent(s, {
+      kind: 'steal',
+      player: p.id,
+      target: rival.id,
+      space: p.pos,
+      delta: 1,
+      text,
+      at: now,
+    });
+    s.effect = {
+      id: (s.effect?.id ?? 0) + 1,
+      kind: 'steal',
+      player: p.id,
+      space: p.pos,
+      delta: 1,
+      startedAt: now,
+      detail: text,
+    };
+    if (s.diamondGoal && p.pearls >= s.diamondGoal) {
+      s.phase = 'finished';
+      s.finale = { reason: 'goal', startedAt: now, winner: p.id };
+      s.movement = undefined;
+      return;
+    }
+  } else log(s, `${p.avatar.name} waved goodbye to ${NABBER}.`);
+  if (!s.remaining) landPlayer(s, now, rng);
+  else continueWalk(s, now);
+}
+export function lastTurnsCount(rounds: number) {
+  return rounds >= 10 ? 5 : 3;
+}
+export function lastTurnsRound(rounds: number) {
+  return rounds - lastTurnsCount(rounds) + 1;
+}
+/** Diamonds first, points second — the same order as the final ranking. */
+function standings(s: Game) {
+  return [...s.players].sort(
+    (a, b) => b.pearls - a.pearls || b.shells - a.shells,
+  );
+}
+function startLastTurns(s: Game, now: number, rng: () => number) {
+  const order = standings(s),
+    last = order.at(-1)!;
+  const bonuses: LastTurnsBonus[] = ['points', 'items', 'bailout'];
+  s.lastTurns = {
+    startRound: s.round,
+    startedAt: now,
+    trailing: order
+      .filter((p) => p.pearls === last.pearls && p.shells === last.shells)
+      .map((p) => p.id),
+    bonus: bonuses[Math.floor(rng() * bonuses.length)],
+    stage: 'standings',
+  };
+  s.phase = 'lastTurns';
+  s.announce = undefined;
+  s.due = now + 6500;
+  log(
+    s,
+    `LAST ${lastTurnsCount(s.rounds)} TURNS! Blue and red spaces now pay double.`,
+  );
+}
+function awardLastTurns(s: Game, now: number) {
+  const l = s.lastTurns!,
+    trailing = l.trailing.map((id) => s.players.find((p) => p.id === id)!);
+  let text: string;
+  if (l.bonus === 'points') {
+    trailing.forEach((p) => (p.shells += RULES.lastTurnsBonus));
+    text = `+${RULES.lastTurnsBonus} points`;
+  } else if (l.bonus === 'items') {
+    trailing.forEach((p) => {
+      for (const id of ['double', 'mega'])
+        if (p.items.length < RULES.inventorySize) p.items.push(id);
+    });
+    text = 'a Double Orbit and a Growth Ray';
+  } else {
+    const pot = s.bank ?? 0,
+      share = Math.floor(pot / trailing.length) + 10;
+    trailing.forEach((p) => (p.shells += share));
+    s.bank = pot - Math.floor(pot / trailing.length) * trailing.length;
+    text = `a bank bailout of ${share} points`;
+  }
+  const names = trailing.map((p) => p.avatar.name).join(' & ');
+  log(s, `Catch-up boost: ${names} receive${trailing.length > 1 ? '' : 's'} ${text}!`);
+  trailing.forEach((p) =>
+    pushEvent(s, {
+      kind: 'lastTurns',
+      player: p.id,
+      space: p.pos,
+      delta: 0,
+      text: `Catch-up boost: ${text}`,
+      at: now,
+    }),
+  );
+  l.stage = 'bonus';
+  s.due = now + 5000;
+}
+/** CPU item use: situational rather than always the first item in the bag. */
+export function cpuItem(s: Game, p: Player): string | undefined {
+  if ((p.lotteryBoosts ?? 0) > 0) return 'five';
+  const has = (id: string) => p.items.includes(id);
+  const gap = stepsTo(s.boardId, p.pos, s.pearl);
+  if (has('warp') && p.shells >= RULES.pearlPrice) return 'warp';
+  if (has('mini') && gap !== undefined && gap <= RULES.miniDiceSides)
+    return 'mini';
+  if (has('mega') && s.players.some((q) => q.id !== p.id && q.shells >= 5))
+    return 'mega';
+  for (const id of ['double', 'magnet', 'steal', 'boost'])
+    if (has(id)) return id;
+  if (has('shield') && !p.shield) return 'shield';
+  return undefined;
 }
 function landPlayer(s: Game, now: number, rng: () => number) {
   const BOARD = getBoard(s.boardId).spaces,
@@ -522,17 +936,11 @@ function landPlayer(s: Game, now: number, rng: () => number) {
     p.pos = gates[(idx + 1) % gates.length].id;
     log(s, 'Portal express! Travel to the next district.');
   }
-  if (type === 'thief') {
-    const rival = s.players
-      .filter((q) => q.id !== p.id)
-      .sort((a, b) => b.shells - a.shells)[0];
-    const n = Math.min(6, rival.shells);
-    rival.shells -= n;
-    p.shells += n;
-    log(
-      s,
-      `A friendly trickster took ${n} points from ${rival.avatar.name} for you.`,
-    );
+  let detail: string | undefined;
+  if (type === 'villain') {
+    const strike = villainStrike(s, p, now, rng);
+    losses = strike.losses;
+    detail = strike.text;
   }
   if (type === 'switch') {
     s.routesOpen = s.routesOpen === false;
@@ -542,12 +950,14 @@ function landPlayer(s: Game, now: number, rng: () => number) {
       `Shortcuts ${s.routesOpen ? 'OPEN' : 'CLOSED'}! Switch bonus: +4 points.`,
     );
   }
-  if (type === 'blue') p.shells += RULES.blueReward;
+  // The last turns double ordinary blue and red spaces.
+  const stakes = s.lastTurns ? 2 : 1;
+  if (type === 'blue') p.shells += RULES.blueReward * stakes;
   if (type === 'red') {
     if (p.shield) {
       p.shield = false;
       log(s, 'Orbit Shield blocked the penalty.');
-    } else p.shells = Math.max(0, p.shells - RULES.redPenalty);
+    } else p.shells = Math.max(0, p.shells - RULES.redPenalty * stakes);
   }
   if (type === 'lucky') {
     if (p.items.length < RULES.inventorySize && rng() > 0.5) {
@@ -587,20 +997,35 @@ function landPlayer(s: Game, now: number, rng: () => number) {
       `${board.globalEvent.name}! ${losses.map((l) => `${s.players.find((q) => q.id === l.player)!.avatar.name} −${-l.delta}`).join(' · ')}. These points leave the game; the bank is unchanged.`,
     );
   }
-  if (p.shells < before && ['red', 'hazard', 'event'].includes(type))
+  if (
+    p.shells < before &&
+    ['red', 'hazard', 'event', 'villain'].includes(type)
+  )
     p.stats.lossSpaces++;
-  s.effect = {
-    id: (s.effect?.id ?? 0) + 1,
-    kind: type,
-    player: p.id,
-    space: s.path[s.path.length - 1],
-    delta: p.shells - before,
-    losses,
-    startedAt: now,
-  };
+  // A Nabbit stop on the final step keeps its steal effect on screen.
+  if (!(type === 'thief' && s.effect?.kind === 'steal' && s.effect.startedAt === now))
+    s.effect = {
+      id: (s.effect?.id ?? 0) + 1,
+      kind: type,
+      player: p.id,
+      space: s.path[s.path.length - 1],
+      delta: p.shells - before,
+      losses,
+      startedAt: now,
+      ...(detail ? { detail } : {}),
+    };
   s.movement = undefined;
   s.presentUntil =
-    now + (type === 'event' ? 7000 : type === 'bank' ? 5500 : 1200);
+    now +
+    (type === 'event'
+      ? 7000
+      : type === 'villain'
+        ? 6500
+        : type === 'bank'
+          ? 5500
+          : type === 'thief'
+            ? 2400
+            : 1200);
   s.phase = 'landed';
   s.bought = false;
   s.shopStock = BOARD[p.pos].type === 'shop' ? randomShopStock(rng) : undefined;
@@ -642,6 +1067,26 @@ function arriveAtSpace(s: Game, now: number, rng: () => number) {
     p.shells += RULES.lapReward;
     log(s, p.avatar.name + ' returned to the landing pad: +10 points.');
   }
+  if (p.size === 'mega')
+    for (const q of s.players) {
+      if (q.id === p.id || q.pos !== p.pos || s.stomped?.includes(q.id))
+        continue;
+      const n = Math.min(q.shells, RULES.megaStomp);
+      q.shells -= n;
+      p.shells += n;
+      (s.stomped ??= []).push(q.id);
+      const text = `STOMP! ${p.avatar.name} flattened ${q.avatar.name} for ${n} points.`;
+      log(s, text);
+      pushEvent(s, {
+        kind: 'stomp',
+        player: p.id,
+        target: q.id,
+        space: p.pos,
+        delta: n,
+        text,
+        at: now,
+      });
+    }
   if (p.pos === s.pearl) {
     s.diamondLandingResolved = undefined;
     s.phase = 'diamond';
@@ -652,6 +1097,14 @@ function arriveAtSpace(s: Game, now: number, rng: () => number) {
   }
   if (board[p.pos].type === 'lottery') {
     openLottery(s, now, rng);
+    return;
+  }
+  if (board[p.pos].type === 'thief' && canNab(s, p)) {
+    s.steal = { player: p.id, space: p.pos };
+    s.phase = 'steal';
+    s.movement = undefined;
+    s.due = now + 1500;
+    log(s, `${NABBER} pops out: “Pay me and I'll nab something for you!”`);
     return;
   }
   if (!s.remaining) landPlayer(s, now, rng);
@@ -748,6 +1201,13 @@ export function reduceGame(
     }
     return s;
   }
+  if (state.phase === 'lastTurns') {
+    if (a.type !== 'tick' || now < state.due) return state;
+    const s = structuredClone(state);
+    if (s.lastTurns!.stage === 'standings') awardLastTurns(s, now);
+    else beginTurn(s, now);
+    return s;
+  }
   if (
     a.type === 'tick' &&
     state.phase === 'results' &&
@@ -810,7 +1270,8 @@ export function reduceGame(
     }
     if ((s as Game).phase === 'fork' && !s.players[s.active].cpu)
       s.due = now + 30000;
-    if (['diamond', 'lottery'].includes((s as Game).phase)) s.due = now + 1500;
+    if (['diamond', 'lottery', 'steal'].includes((s as Game).phase))
+      s.due = now + 1500;
     return s;
   }
   if (a.type === 'tick') {
@@ -833,10 +1294,17 @@ export function reduceGame(
       resolveDiamond(s, current.shells >= RULES.pearlPrice, now, rng);
       return s;
     }
+    if (state.phase === 'steal') {
+      if (!current.cpu || now < state.due) return state;
+      const s = structuredClone(state),
+        choice = cpuSteal(s, current);
+      resolveSteal(s, choice.value ?? 0, choice.target, now, rng);
+      return s;
+    }
     if (state.phase === 'minigame') {
       if (actor !== 'online' || now < state.miniStart) return state;
       const s = structuredClone(state);
-      s.arcade ??= createArena(s.mini, s.players, s.difficulty, s.seed);
+      s.arcade ??= arenaFor(s, s.mini, s.seed);
       s.miniReady = s.players.filter((p) => !p.cpu).map((p) => p.id);
       const oldTick = s.arcade.tick;
       advanceArena(s.arcade, (now - s.miniStart) / 1000);
@@ -897,7 +1365,7 @@ export function reduceGame(
       !a.control
     )
       return state;
-    s.arcade ??= createArena(s.mini, s.players, s.difficulty, s.seed);
+    s.arcade ??= arenaFor(s, s.mini, s.seed);
     const before = s.arcade.tick;
     advanceArena(s.arcade, (now - s.miniStart) / 1000);
     if (s.arcade.done) {
@@ -965,8 +1433,17 @@ export function reduceGame(
     } else {
       s.round++;
       s.active = 0;
-      s.players.forEach((x) => (x.used = false));
-      beginTurn(s, now);
+      s.players.forEach((x) => {
+        x.used = false;
+        x.color = undefined;
+      });
+      if (
+        !s.lastTurns &&
+        s.rounds > lastTurnsCount(s.rounds) &&
+        s.round === lastTurnsRound(s.rounds)
+      )
+        startLastTurns(s, now, rng);
+      else beginTurn(s, now);
     }
     return s;
   }
@@ -994,6 +1471,13 @@ export function reduceGame(
     if (s.phase !== 'diamond' || p.pos !== s.pearl) return state;
     if (a.value !== 0 && a.value !== 1) throw Error('Choose buy or continue.');
     resolveDiamond(s, a.value === 1, now, rng);
+    return s;
+  }
+  if (a.type === 'steal') {
+    if (s.phase !== 'steal' || s.steal?.player !== p.id) return state;
+    if (![0, 1, 2].includes(a.value ?? -1))
+      throw Error('Choose points, a diamond, or no thanks.');
+    resolveSteal(s, a.value!, a.target, now, rng);
     return s;
   }
   if (a.type === 'route') {
@@ -1043,6 +1527,21 @@ export function reduceGame(
       case 'shield':
         p.shield = true;
         break;
+      case 'mini':
+      case 'mega':
+        p.size = a.item;
+        pushEvent(s, {
+          kind: 'size',
+          player: p.id,
+          space: p.pos,
+          delta: 0,
+          text:
+            a.item === 'mini'
+              ? `${p.avatar.name} shrank down!`
+              : `${p.avatar.name} grew GIGANTIC!`,
+          at: now,
+        });
+        break;
     }
     log(
       s,
@@ -1074,18 +1573,16 @@ export function reduceGame(
   }
   if (a.type === 'roll') {
     if (s.phase !== 'turn') return state;
-    if (p.cpu && !p.used && (p.items.length || (p.lotteryBoosts ?? 0) > 0)) {
-      const used = reduceGame(
-        s,
-        p.id,
-        { type: 'use', item: (p.lotteryBoosts ?? 0) > 0 ? 'five' : p.items[0] },
-        now,
-        rng,
-      );
+    const choice = p.cpu && !p.used ? cpuItem(s, p) : undefined;
+    if (choice) {
+      const used = reduceGame(s, p.id, { type: 'use', item: choice }, now, rng);
       return reduceGame(used, p.id, a, now, rng);
     }
-    const values = [rollDie(rng)];
-    if (p.double) values.push(rollDie(rng));
+    const values = [
+      rollDie(rng, p.size === 'mini' ? RULES.miniDiceSides : RULES.diceSides),
+    ];
+    if (p.double || p.size === 'mega') values.push(rollDie(rng));
+    s.stomped = [];
     const bonus = p.boost,
       total = values.reduce((a, b) => a + b, 0) + bonus;
     p.double = false;
@@ -1150,9 +1647,11 @@ export function reduceGame(
 }
 /** Upgrade device/room saves once; board prizes and balances are never replayed. */
 export function migrateGame(state: Game, now = Date.now()): Game {
-  if (state.contentRevision === 9) return state;
+  if (state.contentRevision === 10) return state;
   const s = structuredClone(state);
-  s.contentRevision = 9;
+  // Revision 10 adds team colors, steals, villain spaces and size items;
+  // all new fields are optional, so older saves only need the stamp.
+  s.contentRevision = 10;
   const savedPool = s.minigamePool?.filter((id) =>
     AVAILABLE_ARCADE.some((m) => m.id === id),
   );

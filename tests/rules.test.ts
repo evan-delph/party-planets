@@ -1,6 +1,8 @@
 import { BOARDS, pearlDestinations } from '../game/boards';
 import assert from 'node:assert/strict';
 import {
+  arenaFor,
+  cpuSteal,
   newGame,
   prepareMinigame,
   reduceGame,
@@ -163,13 +165,21 @@ for (let seed = 1; seed <= 9; seed++) {
   while (g.phase !== 'finished' && steps++ < 2500) {
     const active = g.players[g.active];
     if (
-      ['arrival', 'rolling', 'moving', 'fork', 'vote', 'bonus'].includes(
-        g.phase,
-      )
+      [
+        'arrival',
+        'rolling',
+        'moving',
+        'fork',
+        'vote',
+        'bonus',
+        'lastTurns',
+      ].includes(g.phase)
     ) {
       now = Math.max(now, g.due + 1);
       g = reduceGame(g, '', { type: 'tick' }, now, random);
-    } else if (g.phase === 'diamond')
+    } else if (g.phase === 'steal')
+      g = reduceGame(g, active.id, cpuSteal(g, active), now, random);
+    else if (g.phase === 'diamond')
       g = reduceGame(
         g,
         active.id,
@@ -205,7 +215,7 @@ for (let seed = 1; seed <= 9; seed++) {
     else if (g.phase === 'landed')
       g = reduceGame(g, active.id, { type: 'end' }, now, random);
     else if (g.phase === 'minigame') {
-      const arena = createArena(g.mini, g.players, g.difficulty, g.seed);
+      const arena = arenaFor(g, g.mini, g.seed);
       advanceArena(arena, arena.duration);
       check(arena.done, 'Every round has a bounded end');
       now = g.miniStart + arena.duration * 1000;

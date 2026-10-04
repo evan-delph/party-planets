@@ -7,7 +7,6 @@ export const ALL_ARCADE = [
     category: 'Survival',
     duration: 45,
     accent: '#ffd263',
-    reference: 'Booksquirm',
     brief:
       'You are inside a giant book! Falling paper speeds up early. Stay inside a cutout: touching the descending page knocks you out.',
     controls: 'WASD / arrows: move',
@@ -20,7 +19,6 @@ export const ALL_ARCADE = [
     category: 'Bumper battle',
     duration: 50,
     accent: '#f49aa5',
-    reference: 'Bumper Balls',
     brief:
       'Build momentum on your beach ball and bump the others into the sea. Last one standing wins.',
     controls: 'WASD / arrows: steer · Space: dash',
@@ -33,7 +31,6 @@ export const ALL_ARCADE = [
     category: 'Jump survival',
     duration: 45,
     accent: '#ff9668',
-    reference: 'Hot Rope Jump',
     brief:
       'Jump over the spinning grill bar. It speeds up and changes pace. Three burns and you are out!',
     controls: 'Space: jump · Hold briefly for a higher jump',
@@ -46,7 +43,6 @@ export const ALL_ARCADE = [
     category: 'Arena battle',
     duration: 55,
     accent: '#93d8a0',
-    reference: 'Snowball Summit',
     brief:
       'Face a rival, grow a coconut, then send them flying. Bigger coconuts hit harder but slow you down.',
     controls: 'WASD / arrows: move & aim · Hold Space: charge · Release: throw',
@@ -59,7 +55,6 @@ export const ALL_ARCADE = [
     category: 'Drag race',
     duration: 40,
     accent: '#65cbe8',
-    reference: 'Mario Speedwagons',
     brief:
       'Hold the throttle and shift through five gears. Clean shifts in the green RPM band win the race.',
     controls: 'Hold Space: throttle · E / Shift / ↑: shift gear',
@@ -72,7 +67,6 @@ export const ALL_ARCADE = [
     category: '2 vs 2 river race',
     duration: 90,
     accent: '#b79df3',
-    reference: 'Dungeon Duos',
     brief:
       'Paddle a winding cave river with your teammate. Dodge rocks and fire-breathing stone dragons. The first kayak out wins!',
     controls: 'A/D: lean · Space: row · E: brace',
@@ -85,7 +79,6 @@ export const ALL_ARCADE = [
     category: 'Cloud obstacle race',
     duration: 65,
     accent: '#c2e5f3',
-    reference: 'Paths of Peril',
     brief:
       'Race across winding sky islands and moving platforms. Reach each island in order. Checkpoint arches catch you after a fall.',
     controls: 'WASD / arrows: move · Space: jump · E: walk slowly',
@@ -98,7 +91,6 @@ export const ALL_ARCADE = [
     category: 'Bomb survival',
     duration: 75,
     accent: '#ff9569',
-    reference: 'Hot Bob-omb',
     brief:
       'Bombs fall from the sky. Pick one up, aim, and throw it at your rivals. Anyone caught in a blast is out. Last survivor wins.',
     controls: 'WASD: move & aim · Space: pick up / throw · E: dash',
@@ -111,7 +103,6 @@ export const ALL_ARCADE = [
     category: 'Territory hopping',
     duration: 45,
     accent: '#b8df89',
-    reference: 'Stamp Out!',
     brief:
       'Aim, charge a mushroom hop, and stamp the moss in your color. Overwrite your rivals. Most colored tiles wins!',
     controls: 'WASD: aim · Hold Space: charge · Release: hop & stamp',
@@ -124,7 +115,6 @@ export const ALL_ARCADE = [
     category: 'Eight-piece puzzle race',
     duration: 90,
     accent: '#e5bd88',
-    reference: 'Buried Treasure',
     brief:
       'Study the completed picture, then rebuild it from eight scattered pieces. Pick up, rotate, and place. First complete puzzle wins!',
     controls: 'WASD: move cursor · Space: pick up / place · E: rotate',
@@ -137,7 +127,6 @@ export const ALL_ARCADE = [
     category: 'Ice circuit race',
     duration: 65,
     accent: '#a6caf2',
-    reference: 'Later Skater',
     brief:
       'Skate four full laps around the iceberg. Keep your speed through the bends; snowbanks slow you down.',
     controls: 'Hold Space: skate · A/D or ←/→: steer · E: brake',
@@ -150,7 +139,6 @@ export const ALL_ARCADE = [
     category: '2 vs 2 conveyor kitchen',
     duration: 55,
     accent: '#bdabec',
-    reference: 'Cake Factory',
     brief:
       'Work together in the orbital diner. Load a bun onto a moving tray, then add filling. Completed orders score at the delivery window.',
     controls: 'WASD: move · Space: pick up / place · E: discard',
@@ -165,6 +153,26 @@ export const AVAILABLE_ARCADE = ARCADE.map((game, index) => ({
   ...game,
   index,
 })).filter((game) => !['factory', 'crumbleclock'].includes(game.id));
+/** Board minigames are offered by team shape: 4-player free-for-all, 1 vs 3, or 2 vs 2. */
+export type MiniMode = 'ffa' | '1v3' | '2v2';
+export const MODE_LABEL: Record<MiniMode, string> = {
+  ffa: '4-Player',
+  '1v3': '1 vs 3',
+  '2v2': '2 vs 2',
+};
+const TEAM_MODES: Record<string, MiniMode> = {
+  duos: '2v2',
+  factory: '2v2',
+  frostyfreight: '2v2',
+  pelicanpilots: '2v2',
+  geckograffiti: '2v2',
+  returnsender: '2v2',
+  skewergallery: '1v3',
+  boulderbuffet: '1v3',
+};
+export function miniMode(index: number): MiniMode {
+  return TEAM_MODES[arcadeInfo(index).id] ?? 'ffa';
+}
 export const DEFAULT_MINIGAME_POOL: string[] = AVAILABLE_ARCADE.map(
   (game) => game.id,
 );

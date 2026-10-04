@@ -83,7 +83,7 @@ legacy.mini = 11;
 const possessions = legacy.players.map((p) => [p.shells, p.pearls, p.items]);
 const upgraded = migrateGame(legacy);
 assert.notEqual(upgraded.mini, 11);
-assert.equal(upgraded.contentRevision, 9);
+assert.equal(upgraded.contentRevision, 10);
 assert.deepEqual(
   upgraded.players.map((p) => [p.shells, p.pearls, p.items]),
   possessions,

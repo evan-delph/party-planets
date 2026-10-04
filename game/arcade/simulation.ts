@@ -6,7 +6,7 @@ import {
   stepExpansion,
   ExtraState,
 } from './expansion';
-import { ArenaKind, arcadeInfo } from './catalog';
+import { ArenaKind, arcadeInfo, type MiniMode } from './catalog';
 import { startRemix, stepRemix, type RemixState } from './remix';
 import { remixInfo } from './remix-catalog';
 import {
@@ -77,6 +77,8 @@ export type Arena = {
   overhaul?: OverhaulState;
   remix?: RemixState;
   version: 2;
+  /** Board team shape; absent means a free-for-all or seat-paired practice game. */
+  mode?: MiniMode;
   extra?: ExtraState;
   grand?: GrandState;
   kind: ArenaKind;
@@ -158,6 +160,7 @@ export function createArena(
   players: { id: string; cpu: boolean }[],
   difficulty = 1,
   seed = 123,
+  mode?: MiniMode,
 ): Arena {
   const kind = arcadeInfo(index).id;
   const actors = players.map((p, i): Runner => {
@@ -165,7 +168,8 @@ export function createArena(
     return {
       id: p.id,
       cpu: p.cpu,
-      team: Math.floor(i / 2),
+      // Seats arrive grouped by team: 1 vs 3 puts the solo player in seat 0.
+      team: mode === '1v3' ? (i === 0 ? 0 : 1) : Math.floor(i / 2),
       x:
         kind === 'race'
           ? (i - 1.5) * 3
@@ -206,6 +210,7 @@ export function createArena(
   });
   const w: Arena = {
     version: 2,
+    ...(mode && mode !== 'ffa' ? { mode } : {}),
     kind,
     seed,
     time: 0,
