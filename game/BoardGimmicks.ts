@@ -1,5 +1,6 @@
 import * as T from 'three';
 import type { Game } from './engine';
+import { assetUrl } from './assets';
 import type { getBoard } from './boards';
 import type { createBoardTiles } from './BoardTiles';
 
@@ -191,7 +192,7 @@ export function createBoardGimmicks(
       if (lava) {
         const loader = new T.TextureLoader();
         const tex = (url: string) => {
-          const t = loader.load(url);
+          const t = loader.load(assetUrl(url));
           t.wrapS = t.wrapT = T.RepeatWrapping;
           t.colorSpace = T.SRGBColorSpace;
           return t;

@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { assetUrl } from './assets';
 
 /**
  * Splat-blended terrain: three scanned layers (sand, grass, rock) mixed per
@@ -18,7 +19,7 @@ export function createTerrainMaterial(boardId: string, geometry: T.BufferGeometr
   }
   const loader = new T.TextureLoader();
   const load = (layer: string, kind: string, srgb: boolean) => {
-    const tex = loader.load(`/textures/terrain/${boardId}/${layer}-${kind}.webp`);
+    const tex = loader.load(assetUrl(`/textures/terrain/${boardId}/${layer}-${kind}.webp`));
     tex.wrapS = tex.wrapT = T.RepeatWrapping;
     tex.colorSpace = srgb ? T.SRGBColorSpace : T.NoColorSpace;
     tex.anisotropy = 8;

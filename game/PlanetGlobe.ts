@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { assetUrl } from './assets';
 
 /**
  * Cinematic menu planets built from Blender-baked maps
@@ -67,7 +68,7 @@ export const GLOBES: Record<string, GlobeSpec> = {
 
 const loader = new T.TextureLoader();
 function load(id: string, pass: string, color = false) {
-  const tex = loader.load(`/textures/planets/${id}-${pass}.webp`);
+  const tex = loader.load(assetUrl(`/textures/planets/${id}-${pass}.webp`));
   tex.colorSpace = color ? T.SRGBColorSpace : T.NoColorSpace;
   tex.anisotropy = 8;
   return tex;

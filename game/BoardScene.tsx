@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadModel } from './models';
+import { assetUrl } from './assets';
 import { createTerrainMaterial } from './TerrainMaterial';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createShop } from './Shop';
@@ -377,7 +378,7 @@ export default function BoardScene(props: Props) {
             // Molten sea: the baked Ignara crust and crack-glow maps, tiled and drifting.
             const loader = new T.TextureLoader();
             const tile = (url: string, srgb: boolean) => {
-              const t = loader.load(url);
+              const t = loader.load(assetUrl(url));
               t.wrapS = t.wrapT = T.RepeatWrapping;
               t.repeat.set(5, 5);
               t.colorSpace = srgb ? T.SRGBColorSpace : T.NoColorSpace;
