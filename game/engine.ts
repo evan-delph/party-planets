@@ -37,10 +37,12 @@ import {
 /** Discrete board moments for presentation (stomps, steals, villain strikes…). */
 export type BoardEvent = {
   id: number;
-  kind: 'stomp' | 'steal' | 'villain' | 'lastTurns' | 'size';
+  kind: 'stomp' | 'steal' | 'villain' | 'lastTurns' | 'size' | 'launch';
   player: string;
   target?: string;
   space: number;
+  /** Destination space of a jump-pad launch. */
+  to?: number;
   delta: number;
   text: string;
   at: number;
@@ -320,9 +322,7 @@ function applyGimmick(s: Game) {
     changed = s.routesOpen !== open;
   s.routesOpen = open;
   if (!changed) return;
-  const branch = board.districtRoads.find(
-    (r) => board.routeLabels[r.from]?.[1] === r.name,
-  )?.name;
+  const branch = board.gateRoad?.name ?? 'shortcut';
   const text =
     board.gimmick === 'tide'
       ? open
@@ -511,8 +511,17 @@ function beginTurn(s: Game, now: number) {
 }
 export function routeChoices(s: Game): number[] {
   const p = s.players[s.active],
-    space = getBoard(s.boardId).spaces[p.pos];
-  const roads = s.routesOpen === false ? space.next.slice(0, 1) : space.next;
+    board = getBoard(s.boardId),
+    space = board.spaces[p.pos];
+  // A closed gimmick road drops out of the choice; boards without one fall
+  // back to closing every branch (legacy switch tiles).
+  const gate = board.gateRoad?.spaceIds[0];
+  const roads =
+    s.routesOpen !== false
+      ? space.next
+      : gate === undefined
+        ? space.next.slice(0, 1)
+        : space.next.filter((n) => n !== gate);
   return p.size === 'mini' && space.miniNext?.length
     ? [...roads, ...space.miniNext]
     : roads;
@@ -962,9 +971,19 @@ function landPlayer(s: Game, now: number, rng: () => number) {
   }
   if (type === 'portal') {
     const gates = BOARD.filter((b) => b.type === 'portal');
-    const idx = gates.findIndex((b) => b.id === p.pos);
+    const idx = gates.findIndex((b) => b.id === p.pos),
+      from = p.pos;
     p.pos = gates[(idx + 1) % gates.length].id;
-    log(s, 'Portal express! Travel to the next district.');
+    pushEvent(s, {
+      kind: 'launch',
+      player: p.id,
+      space: from,
+      to: p.pos,
+      delta: 0,
+      text: 'Jump pad launch',
+      at: now,
+    });
+    log(s, 'Jump pad! Bounce across to the next pad.');
   }
   let detail: string | undefined;
   if (type === 'villain') {
@@ -1055,7 +1074,9 @@ function landPlayer(s: Game, now: number, rng: () => number) {
           ? 5500
           : type === 'thief'
             ? 2400
-            : 1000);
+            : type === 'portal'
+              ? 1900
+              : 1000);
   s.phase = 'landed';
   s.bought = false;
   s.shopStock = BOARD[p.pos].type === 'shop' ? randomShopStock(rng) : undefined;

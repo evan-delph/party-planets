@@ -201,6 +201,8 @@ type Plan = {
   /** Space codes for the junctions themselves (index 0 is the landing pad). */
   junctionTiles: string;
   roads: Road[];
+  /** Road the board gimmick opens and closes (absent: always open). */
+  gate?: number;
   /** Shrink Ray wormholes: [road, tile] entrance → [road, tile] exit. */
   wormholes: (readonly [readonly [number, number], readonly [number, number]])[];
   landmark: XY;
@@ -254,6 +256,7 @@ const PLANS: Plan[] = [
       { from: 3, to: 7, via: [[14, -18]], name: 'Caldera Rim', tiles: 'HBH' },
       { from: 7, to: 4, via: [[26, -8]], name: 'Lava Steps', tiles: 'BRBL' },
     ],
+    gate: 6,
     wormholes: [[[1, 2], [2, 6]]],
     landmark: [18, -17],
     districts: [
@@ -332,6 +335,7 @@ const PLANS: Plan[] = [
       { from: 6, to: 3, via: [[8, -14]], name: 'Caldera Crossing', tiles: 'BHBEBR' },
       { from: 6, to: 5, via: [[6, 12]], name: 'Ember Gardens', tiles: 'BRBLBNB' },
     ],
+    gate: 6,
     wormholes: [[[1, 2], [3, 3]]],
     landmark: [-16, 12],
     districts: [
@@ -371,6 +375,7 @@ const PLANS: Plan[] = [
       { from: 1, to: 7, via: [[-16, 8]], name: 'Cloud Ferry', tiles: 'BTBLBB' },
       { from: 7, to: 4, via: [[10, -14]], name: 'Storm Eye', tiles: 'BRBEBH' },
     ],
+    gate: 7,
     wormholes: [[[1, 1], [3, 2]]],
     landmark: [14, 8],
     districts: [
@@ -526,6 +531,16 @@ function makeBoard(index: number) {
     waterFeatures,
     routeLabels,
     districtRoads,
+    /** The road this board's gimmick opens and closes. */
+    gateRoad: plan.gate === undefined ? undefined : districtRoads[plan.gate],
+    /** Shrink Ray wormhole pairs as space ids. */
+    wormholes: plan.wormholes.map(
+      ([[fromRoad, fromTile], [toRoad, toTile]]) =>
+        [
+          districtRoads[fromRoad].spaceIds[fromTile],
+          districtRoads[toRoad].spaceIds[toTile],
+        ] as const,
+    ),
     layoutScale: scale,
   };
 }

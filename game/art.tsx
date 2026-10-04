@@ -176,7 +176,7 @@ export function KlaxonPortrait({ size = 96, className, style }: ArtProps) {
 }
 
 // ── Space and item icons ────────────────────────────────────────────────────
-const SPACE_GLYPH: Partial<Record<SpaceKind, ReactElement>> = {
+export const SPACE_GLYPH: Partial<Record<SpaceKind, ReactElement>> = {
   blue: <path d="M16 9v14M9 16h14" stroke="#fff" strokeWidth="4" strokeLinecap="round" />,
   red: <path d="M9 16h14" stroke="#fff" strokeWidth="4" strokeLinecap="round" />,
   start: <path d="M22 12a8 8 0 1 0 1 7M22 7v5h-5" fill="none" stroke={INK} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />,

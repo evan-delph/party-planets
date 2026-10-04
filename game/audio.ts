@@ -119,6 +119,18 @@ export function playSfx(kind: string, delta = 0, muted = false) {
       [392, 392, 523, 659, 784, 1046].forEach((f, i) =>
         note(f, i * 0.12, 0.22, 'square', 0.022),
       );
+    } else if (kind === 'launch') {
+      note(90, 0, 0.18, 'square', 0.04);
+      for (let i = 0; i < 10; i++)
+        note(200 * 1.22 ** i, 0.05 + i * 0.035, 0.1, 'sine', 0.022);
+    } else if (kind === 'land') {
+      note(75, 0, 0.25, 'triangle', 0.05);
+      note(150, 0.02, 0.12, 'square', 0.02);
+    } else if (kind === 'warp') {
+      for (let i = 0; i < 8; i++) note(1200 - i * 120, i * 0.045, 0.1, 'sine', 0.02);
+      for (let i = 0; i < 8; i++) note(300 + i * 140, 0.6 + i * 0.045, 0.1, 'sine', 0.02);
+    } else if (kind === 'gate') {
+      [784, 587, 784, 587].forEach((f, i) => note(f, i * 0.16, 0.2, 'triangle', 0.03));
     } else if (delta > 0 || kind === 'spring') {
       [660, 880, 1100].forEach((f, i) => note(f, i * 0.09, 0.15));
     } else if (delta < 0) {

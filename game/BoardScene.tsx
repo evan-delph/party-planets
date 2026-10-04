@@ -19,6 +19,8 @@ import { createAlienScenery } from './AlienScenery';
 import { createPlanetarium } from './Planetarium';
 import { createBoardEffects } from './BoardEffects';
 import { createBoardDirector } from './BoardDirector';
+import { createBoardTiles } from './BoardTiles';
+import { createBoardGimmicks } from './BoardGimmicks';
 import { createFinale } from './Finale';
 import { createBoardSky } from './SpaceLife';
 type Props = {
@@ -197,57 +199,7 @@ export default function BoardScene(props: Props) {
         );
         path.rotation.y = Math.atan2(dx, dz);
       }
-    const icons = new Map<string, T.Texture>();
-    for (const [type, info] of Object.entries(SPACE_INFO)) {
-      const c = document.createElement('canvas');
-      c.width = 128;
-      c.height = 128;
-      const ctx = c.getContext('2d')!;
-      ctx.fillStyle = '#fffbe7';
-      ctx.beginPath();
-      ctx.arc(64, 64, 58, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#163e50';
-      ctx.lineWidth = 5;
-      ctx.stroke();
-      ctx.fillStyle = '#123d49';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = `900 ${info.mark.length > 3 ? 26 : info.mark.length > 1 ? 45 : 74}px Arial`;
-      ctx.fillText(info.mark, 64, 66);
-      icons.set(type, new T.CanvasTexture(c));
-    }
-    for (const [type, info] of Object.entries(SPACE_INFO)) {
-      const spaces = nodes.filter((n) => n.type === type);
-      const tile = new T.InstancedMesh(
-        new T.CylinderGeometry(0.84, 0.88, 0.2, 18),
-        kit.mat(info.color),
-        spaces.length,
-      );
-      tile.receiveShadow = true;
-      world.add(tile);
-      const icon = new T.InstancedMesh(
-        new T.PlaneGeometry(1.25, 1.25),
-        new T.MeshBasicMaterial({
-          map: icons.get(type),
-          transparent: true,
-          depthWrite: false,
-        }),
-        spaces.length,
-      );
-      world.add(icon);
-      const dummy = new T.Object3D();
-      spaces.forEach((s, i) => {
-        dummy.position.set(s.x, 0.81, s.z);
-        dummy.rotation.set(0, 0, 0);
-        dummy.updateMatrix();
-        tile.setMatrixAt(i, dummy.matrix);
-        dummy.position.y = 0.927;
-        dummy.rotation.x = -Math.PI / 2;
-        dummy.updateMatrix();
-        icon.setMatrixAt(i, dummy.matrix);
-      });
-    }
+    const tiles = createBoardTiles(world, board.id, nodes);
     const safe = (x: number, z: number, r = 2.2) =>
       nodes.every((n) => Math.hypot(n.x - x, n.z - z) > r) &&
       board.waterFeatures.every(
@@ -590,6 +542,7 @@ export default function BoardScene(props: Props) {
     const universe = createPlanetarium(scene, board.id);
     const boardEffects = createBoardEffects(world, board);
     const director = createBoardDirector(world, nodes);
+    const gimmicks = createBoardGimmicks(world, board, tiles);
     const ship = makeUfo();
     world.add(ship);
     const startNode = nodes[0],
@@ -1055,7 +1008,7 @@ export default function BoardScene(props: Props) {
             ? Math.abs(Math.sin(worldClock * 7)) * 0.45
             : 0);
       }
-      if (!studio)
+      if (!studio) {
         director.frame({
           game: game?.practice ? undefined : game,
           serverNow,
@@ -1064,6 +1017,18 @@ export default function BoardScene(props: Props) {
           reduced: !!p.reduced,
           camera,
         });
+        // Keep the camera on an explorer while a jump pad flings them.
+        if (
+          gimmicks.frame({
+            game: game?.practice ? undefined : game,
+            serverNow,
+            dt,
+            meshes,
+            reduced: !!p.reduced,
+          })
+        )
+          followZoom = Math.max(followZoom, 1.4);
+      }
       const movementLive = game?.phase === 'moving';
       if (movementLive && previousPhase !== 'moving') {
         followZoom = 2;
@@ -1102,7 +1067,9 @@ export default function BoardScene(props: Props) {
         const desired =
           game?.phase === 'arrival'
             ? ship.position.clone().add(new T.Vector3(0, 2, 0))
-            : subject.position.clone().setY(1.6);
+            : subject.position
+                .clone()
+                .setY(1.6 + Math.max(0, subject.position.y - 0.96) * 0.85);
         const follow = 1 - Math.exp(-dt * 3.4);
         const shift = desired.clone().sub(orbit.target).multiplyScalar(follow);
         orbit.target.add(shift);
@@ -1165,7 +1132,7 @@ export default function BoardScene(props: Props) {
           -board.radius * 0.85,
           board.radius * 0.85,
         );
-        bounded.y = T.MathUtils.clamp(bounded.y, 0, 6);
+        bounded.y = T.MathUtils.clamp(bounded.y, 0, 9);
         camera.position.add(bounded.clone().sub(orbit.target));
         orbit.target.copy(bounded);
       }
@@ -1324,6 +1291,8 @@ export default function BoardScene(props: Props) {
       perf.dispose();
       disposed = true;
       director.dispose();
+      gimmicks.dispose();
+      tiles.dispose();
       environment.dispose();
       pmrem.dispose();
       finale?.dispose();

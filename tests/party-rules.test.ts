@@ -62,7 +62,7 @@ function vote(colors: ('blue' | 'red')[]) {
   return reduceGame(g, 'p3', { type: 'end' }, NOW + 1, constant(0.1));
 }
 
-// ── Space-color teams ────────────────────────────────────────────────────────
+// â”€â”€ Space-color teams â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ffa = vote(['blue', 'blue', 'blue', 'blue']);
 equal(ffa.miniMode, 'ffa', 'Four blue landings make a free-for-all');
 check(
@@ -100,7 +100,7 @@ const noTeams = (() => {
 equal(
   noTeams.miniMode,
   'ffa',
-  'Without enabled team games, a 2–2 split falls back to a free-for-all',
+  'Without enabled team games, a 2â€“2 split falls back to a free-for-all',
 );
 // Turn end records the landing color; neutral spaces flip a coin.
 {
@@ -122,7 +122,7 @@ equal(
   );
 }
 
-// ── Team payouts and arena seating ───────────────────────────────────────────
+// â”€â”€ Team payouts and arena seating â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 {
   const g = structuredClone(duo);
   const index = g.vote!.choices[0];
@@ -204,7 +204,7 @@ equal(
   );
 }
 
-// ── Last turns ───────────────────────────────────────────────────────────────
+// â”€â”€ Last turns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 {
   equal(lastTurnsRound(10), 6, 'A 10-round party starts its last 5 at round 6');
   equal(lastTurnsRound(5), 3, 'A 5-round party starts its last 3 at round 3');
@@ -269,7 +269,7 @@ equal(
   );
 }
 
-// ── Nabbit (steal) ───────────────────────────────────────────────────────────
+// â”€â”€ Nabbit (steal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 {
   const thief = first('thief').id;
   const g = fresh();
@@ -299,7 +299,7 @@ equal(
   equal(
     [points.players[0].shells, points.players[1].shells],
     [60 - RULES.nabPointsCost + 10, 20],
-    'A points steal charges the fee and moves 5–15 points',
+    'A points steal charges the fee and moves 5â€“15 points',
   );
   equal(points.phase, 'moving', 'The roll resumes after the steal');
   const gem = reduceGame(
@@ -347,7 +347,7 @@ equal(
   );
 }
 
-// ── Captain Klaxon (villain) ─────────────────────────────────────────────────
+// â”€â”€ Captain Klaxon (villain) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 {
   const villain = first('villain');
   check(!!villain, 'Every board has villain spaces');
@@ -406,7 +406,7 @@ equal(
   );
 }
 
-// ── Shrink Ray / Growth Ray ──────────────────────────────────────────────────
+// â”€â”€ Shrink Ray / Growth Ray â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 {
   const g = fresh();
   g.phase = 'turn';
@@ -414,7 +414,7 @@ equal(
   const small = reduceGame(g, 'p0', { type: 'use', item: 'mini' }, NOW);
   equal(small.players[0].size, 'mini', 'The Shrink Ray shrinks the player');
   const rolled = reduceGame(small, 'p0', { type: 'roll' }, NOW, constant(0.99));
-  equal(rolled.dice!.values, [5], 'A shrunken roll is 1–5');
+  equal(rolled.dice!.values, [5], 'A shrunken roll is 1â€“5');
   // Wormholes only open for tiny travellers.
   const hole = structuredClone(small);
   const at = hole.players[0].pos;
@@ -473,7 +473,7 @@ equal(
   );
 }
 
-// ── CPU item policy ──────────────────────────────────────────────────────────
+// â”€â”€ CPU item policy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 {
   const g = fresh();
   const p = g.players[1];
@@ -486,7 +486,7 @@ equal(
   equal(cpuItem(g, p), 'warp', 'A CPU that can afford a diamond warps to it');
 }
 
-// ── Board gimmicks and wormholes ─────────────────────────────────────────────
+// â”€â”€ Board gimmicks and wormholes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 {
   equal(
     [1, 2, 3, 4].map((r) => gimmickOpen('crown', r)),
@@ -517,6 +517,44 @@ equal(
     next.routesOpen === false && /High tide/.test(next.log[0]),
     'High tide floods the footbridge and is announced',
   );
+  // The gimmick closes only its own road; other forks stay open.
+  {
+    const crown = getBoard('crown'),
+      gate = crown.gateRoad!;
+    const c = fresh();
+    c.routesOpen = false;
+    c.players[0].pos = gate.from;
+    check(
+      !routeChoices(c).includes(gate.spaceIds[0]) && routeChoices(c).length === 1,
+      'High tide removes the Lagoon Footbridge from the fork',
+    );
+    const rim = crown.spaces.findIndex((s, i) => i !== gate.from && s.next.length > 1);
+    c.players[0].pos = rim;
+    equal(routeChoices(c).length, 2, 'Other forks stay open at high tide');
+    c.routesOpen = true;
+    c.players[0].pos = gate.from;
+    check(routeChoices(c).includes(gate.spaceIds[0]), 'Low tide opens the footbridge');
+  }
+  // Jump pads emit a launch event carrying the destination.
+  {
+    const crater = getBoard('crater').spaces;
+    const pads = crater.filter((s) => s.type === 'portal');
+    const before = crater.find((s) => s.next.includes(pads[0].id))!;
+    const j = fresh();
+    j.boardId = 'crater';
+    j.players[0].pos = before.id;
+    j.phase = 'moving';
+    j.remaining = 1;
+    j.path = [before.id];
+    j.movement = { from: before.id, to: pads[0].id, startedAt: NOW, arrivesAt: NOW + 500 };
+    j.due = NOW + 500;
+    const landed = reduceGame(j, '', { type: 'tick' }, NOW + 600, constant(0.5));
+    const launch = landed.events?.find((e) => e.kind === 'launch');
+    check(
+      landed.players[0].pos === pads[1].id && launch?.space === pads[0].id && launch.to === pads[1].id,
+      'Jump pads launch explorers to the next pad with a launch event',
+    );
+  }
   // Each board carries one Shrink Ray wormhole that only tiny players see.
   for (const id of ['crown', 'crater', 'fissure', 'coral']) {
     const spaces = getBoard(id).spaces;
@@ -531,7 +569,7 @@ equal(
   equal(getBoard('alpine').id, 'crown', 'Retired board links resolve to their replacement');
 }
 
-// ── Save migration ───────────────────────────────────────────────────────────
+// â”€â”€ Save migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 {
   const g = fresh();
   g.contentRevision = 9;
@@ -547,5 +585,5 @@ equal(
 }
 
 console.log(
-  `PASS: ${checks} party-rule checks — color teams, team payouts, last turns, Nabbit, Captain Klaxon, Shrink/Growth Rays, CPU items, migration`,
+  `PASS: ${checks} party-rule checks â€” color teams, team payouts, last turns, Nabbit, Captain Klaxon, Shrink/Growth Rays, CPU items, migration`,
 );
