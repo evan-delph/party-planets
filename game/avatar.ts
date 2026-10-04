@@ -1,11 +1,167 @@
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Avatar } from './config';
+import { loadModel } from './models';
 
 /** Kept constant even when a visitor loads an older, colored character save. */
 export const ALIEN_GREEN = '#86da62';
 
+// ── Blender alien (art/blender/alien.py → public/models/alien.glb) ──────────
+let alienModel: T.Object3D | undefined;
+let alienLoading: Promise<void> | undefined;
+const waiting = new Set<() => void>();
+/** Start loading the modeled alien; avatars built earlier upgrade in place. */
+export function preloadAlien() {
+  alienLoading ??= loadModel('/models/alien.glb')
+    .then((gltf) => {
+      alienModel = gltf.scene;
+      for (const upgrade of waiting) upgrade();
+      waiting.clear();
+    })
+    .catch(() => {
+      // Offline single-file build: keep the procedural aliens.
+      waiting.clear();
+    });
+  return alienLoading;
+}
+
 export function makeAvatar(a: Avatar) {
+  const g = new T.Group();
+  g.userData.species = 'green-alien';
+  if (alienModel) buildModeled(g, a, alienModel);
+  else {
+    const fallback = makeProceduralAvatar(a);
+    g.add(...fallback.children);
+    g.userData.rig = fallback.userData.rig;
+    const upgrade = () => {
+      if (!g.parent) return; // discarded before the model arrived
+      for (const child of [...g.children]) {
+        child.removeFromParent();
+        disposeTree(child);
+      }
+      buildModeled(g, a, alienModel!);
+    };
+    waiting.add(upgrade);
+    void preloadAlien();
+  }
+  g.scale.set(a.width, a.height, a.width);
+  return g;
+}
+
+function disposeTree(o: T.Object3D) {
+  o.traverse((x) => {
+    const mesh = x as T.Mesh;
+    if (mesh.isMesh) mesh.geometry.dispose();
+  });
+}
+
+/** Clone the modeled alien and apply every Character Studio option. */
+function buildModeled(g: T.Group, a: Avatar, model: T.Object3D) {
+  const root = model.clone(true);
+  const shirt = new T.Color(a.shirt);
+  const recolor: Record<string, T.Color> = {
+    Shirt: shirt,
+    ShirtSeam: shirt.clone().lerp(new T.Color('#23334b'), 0.24),
+    ShirtThread: shirt.clone().lerp(new T.Color('#fff2ce'), 0.6),
+    Hair: new T.Color(a.hairColor ?? '#344552'),
+    Eye: new T.Color(a.eyeColor ?? '#294d5d').lerp(new T.Color('#040d14'), 0.8),
+    Shoe: new T.Color(a.shoeColor ?? '#183e47'),
+  };
+  const own = new Map<string, T.Material>();
+  root.traverse((o) => {
+    const mesh = o as T.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.castShadow = mesh.receiveShadow = true;
+    const swap = (m: T.Material) => {
+      const color = recolor[m.name];
+      if (!color) return m;
+      if (!own.has(m.name)) {
+        const copy = (m as T.MeshStandardMaterial).clone();
+        copy.color.copy(color);
+        own.set(m.name, copy);
+      }
+      return own.get(m.name)!;
+    };
+    mesh.material = Array.isArray(mesh.material)
+      ? mesh.material.map(swap)
+      : swap(mesh.material);
+  });
+  const part = (name: string) => root.getObjectByName(name);
+  const show = (name: string, visible: boolean) => {
+    const o = part(name);
+    if (o) o.visible = visible;
+  };
+  for (let i = 1; i <= 7; i++) show('Hair' + i, a.hair === i);
+  for (let i = 1; i <= 2; i++) show('Beard' + i, a.beard === i);
+  for (let i = 1; i <= 6; i++) show('Acc' + i, a.accessory === i);
+  const pattern = a.pattern ?? 4;
+  show('Collar', pattern !== 4);
+  show('Placket', pattern !== 4 && pattern !== 3);
+  show('Stripes', pattern === 1);
+  show('Dots', pattern === 2);
+  show('Overalls', pattern === 3);
+  show('Aloha', pattern === 4);
+  show('Freckles', !!a.freckles);
+  const gloves = a.gloves !== false;
+  const spacing = T.MathUtils.clamp((a.eyeSpacing ?? 0.155) + 0.055, 0.18, 0.27);
+  const eyes: T.Object3D[] = [],
+    eyeBases: number[] = [],
+    eyelids: T.Object3D[] = [],
+    arms: T.Object3D[] = [],
+    legs: T.Object3D[] = [];
+  [-1, 1].forEach((side, i) => {
+    show('Hand' + i, !gloves);
+    show('Glove' + i, gloves);
+    const eye = part('Eye' + i)!;
+    eye.position.x = side * spacing;
+    if (a.eyes === 2) eye.scale.x = 0.17;
+    if (a.eyes === 1) eye.scale.y = 0.205;
+    eyes.push(eye);
+    eyeBases.push(eye.scale.y);
+    // The animation rolls lids about Z; a pivot keeps that roll separate from
+    // the mesh's fixed upright tilt (Blender and three compose Euler XYZ differently).
+    const lidMesh = part('Lid' + i)!,
+      lid = new T.Group();
+    lid.position.set(side * spacing, lidMesh.position.y, lidMesh.position.z);
+    lid.rotation.z = side * -0.23;
+    lid.scale.y = a.eyes === 1 ? 1.1 : 1.36;
+    lidMesh.parent!.add(lid);
+    lid.add(lidMesh);
+    lidMesh.position.set(0, 0, 0);
+    lidMesh.rotation.set(Math.PI / 2, 0, 0);
+    eyelids.push(lid);
+    const brow = part('Brow' + i)!;
+    brow.visible = (a.brows ?? 0) > 0 || a.eyes === 3;
+    brow.position.x = side * spacing;
+    brow.rotation.z = Math.PI / 2 + side * (a.brows === 3 ? 0.3 : -0.13);
+    if (a.brows === 2) brow.scale.set(1.5, 1, 1.5);
+    arms.push(part('Arm' + i)!);
+    legs.push(part('Leg' + i)!);
+  });
+  const nose = part('Nose')!;
+  nose.scale.multiplyScalar(a.nose === 1 ? 1.45 : a.nose === 3 ? 0.64 : 1);
+  if (a.nose === 2) nose.scale.y *= 1.625;
+  // Separate mouth objects per mood so toggling one never hides another.
+  const face = part('Face')!;
+  face.scale.setScalar(a.mouthScale ?? 1);
+  const smile = part('MouthSmile')!,
+    frown = part('MouthFrown')!,
+    grin = part('MouthGrin')!;
+  const neutral = (a.mouth === 2 ? grin : a.mouth === 1 ? frown : smile).clone();
+  const happy = grin.clone(),
+    sad = frown.clone();
+  sad.position.y -= 0.055;
+  for (const m of [smile, frown, grin]) m.visible = false;
+  for (const m of [neutral, happy, sad]) {
+    m.visible = true;
+    face.add(m);
+  }
+  happy.visible = sad.visible = false;
+  g.add(root);
+  g.userData.rig = { arms, legs, neutral, happy, sad, eyes, eyeBases, eyelids };
+}
+
+function makeProceduralAvatar(a: Avatar) {
   const g = new T.Group();
   const materials = new Map<string, T.MeshStandardMaterial>();
   const mat = (c: string, glossy = false) => {
@@ -543,8 +699,6 @@ export function makeAvatar(a: Avatar) {
   };
   bake(g);
   g.userData.rig = { arms, legs, neutral, happy, sad, eyes, eyeBases, eyelids };
-  g.userData.species = 'green-alien';
-  g.scale.set(a.width, a.height, a.width);
   return g;
 }
 

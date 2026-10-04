@@ -41,13 +41,15 @@ def _image(path, non_color):
     return img
 
 
-def scanned(name, asset, res='1k', tint=None, rough_bias=0.0, metal=None):
+def scanned(name, asset, res='1k', tint=None, rough_bias=0.0, metal=None, flat_color=None):
     """PBR material from a Poly Haven set: diffuse, GL normal, ARM (AO/rough/metal).
 
     The glTF exporter turns Separate Color G/B of the ARM map into a packed
     metallic-roughness texture. `metal` overrides the scanned metalness.
+    `flat_color` keeps only the scanned surface detail (normal + roughness)
+    under a plain base color that three.js can recolor per player.
     """
-    key = (name, asset, res, tint, rough_bias, metal)
+    key = (name, asset, res, tint, rough_bias, metal, flat_color)
     if key in _cache:
         return _cache[key]
     base = os.path.join(SOURCE, asset, f'{asset}_{{}}_{res}.jpg')
@@ -55,9 +57,12 @@ def scanned(name, asset, res='1k', tint=None, rough_bias=0.0, metal=None):
     m.use_nodes = True
     nt = m.node_tree
     bsdf = nt.nodes['Principled BSDF']
-    diff = nt.nodes.new('ShaderNodeTexImage')
-    diff.image = _image(base.format('Diffuse'), False)
-    nt.links.new(diff.outputs['Color'], bsdf.inputs['Base Color'])
+    if flat_color:
+        bsdf.inputs['Base Color'].default_value = linear(flat_color)
+    else:
+        diff = nt.nodes.new('ShaderNodeTexImage')
+        diff.image = _image(base.format('Diffuse'), False)
+        nt.links.new(diff.outputs['Color'], bsdf.inputs['Base Color'])
     if tint:
         # Tints are applied in three.js by material name (exporter-safe).
         m['tint'] = tint
@@ -216,6 +221,12 @@ def export(name, animations=False):
         export_image_format='WEBP',
         export_image_quality=82,
         export_yup=True,
+        # Draco geometry compression; three.js decodes with public/draco/.
+        export_draco_mesh_compression_enable=True,
+        export_draco_mesh_compression_level=7,
+        export_draco_position_quantization=14,
+        export_draco_normal_quantization=10,
+        export_draco_texcoord_quantization=12,
     )
     print('EXPORTED', path, os.path.getsize(path), 'bytes')
     return path

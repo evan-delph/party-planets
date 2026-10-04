@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { loadModel } from './models';
 
 /** Three.js landing prop; +Z is the exit and the foot of the open ramp. */
 export function makeUfo() {
@@ -218,10 +219,7 @@ export function makeUfo() {
 // procedural ship above renders immediately and remains the offline fallback.
 let ufoModel: Promise<T.Object3D> | undefined;
 function upgradeUfo(ufo: T.Group) {
-  ufoModel ??= import('three/addons/loaders/GLTFLoader.js').then(
-    ({ GLTFLoader }) =>
-      new GLTFLoader().loadAsync('/models/ufo.glb').then((gltf) => gltf.scene),
-  );
+  ufoModel ??= loadModel('/models/ufo.glb').then((gltf) => gltf.scene);
   ufoModel
     .then((model) => {
       const rig = ufo.userData,

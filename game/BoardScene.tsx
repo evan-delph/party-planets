@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { loadModel } from './models';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createShop } from './Shop';
 import { Avatar, SPACE_INFO } from './config';
@@ -406,8 +406,7 @@ export default function BoardScene(props: Props) {
       });
     let disposed = false;
     if (nabbitSpots.length)
-      new GLTFLoader().load(
-        '/models/nabbit.glb',
+      loadModel('/models/nabbit.glb').then(
         (gltf) => {
           if (disposed) return disposeObject(gltf.scene);
           for (const spot of nabbitSpots) {
@@ -428,7 +427,6 @@ export default function BoardScene(props: Props) {
             nabbits.push({ node: spot.n, root, mixer, home: root.position.clone() });
           }
         },
-        undefined,
         () => {
           // Optional art: a missing model (e.g. the offline file) leaves the board as-is.
         },

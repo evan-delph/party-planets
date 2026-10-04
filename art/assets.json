@@ -18,7 +18,9 @@
     "volcanic_rock_tiles": { "res": "1k", "use": "Emberfault paths" },
     "coral_ground_02": { "res": "2k", "use": "Nimbus Reef islands" },
     "coral_stone_wall": { "res": "1k", "use": "Nimbus Reef cliffs" },
-    "white_sandstone_bricks": { "res": "1k", "use": "Nimbus Reef paths and ruins" }
+    "white_sandstone_bricks": { "res": "1k", "use": "Nimbus Reef paths and ruins" },
+    "denim_fabric": { "res": "1k", "use": "Alien overalls and cloth detail" },
+    "fabric_leather_02": { "res": "1k", "use": "Alien shoes, gloves cuffs, backpack" }
   },
   "maps": ["Diffuse", "nor_gl", "arm"]
 }
