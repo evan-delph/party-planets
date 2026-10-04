@@ -98,11 +98,16 @@ function auth(room: Room, key: string) {
   return seat;
 }
 async function save(code: string, room: Room, revision: number) {
+  // Game saves never change emotes, so keep whatever the row holds now: an
+  // emote written between our read and this write must not be lost.
+  const { emotes: _ignored, ...rest } = room;
+  void _ignored;
   const result = await database()
     .prepare(
-      'UPDATE rooms SET data = ?, revision = revision + 1 WHERE code = ? AND revision = ?',
+      `UPDATE rooms SET data = json_set(?, '$.emotes', json(coalesce(json_extract(data, '$.emotes'), '[]'))),
+        revision = revision + 1 WHERE code = ? AND revision = ?`,
     )
-    .bind(JSON.stringify(room), code, revision)
+    .bind(JSON.stringify(rest), code, revision)
     .run();
   return result.meta.changes === 1;
 }

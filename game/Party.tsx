@@ -762,9 +762,14 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
   const back = () => setPanel(game ? 'play' : 'menu');
   const startScreen = () => {
     setStarted(true);
-    if (invite && !session) setPanel('online');
     sound(659);
   };
+  // An invite link opens the join form as soon as the title screen is passed.
+  useEffect(() => {
+    if (!started || !invite) return;
+    if (!session) setPanel('online');
+    setInvite('');
+  }, [started, invite, session]);
   const padConnected = useGamepadUI({
     started,
     onStart: startScreen,
@@ -1565,7 +1570,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               </div>
               <p className="muted">
                 Share this page and the room code with friends who can access
-                this game. Rooms last 24 hours. Keep this tab to reconnect.
+                this game. Rooms last 24 hours; if you close the tab, Online party offers a one-click rejoin.
               </p>
               {room.host === session.id && !room.game && (
                 <>
