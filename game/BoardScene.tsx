@@ -3,10 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createShop } from './Shop';
 import { Avatar, SPACE_INFO } from './config';
 import { getBoard, BOARD_WALK_SPEED } from './boards';
@@ -522,13 +518,6 @@ export default function BoardScene(props: Props) {
         ? createPlanetScenery(world, board, !!props.low)
         : { draw: () => {} };
     const universe = createPlanetarium(scene, board.id);
-    const composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    const bloom = new UnrealBloomPass(new T.Vector2(1, 1), 0.85, 0.65, 1.3);
-    const outputPass = new OutputPass();
-    composer.addPass(renderPass);
-    composer.addPass(bloom);
-    composer.addPass(outputPass);
     const boardEffects = createBoardEffects(world, board);
     const director = createBoardDirector(world, nodes);
     const ship = makeUfo();
@@ -711,9 +700,9 @@ export default function BoardScene(props: Props) {
       universe.root.visible = !!p.orbital && !studio;
       if (universe.root.visible)
         universe.draw(worldClock, !!p.reduced, p.titleScreen, p.sunBrightness);
-      ambient.intensity = p.orbital ? 0.9 : 2.7;
+      // Low fill in orbit gives the planets a real night side.
+      ambient.intensity = p.orbital ? 0.35 : 2.7;
       sun.intensity = p.orbital ? 0.6 : 1.5 + (p.sunBrightness ?? 0.55) * 2;
-      bloom.strength = (p.sunBrightness ?? 0.55) * 1.3;
       boardSky.root.visible = !p.orbital && !studio;
       boardSky.draw(camera, worldClock, p.sunBrightness ?? 0.55, !!p.reduced);
       scene.fog = p.orbital ? null : boardFog;
@@ -1234,15 +1223,13 @@ export default function BoardScene(props: Props) {
         else orbit.update();
       }
       const renderStart = performance.now();
-      if (p.orbital && !p.low) composer.render();
-      else renderer.render(scene, camera);
+      renderer.render(scene, camera);
       perf.frame(now, elapsed, performance.now() - renderStart);
     }
     const resize = () => {
       const w = root.clientWidth,
         h = root.clientHeight;
       renderer.setSize(w, h);
-      composer.setSize(w, h);
       camera.aspect = w / h;
       studioFrame();
       camera.updateProjectionMatrix();
@@ -1255,9 +1242,6 @@ export default function BoardScene(props: Props) {
       cancelAnimationFrame(raf);
       observer.disconnect();
       orbit.dispose();
-      bloom.dispose();
-      outputPass.dispose();
-      composer.dispose();
       perf.dispose();
       disposed = true;
       director.dispose();
