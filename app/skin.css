@@ -641,3 +641,106 @@
 @media (prefers-reduced-motion: reduce) {
   :root .game-shell .emote-bubble { animation: none; }
 }
+
+/* ── Phone HUD: compact cards, then board info, then map controls ─────────── */
+@media (max-width: 700px) {
+  :root .game-shell.light-ui .edition {
+    top: 62px;
+    right: 15px;
+    transform: scale(0.85);
+    transform-origin: top right;
+  }
+  :root .game-shell.light-ui .scoreboard {
+    top: 104px;
+    gap: 6px;
+  }
+  :root .game-shell.light-ui .player-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 7px;
+    row-gap: 2px;
+    padding: 4px 8px 4px 4px;
+    border-radius: 16px;
+    min-width: 0;
+  }
+  :root .game-shell.light-ui .player-card.active {
+    transform: translateY(2px) scale(1.02);
+  }
+  :root .game-shell.light-ui .player-card .player-portrait {
+    grid-row: span 2;
+  }
+  :root .game-shell.light-ui .player-card .player-info {
+    min-width: 0;
+  }
+  :root .game-shell.light-ui .player-info strong {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+  :root .game-shell.light-ui .player-info small {
+    display: none;
+  }
+  :root .game-shell.light-ui .currency {
+    flex-direction: row;
+    gap: 4px;
+    font-size: 12px;
+  }
+  :root .game-shell.light-ui .currency span {
+    min-width: 0;
+    padding: 0 6px 0 1px;
+    line-height: 18px;
+  }
+  :root .game-shell.light-ui .currency .art {
+    width: 15px;
+    height: 15px;
+  }
+  :root .game-shell.light-ui .board-label {
+    top: 218px;
+    left: 15px;
+    right: 15px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 6px 10px;
+    gap: 5px;
+    font-size: 11px;
+    max-width: none;
+  }
+  :root .game-shell.light-ui .board-label .eyebrow {
+    display: none;
+  }
+  :root .game-shell.light-ui .map-controls {
+    top: auto;
+    bottom: 340px;
+  }
+  :root .game-shell.light-ui .scene .performance-chip {
+    top: auto;
+    bottom: 312px;
+    left: 15px;
+  }
+}
+/* Keyboard hints mean nothing on touch screens. */
+@media (pointer: coarse) {
+  .roll-button > span {
+    display: none;
+  }
+}
+/* On phones the fork choice is a bottom sheet so the roads stay visible. */
+@media (max-width: 700px) {
+  :root .game-shell .center-panel.fork-panel {
+    top: auto;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 52%;
+    transform: none;
+    padding: 16px;
+  }
+  :root .game-shell .center-panel.fork-panel h2 {
+    font-size: 22px;
+  }
+}

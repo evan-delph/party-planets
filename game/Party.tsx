@@ -1977,13 +1977,13 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
           {game.phase === 'moving' && (
             <div className="travel-status">
               <span>{active?.avatar.name} is exploring</span>
-              <b>{game.remaining} spaces to go</b>
+              <b>{game.remaining} {game.remaining === 1 ? 'space' : 'spaces'} to go</b>
             </div>
           )}
           {game.phase === 'fork' && (
             <section className="center-panel fork-panel">
               <span className="eyebrow">
-                A FORK IN THE ROAD · {game.remaining} STEPS LEFT
+                A FORK IN THE ROAD · {game.remaining} {game.remaining === 1 ? 'STEP' : 'STEPS'} LEFT
               </span>
               <h2>Which way, {active?.avatar.name}?</h2>
               <p>Your roll pauses here while you pick a road.</p>
