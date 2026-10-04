@@ -4,6 +4,7 @@ import { makeAvatar, animateAvatar } from '../avatar';
 import type { Avatar } from '../config';
 import type { Arena } from './simulation';
 import type { ArenaKind } from './catalog';
+import { stageLighting } from './planet-style';
 import {
   riverCenter,
   riverHazards,
@@ -32,6 +33,7 @@ export function createOverhaulRenderer(
   const scene = new T.Scene(),
     kit = new WorldKit(scene),
     camera = new T.PerspectiveCamera(48, 1, 0.1, 700);
+  stageLighting(scene, renderer, 'crown', false);
   scene.add(new T.HemisphereLight('#fff7e6', '#416a86', 3));
   const sun = new T.DirectionalLight('#fff0cf', 3);
   sun.position.set(-8, 24, 8);

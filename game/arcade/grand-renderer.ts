@@ -5,6 +5,7 @@ import { WorldKit, disposeObject, performanceMeter } from '../visuals';
 import { Arena, randomAt } from './simulation';
 import { ArenaKind } from './catalog';
 import { grandInfo } from './grand-catalog';
+import { stageLighting } from './planet-style';
 import { lane, fossilOutline, doughTarget, GObject, GTile } from './grand';
 const COLORS = ['#ffc856', '#f387a5', '#6abfed', '#ae91ef'],
   TEAM = ['#ffc856', '#76c9f6'];
@@ -93,6 +94,7 @@ export function createGrandRenderer(
   const perf = performanceMeter(renderer, root, kind),
     scene = new T.Scene(),
     camera = new T.OrthographicCamera(-20, 20, 14, -14, 0.1, 400);
+  stageLighting(scene, renderer, 'crown', false);
   scene.fog = new T.Fog(sky, 100, 300);
   scene.add(new T.HemisphereLight('#fff5df', water, 2.5));
   const sun = new T.DirectionalLight('#fff0d8', 3);
