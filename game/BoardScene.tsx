@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -383,6 +384,54 @@ export default function BoardScene(props: Props) {
           );
       }
     }
+    // Blender-built Nabbit figures beside every steal stop (public/models/nabbit.glb).
+    const nabbits: {
+      node: (typeof nodes)[number];
+      root: T.Object3D;
+      mixer: T.AnimationMixer;
+      home: T.Vector3;
+    }[] = [];
+    const nabbitSpots = nodes
+      .filter((n) => n.type === 'thief')
+      .map((n) => {
+        for (let i = 0; i < 32; i++) {
+          const a = Math.atan2(n.x, n.z) + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.45,
+            r = 2 + Math.floor(i / 12) * 0.6,
+            x = n.x + Math.sin(a) * r,
+            z = n.z + Math.cos(a) * r;
+          if (safe(x, z, 1.25)) return { n, x, z };
+        }
+        return { n, x: n.x * 1.06, z: n.z * 1.06 };
+      });
+    let disposed = false;
+    if (nabbitSpots.length)
+      new GLTFLoader().load(
+        '/models/nabbit.glb',
+        (gltf) => {
+          if (disposed) return disposeObject(gltf.scene);
+          for (const spot of nabbitSpots) {
+            const root = gltf.scene.clone(true);
+            root.scale.setScalar(1.15);
+            root.position.set(spot.x, 0.6, spot.z);
+            root.rotation.y = Math.atan2(spot.n.x - spot.x, spot.n.z - spot.z);
+            root.traverse((o) => {
+              if ((o as T.Mesh).isMesh) o.castShadow = true;
+            });
+            world.add(root);
+            const mixer = new T.AnimationMixer(root);
+            if (gltf.animations[0]) {
+              const idle = mixer.clipAction(gltf.animations[0]);
+              idle.time = Math.random() * gltf.animations[0].duration;
+              idle.play();
+            }
+            nabbits.push({ node: spot.n, root, mixer, home: root.position.clone() });
+          }
+        },
+        undefined,
+        () => {
+          // Optional art: a missing model (e.g. the offline file) leaves the board as-is.
+        },
+      );
     const landmark = board.landmark;
     const details = new T.Group();
     world.add(details);
@@ -915,6 +964,29 @@ export default function BoardScene(props: Props) {
         }
         animateAvatar(m, now / 1000, d > 0.1 ? speed : 0, mood, p.reduced);
       });
+      for (const nab of nabbits) {
+        nab.mixer.update(p.reduced ? 0 : dt);
+        // Hop and turn toward the explorer haggling at this Nabbit's stop.
+        const haggling =
+          game?.phase === 'steal' && game.steal?.space === nab.node.id;
+        const subject = meshes[game?.active ?? 0];
+        const face = haggling && subject
+          ? Math.atan2(
+              subject.position.x - nab.root.position.x,
+              subject.position.z - nab.root.position.z,
+            )
+          : Math.atan2(nab.node.x - nab.home.x, nab.node.z - nab.home.z);
+        nab.root.rotation.y +=
+          Math.atan2(
+            Math.sin(face - nab.root.rotation.y),
+            Math.cos(face - nab.root.rotation.y),
+          ) * Math.min(1, dt * 6);
+        nab.root.position.y =
+          nab.home.y +
+          (haggling && !p.reduced
+            ? Math.abs(Math.sin(worldClock * 7)) * 0.45
+            : 0);
+      }
       if (!studio)
         director.frame({
           game: game?.practice ? undefined : game,
@@ -1187,6 +1259,7 @@ export default function BoardScene(props: Props) {
       outputPass.dispose();
       composer.dispose();
       perf.dispose();
+      disposed = true;
       director.dispose();
       finale?.dispose();
       disposeObject(scene);
