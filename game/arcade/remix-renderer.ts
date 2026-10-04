@@ -15,6 +15,8 @@ import {
   pitchAt,
   spotlightApproach,
   critterScale,
+  soloDriven,
+  COMMANDER,
 } from './remix';
 import { remixInfo } from './remix-catalog';
 import { planetStyle } from './planet-style';
@@ -424,6 +426,35 @@ export function createRemixRenderer(
       scene.add(line);
       sentryAims.push(line);
     }
+  // 1 vs 3 sentry commander: an ice tower to stand on and a target reticle.
+  const tower = new T.Group();
+  tower.position.set(COMMANDER.x, 0, COMMANDER.z);
+  tower.visible = false;
+  scene.add(tower);
+  {
+    const k = new WorldKit(tower);
+    k.mesh(new T.CylinderGeometry(1.25, 1.6, COMMANDER.y, 10), '#cfeaf7', 0, COMMANDER.y / 2, 0);
+    k.mesh(new T.CylinderGeometry(1.45, 1.3, 0.25, 10), '#f4fbff', 0, COMMANDER.y, 0);
+    for (let j = 0; j < 8; j++) {
+      const a = (j / 8) * Math.PI * 2;
+      k.box(Math.cos(a) * 1.3, COMMANDER.y + 0.25, Math.sin(a) * 1.3, 0.35, 0.35, 0.35, '#e7f6ff');
+    }
+  }
+  const reticle = new T.Mesh(
+    new T.RingGeometry(0.55, 0.75, 4, 1),
+    new T.MeshBasicMaterial({
+      color: '#ff5d5d',
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false,
+      toneMapped: false,
+      side: T.DoubleSide,
+    }),
+  );
+  reticle.rotation.x = -Math.PI / 2;
+  reticle.renderOrder = 4;
+  reticle.visible = false;
+  scene.add(reticle);
   let skiSeed = -1;
   const course = new T.Group();
   scene.add(course);
@@ -1093,7 +1124,7 @@ export function createRemixRenderer(
       if (o.kind === 'crab') g.rotation.z = Math.sin(time * 16 + o.id) * 0.07;
     }
     monster.position.set(r.beast.x, 0, r.beast.z);
-    monster.scale.setScalar(critterScale(w.time));
+    monster.scale.setScalar(critterScale(w.time, soloDriven(w)));
     monster.rotation.y = Math.atan2(r.beast.dx, r.beast.dz);
     fissures.forEach((m, j) => {
       (m.material as T.MeshStandardMaterial).emissive.set('#f36c28');
@@ -1101,14 +1132,27 @@ export function createRemixRenderer(
         (w.time + j * 0.9) % 5 > 3.2 ? 0.8 : 0;
       m.scale.setScalar((w.time + j * 0.9) % 5 > 4.1 ? 1.1 : 1);
     });
+    const commanded = soloDriven(w) && kind === 'cannoncay';
+    tower.visible = reticle.visible = commanded;
+    if (commanded) {
+      reticle.position.set(r.lean.x, 0.08, r.lean.z);
+      reticle.rotation.z = time * 2;
+      reticle.scale.setScalar(w.actors[0].cooldown > 0 ? 0.75 : 1);
+    }
     sentries.forEach((g, i) => {
-      const p = w.actors[r.serial % 4];
-      if (i === r.serial % 6)
+      // Showdowns aim at the commander's reticle; otherwise at a runner.
+      const p = commanded
+        ? { x: r.lean.x, z: r.lean.z }
+        : w.actors[r.serial % 4];
+      const loaded = i === r.serial % 6;
+      if (loaded)
         g.rotation.y = Math.atan2(p.x - g.position.x, p.z - g.position.z);
       g.rotation.z = Math.sin(time * 2 + i) * 0.08;
+      g.scale.setScalar(commanded && loaded ? 1.18 + Math.sin(time * 8) * 0.04 : 1);
       const line = sentryAims[i];
-      line.visible =
-        i === r.serial % 6 && r.spawn - w.time >= 0 && r.spawn - w.time <= 0.65;
+      line.visible = commanded
+        ? loaded
+        : loaded && r.spawn - w.time >= 0 && r.spawn - w.time <= 0.65;
       if (line.visible) {
         aimStart.set(g.position.x, 0.16, g.position.z);
         aimEnd.set(p.x, 0.16, p.z);

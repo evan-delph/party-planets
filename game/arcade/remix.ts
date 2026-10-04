@@ -85,7 +85,9 @@ export function pitchAt(seed: number, time: number) {
     type = Math.floor(randomAt(seed, 8100 + pitch) * 3);
   return { pitch, type, contact: [0.78, 1.06, 0.92][type], cycle: time % 1.45 };
 }
-export const critterScale = (time: number) => 1 + Math.min(0.9, time * 0.025);
+/** The critter grows through a free-for-all; a ridden critter stays compact. */
+export const critterScale = (time: number, ridden = false) =>
+  ridden ? 1.1 : 1 + Math.min(0.9, time * 0.025);
 export function spotlightApproach(seed: number, heat: number, time: number) {
   const arrival = 3.9 + randomAt(seed, 9400 + heat) * 3.1;
   const hesitation = 0.25 + randomAt(seed, 9500 + heat) * 1.5;
@@ -263,10 +265,118 @@ function resetHeat(w: Arena, heat: number) {
     p.score = r.seats[i].points;
   });
 }
+/**
+ * Board 1 vs 3 versions of free-for-all survival games: the solo alien in
+ * seat 0 rides the lava critter or commands the snow sentries, and wins by
+ * catching all three runners within 30 seconds.
+ */
+export const SOLO_DRIVEN = ['tidetiles', 'cannoncay'];
+export const soloDriven = (w: Arena) =>
+  w.mode === '1v3' && SOLO_DRIVEN.includes(w.kind);
+/** Snow sentries ring the pond; the commander throws from the one that's loaded. */
+export const sentrySpot = (index: number) => {
+  const a = (index * Math.PI) / 3;
+  return { x: Math.cos(a) * 12, z: Math.sin(a) * 8 };
+};
+export const COMMANDER = { x: 0, z: -10.4, y: 2.2 };
+/** Showdown tuning (see the 1 vs 3 balance check in tests/party-rules). */
+const SENTRY_LIVES = 1,
+  CHARGE = { speed: 9, time: 0.55, cooldown: 2.1, walk: 3.5 };
+function driveSolo(w: Arena, { c, ap }: { c: Control; ap: boolean }) {
+  const r = w.remix!,
+    solo = w.actors[0];
+  solo.alive = true;
+  if (w.kind === 'tidetiles') {
+    // Steer the critter; Space launches a short charge.
+    const b = r.beast,
+      steer = Math.hypot(c.x, c.z);
+    if (ap && solo.cooldown <= 0) {
+      b.phase = w.time + CHARGE.time;
+      solo.cooldown = CHARGE.cooldown;
+    }
+    const charging = w.time < b.phase;
+    if (steer > 0.15 && !charging) {
+      b.dx += (c.x / steer - b.dx) * Math.min(1, dt * 8);
+      b.dz += (c.z / steer - b.dz) * Math.min(1, dt * 8);
+      const n = Math.hypot(b.dx, b.dz) || 1;
+      b.dx /= n;
+      b.dz /= n;
+    }
+    if (charging || steer > 0.15) {
+      const speed = charging ? CHARGE.speed : CHARGE.walk;
+      b.x = clamp(b.x + b.dx * speed * dt, -9, 9);
+      b.z = clamp(b.z + b.dz * speed * dt, -6.5, 6.5);
+    }
+    const size = critterScale(w.time, true);
+    solo.x = b.x;
+    solo.z = b.z;
+    solo.y = 0.95 * size;
+    solo.vx = charging ? b.dx * CHARGE.speed : 0;
+    solo.vz = charging ? b.dz * CHARGE.speed : 0;
+    solo.face = Math.atan2(b.dx, b.dz);
+    return;
+  }
+  // Snow sentries: move the reticle across the pond and throw from the
+  // loaded sentry, which rotates after every throw.
+  r.lean.x = clamp(r.lean.x + c.x * 9.5 * dt, -10, 10);
+  r.lean.z = clamp(r.lean.z + c.z * 9.5 * dt, -7, 7);
+  const from = sentrySpot(r.serial % 6);
+  if (ap && solo.cooldown <= 0) {
+    const d = Math.hypot(r.lean.x - from.x, r.lean.z - from.z) || 1;
+    add(w, 'snowball', from.x, from.z, {
+      vx: ((r.lean.x - from.x) / d) * 8.5,
+      vz: ((r.lean.z - from.z) / d) * 8.5,
+      r: 0.48,
+      life: 5,
+      y: 0.45,
+      owner: 0,
+    });
+    solo.cooldown = 0.7;
+  }
+  r.spawn = w.time + solo.cooldown;
+  solo.x = COMMANDER.x;
+  solo.z = COMMANDER.z;
+  solo.y = COMMANDER.y;
+  solo.vx = solo.vz = 0;
+  solo.face = Math.atan2(r.lean.x - solo.x, r.lean.z - solo.z);
+}
+function cpuSolo(w: Arena, p: Runner): Control {
+  const r = w.remix!,
+    c: Control = { x: 0, z: 0, a: false, b: false, seq: 0 },
+    alive = w.actors.slice(1).filter((q) => q.alive);
+  const from =
+    w.kind === 'tidetiles' ? { x: r.beast.x, z: r.beast.z } : { x: r.lean.x, z: r.lean.z };
+  const target = alive.sort(
+    (a, b) =>
+      Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z),
+  )[0];
+  if (!target) return c;
+  // Lead by the snowball's flight time; easier CPUs lead less and wobble more.
+  const sentry = sentrySpot(r.serial % 6),
+    flight =
+      w.kind === 'cannoncay'
+        ? Math.hypot(target.x - sentry.x, target.z - sentry.z) / 8.5
+        : 0.3;
+  const lead = flight * [0.35, 0.7, 0.95][w.difficulty],
+    wobble = [1.6, 0.9, 0.45][w.difficulty],
+    tx = target.x + target.vx * lead + Math.sin(w.time * 1.7) * wobble,
+    tz = target.z + target.vz * lead + Math.cos(w.time * 1.3) * wobble,
+    d = Math.hypot(tx - from.x, tz - from.z);
+  const gain = [0.8, 0.9, 1][w.difficulty];
+  c.x = clamp(((tx - from.x) / Math.max(0.5, d)) * gain, -1, 1);
+  c.z = clamp(((tz - from.z) / Math.max(0.5, d)) * gain, -1, 1);
+  // Alternate the button so each throw/charge is a fresh press.
+  const ready = p.cooldown <= 0 && w.tick % 2 === 0;
+  c.a = w.kind === 'tidetiles' ? ready && d < 4.2 : ready && d < 1.3;
+  return c;
+}
 export function startRemix(w: Arena) {
   const meta = remixInfo(w.kind)!;
   // A board 1 vs 3 plays one long heat with a fixed solo alien in seat 0.
-  w.duration = w.mode === '1v3' && meta.heats ? 30 : meta.duration;
+  w.duration =
+    w.mode === '1v3' && (meta.heats || SOLO_DRIVEN.includes(w.kind))
+      ? 30
+      : meta.duration;
   w.remix = {
     revision: 1,
     objects: [],
@@ -342,6 +452,18 @@ export function startRemix(w: Arena) {
     }
   });
   if (meta.heats) resetHeat(w, 0);
+  if (soloDriven(w)) {
+    // Runners start spread across the far side, away from the solo alien.
+    w.actors.forEach((p, i) => {
+      if (!i) return;
+      p.x = (i - 2) * 5 + (randomAt(w.seed, 70 + i) - 0.5) * 3;
+      p.z = (w.kind === 'cannoncay' ? 3 : 4.5) + (randomAt(w.seed, 90 + i) - 0.5) * 2;
+      if (w.kind === 'cannoncay') p.lives = SENTRY_LIVES;
+    });
+    w.remix.beast = { x: 0, z: -4.5, dx: 0, dz: 1, phase: -1 };
+    w.remix.lean = { x: 0, z: 0 };
+    driveSolo(w, { c: { x: 0, z: 0, a: false, b: false, seq: 0 }, ap: false });
+  }
   if (w.kind === 'hotelhiccup') {
     const permutation = [0, 1, 2, 3, 4, 5];
     for (let i = 5; i > 0; i--) {
@@ -371,6 +493,7 @@ function cpu(w: Arena, p: Runner, i: number): Control {
     k = w.kind,
     c: Control = { x: 0, z: 0, a: false, b: false, seq: 0 },
     reaction = [0.3, 0.15, 0.07][w.difficulty];
+  if (i === 0 && soloDriven(w)) return cpuSolo(w, p);
   if (w.time < s.next) return c;
   if (k === 'prickleice') {
     const rock = skiRocks(w.seed).find(
@@ -525,12 +648,68 @@ function cpu(w: Arena, p: Runner, i: number): Control {
         Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z),
     )[0];
   if (k === 'tidetiles') {
-    const b = r.beast;
-    c.x = clamp(p.x - b.x, -1, 1);
-    c.z = clamp(p.z - b.z, -1, 1);
-    if (Math.abs(p.x) > 7) c.x = -Math.sign(p.x);
-    if (Math.abs(p.z) > 5) c.z = -Math.sign(p.z);
-    c.a = p.cooldown <= 0 && Math.hypot(p.x - b.x, p.z - b.z) < 3;
+    const b = r.beast,
+      bd = Math.hypot(p.x - b.x, p.z - b.z) || 1;
+    // Score a ring of directions: room from the critter, out of its charge
+    // lane, away from walls/corners and glowing fissures. A little noise
+    // (more for easier CPUs) keeps runners from moving as one.
+    const beat = Math.floor(w.time * 3),
+      noise = [2.2, 1.3, 0.6][w.difficulty];
+    let best = -Infinity;
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2,
+        dx = Math.sin(a),
+        dz = Math.cos(a),
+        nx = p.x + dx * 2.2,
+        nz = p.z + dz * 2.2;
+      let score = Math.min(7, Math.hypot(nx - b.x, nz - b.z));
+      const ahead = (nx - b.x) * b.dx + (nz - b.z) * b.dz,
+        lateral = Math.abs((nx - b.x) * b.dz - (nz - b.z) * b.dx);
+      if (ahead > 0 && ahead < 7 && lateral < 1.8) score -= 3;
+      score -= Math.max(0, Math.abs(nx) - 7) * 2.5 + Math.max(0, Math.abs(nz) - 4.5) * 2.5;
+      for (let j = 0; j < 4; j++) {
+        const x = (j % 2 ? 1 : -1) * 4,
+          z = (j < 2 ? -1 : 1) * 3;
+        if ((w.time + j * 0.9) % 5 > 3.2 - reaction && Math.hypot(nx - x, nz - z) < 2.1)
+          score -= 5;
+      }
+      score += (randomAt(w.seed, i * 997 + k * 13 + beat * 131) - 0.5) * noise;
+      if (score > best) {
+        best = score;
+        c.x = dx;
+        c.z = dz;
+      }
+    }
+    c.a = p.cooldown <= 0 && bd < 2.4;
+  } else if (k === 'cannoncay' && soloDriven(w)) {
+    // Score directions by clearance from snowballs in flight and from the
+    // commander's reticle; easier runners sometimes misread a throw.
+    const beat = Math.floor(w.time * 3),
+      misread = randomAt(w.seed, i * 577 + beat) < [0.35, 0.2, 0.08][w.difficulty];
+    let best = -Infinity;
+    for (let k2 = 0; k2 < 12; k2++) {
+      const a = (k2 / 12) * Math.PI * 2,
+        dx = Math.sin(a),
+        dz = Math.cos(a),
+        nx = p.x + dx * 1.6,
+        nz = p.z + dz * 1.6;
+      let score = Math.min(4, Math.hypot(nx - r.lean.x, nz - r.lean.z)) * 0.6;
+      if (!misread)
+        for (const o of r.objects) {
+          if (o.kind !== 'snowball') continue;
+          const ox = o.x + o.vx * 0.3,
+            oz = o.z + o.vz * 0.3,
+            d = Math.hypot(nx - ox, nz - oz);
+          if (d < 1.8) score -= (1.8 - d) * 4;
+        }
+      score -= Math.max(0, Math.abs(nx) - 8) * 2 + Math.max(0, Math.abs(nz) - 5.5) * 2;
+      score += (randomAt(w.seed, i * 991 + k2 * 17 + beat * 137) - 0.5) * 0.8;
+      if (score > best) {
+        best = score;
+        c.x = dx;
+        c.z = dz;
+      }
+    }
   } else if (danger && Math.hypot(danger.x - p.x, danger.z - p.z) < 4) {
     c.x = clamp(p.x - danger.x, -1, 1);
     c.z = clamp(p.z - danger.z, -1, 1);
@@ -547,7 +726,8 @@ export function stepRemix(w: Arena) {
   w.pulse = Math.max(0, w.pulse - dt);
   const r = w.remix!,
     kind = w.kind,
-    meta = remixInfo(kind)!;
+    meta = remixInfo(kind)!,
+    driven = soloDriven(w);
   if (meta.heats) {
     const heat =
       w.mode === '1v3' ? 0 : Math.min(3, Math.floor((w.tick - 1) / 780));
@@ -584,7 +764,7 @@ export function stepRemix(w: Arena) {
     p.stun = Math.max(0, p.stun - dt);
     return { c, ap, bp };
   });
-  if (kind === 'tidetiles') {
+  if (kind === 'tidetiles' && !driven) {
     const cycle = Math.floor(w.time / 2.6),
       q = w.time % 2.6,
       b = r.beast;
@@ -605,7 +785,7 @@ export function stepRemix(w: Arena) {
     b.x = clamp(b.x, -9, 9);
     b.z = clamp(b.z, -6.5, 6.5);
   }
-  if (kind === 'cannoncay' && w.time >= r.spawn) {
+  if (kind === 'cannoncay' && !driven && w.time >= r.spawn) {
     const index = r.serial % 6,
       a = (index * Math.PI) / 3,
       x = Math.cos(a) * 12,
@@ -662,10 +842,13 @@ export function stepRemix(w: Arena) {
   }
   if (kind === 'prickleice')
     r.avalanche = -18 + 6.2 * w.time + 0.029 * w.time * w.time;
+  if (driven) driveSolo(w, inputs[0]);
   w.actors.forEach((p, i) => {
     const s = r.seats[i],
       { c, ap, bp } = inputs[i];
     if (p.finish || (!p.alive && !meta.heats)) return;
+    // The solo driver is placed by driveSolo, never by the runner rules.
+    if (driven && i === 0) return;
     if (kind === 'prickleice') {
       const tumbling = w.time < s.tumbleUntil;
       if (c.a && !tumbling && w.time - s.lastPole >= 1 / 6) {
@@ -1081,8 +1264,9 @@ export function stepRemix(w: Arena) {
       jump(p, kind === 'tidetiles' && ap);
       if (kind === 'tidetiles') {
         const b = r.beast;
-        const size = critterScale(w.time);
-        if (Math.hypot(p.x - b.x, p.z - b.z) < size + 0.3 && p.y < 0.7 * size)
+        const size = critterScale(w.time, driven);
+        // A ridden critter is low enough to hop clean over.
+        if (Math.hypot(p.x - b.x, p.z - b.z) < size + 0.3 && p.y < (driven ? 0.55 : 0.7) * size)
           out(w, p);
         for (let j = 0; j < 4; j++) {
           const x = (j % 2 ? 1 : -1) * 4,
@@ -1170,16 +1354,24 @@ export function stepRemix(w: Arena) {
       }
     }
     if (o.kind === 'snowball' || o.kind === 'crab')
-      w.actors.forEach((p) => {
+      w.actors.forEach((p, i) => {
         if (
           !p.alive ||
           o.life <= 0 ||
+          (driven && i === 0) ||
           Math.hypot(o.x - p.x, o.z - p.z) > o.r + 0.42
         )
           return;
         if (o.kind === 'snowball') {
-          out(w, p);
           o.life = 0;
+          // Showdown runners take two hits, with a moment of grace between.
+          if (driven) {
+            if (p.stun > 0) return;
+            p.lives--;
+            p.flash = 0.6;
+            p.stun = 1.2;
+            if (p.lives <= 0) out(w, p);
+          } else out(w, p);
         } else {
           p.z += dt * (o.r > 0.8 ? 14 : 9);
           p.x += Math.sign(p.x - o.x) * dt * 2;
@@ -1265,10 +1457,14 @@ export function stepRemix(w: Arena) {
     w.endAt = w.time + 1.5;
   if (w.time >= w.duration || (w.endAt > 0 && w.time >= w.endAt)) {
     w.done = true;
-    // The solo alien wins by keeping the beacon lit / staying on the saucer.
-    if (w.mode === '1v3' && meta.heats)
-      w.actors.forEach((p, i) => (p.score = (i === 0) === soloHeld ? 1 : 0));
-    if (meta.policy === 'survival')
+    // The solo alien wins by keeping the beacon lit / staying on the saucer,
+    // or, when driving the critter or sentries, by catching all three.
+    if (w.mode === '1v3' && (meta.heats || driven)) {
+      const soloWon = driven
+        ? w.actors.slice(1).every((p) => !p.alive)
+        : soloHeld;
+      w.actors.forEach((p, i) => (p.score = (i === 0) === soloWon ? 1 : 0));
+    } else if (meta.policy === 'survival')
       w.actors
         .filter((p) => p.alive)
         .forEach((p) => (p.score = 100000 + Math.round(w.time * 100)));
@@ -1282,6 +1478,25 @@ export function remixReadout(w: Arena, id: string) {
     ),
     p = w.actors[i],
     s = r.seats[i];
+  if (soloDriven(w)) {
+    const left = w.actors.slice(1).filter((q) => q.alive).length,
+      clock = Math.max(0, Math.ceil(w.duration - w.time)),
+      critter = w.kind === 'tidetiles';
+    if (w.done) return { title: 'Showdown complete', detail: `${left} of 3 runners survived` };
+    return i === 0
+      ? {
+          title: `YOU ${critter ? 'RIDE THE CRITTER' : 'COMMAND THE SENTRIES'} · ${left} left · ${clock}s`,
+          detail: critter
+            ? 'WASD steer · Space charge (recharges in 2s)'
+            : 'WASD aim the reticle · Space throw from the glowing sentry',
+        }
+      : {
+          title: `SURVIVE ${clock}s · ${left} of 3 still standing`,
+          detail: critter
+            ? 'Hop (Space) and keep moving — one survivor wins it for the team'
+            : `Dodge the glowing sentry's aim · ${p.alive ? `${p.lives} hit${p.lives === 1 ? '' : 's'} left` : 'out'}`,
+        };
+  }
   if (w.kind === 'prickleice')
     return {
       title: `${Math.floor(p.distance)} / 240 m · Avalanche ${Math.max(0, Math.floor(p.distance - r.avalanche))} m behind`,

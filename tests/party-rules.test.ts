@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import { getBoard } from '../game/boards';
 import { DEFAULT_AVATAR, RULES } from '../game/config';
-import { miniMode } from '../game/arcade/catalog';
+import { ALL_ARCADE, supportsMode } from '../game/arcade/catalog';
+import { advanceArena, createArena } from '../game/arcade/simulation';
 import {
   arenaPlayers,
   cpuItem,
@@ -66,14 +67,14 @@ function vote(colors: ('blue' | 'red')[]) {
 const ffa = vote(['blue', 'blue', 'blue', 'blue']);
 equal(ffa.miniMode, 'ffa', 'Four blue landings make a free-for-all');
 check(
-  ffa.vote!.choices.every((n) => miniMode(n) === 'ffa'),
+  ffa.vote!.choices.every((n) => supportsMode(n, 'ffa')),
   'A free-for-all ballot only offers 4-player games',
 );
 const duo = vote(['blue', 'red', 'red', 'blue']);
 equal(duo.miniMode, '2v2', 'Two blue and two red landings make 2 vs 2');
 equal(duo.lineup, ['p0', 'p3', 'p1', 'p2'], 'Teams sit together, blue first');
 check(
-  duo.vote!.choices.every((n) => miniMode(n) === '2v2') &&
+  duo.vote!.choices.every((n) => supportsMode(n, '2v2')) &&
     duo.vote!.choices.length === 3,
   'A team ballot offers three 2 vs 2 games',
 );
@@ -81,9 +82,9 @@ const solo = vote(['red', 'blue', 'red', 'red']);
 equal(solo.miniMode, '1v3', 'One odd color out makes a 1 vs 3');
 equal(solo.lineup![0], 'p1', 'The lone color takes the solo seat');
 check(
-  solo.vote!.choices.length >= 1 &&
-    solo.vote!.choices.every((n) => miniMode(n) === '1v3'),
-  'A solo showdown ballot offers only 1 vs 3 games',
+  solo.vote!.choices.length === 3 &&
+    solo.vote!.choices.every((n) => supportsMode(n, '1v3')),
+  'A solo showdown ballot offers three 1 vs 3 games',
 );
 const lone = vote(['blue', 'blue', 'blue', 'red']);
 equal(lone.lineup![0], 'p3', 'Three blue and one red puts the red player solo');
@@ -166,6 +167,38 @@ equal(
     tied.players.every((p, i) => p.shells - before[i] === RULES.teamTie),
     'A team tie pays everyone the tie prize',
   );
+}
+// Solo-driven showdowns: the solo alien rides the critter / commands the
+// sentries. CPU-vs-CPU outcomes at normal difficulty stay roughly even.
+{
+  for (const id of ['tidetiles', 'cannoncay']) {
+    const index = ALL_ARCADE.findIndex((m) => m.id === id);
+    check(supportsMode(index, '1v3') && supportsMode(index, 'ffa'), `${id} offers both shapes`);
+    let soloWins = 0;
+    const runs = 30;
+    for (let seed = 1; seed <= runs; seed++) {
+      const w = createArena(
+        index,
+        [0, 1, 2, 3].map((i) => ({ id: 'p' + i, cpu: true })),
+        1,
+        seed * 977,
+        '1v3',
+      );
+      advanceArena(w, 40);
+      const scores = w.actors.map((a) => a.score);
+      check(
+        w.done &&
+          w.duration === 30 &&
+          (scores.join() === '1,0,0,0' || scores.join() === '0,1,1,1'),
+        `${id} showdown ${seed} finishes with a solo-or-trio result`,
+      );
+      if (scores[0] === 1) soloWins++;
+    }
+    check(
+      soloWins / runs > 0.2 && soloWins / runs < 0.75,
+      `${id} showdown balance: solo wins ${Math.round((soloWins / runs) * 100)}%`,
+    );
+  }
 }
 {
   const g = structuredClone(solo);

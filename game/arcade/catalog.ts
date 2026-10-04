@@ -160,18 +160,28 @@ export const MODE_LABEL: Record<MiniMode, string> = {
   '1v3': '1 vs 3',
   '2v2': '2 vs 2',
 };
-const TEAM_MODES: Record<string, MiniMode> = {
-  duos: '2v2',
-  factory: '2v2',
-  frostyfreight: '2v2',
-  pelicanpilots: '2v2',
-  geckograffiti: '2v2',
-  returnsender: '2v2',
-  skewergallery: '1v3',
-  boulderbuffet: '1v3',
+/** Team shapes each game supports; the first is its primary shape. */
+const MODES: Record<string, MiniMode[]> = {
+  duos: ['2v2'],
+  factory: ['2v2'],
+  frostyfreight: ['2v2'],
+  pelicanpilots: ['2v2'],
+  geckograffiti: ['2v2'],
+  returnsender: ['2v2'],
+  skewergallery: ['1v3'],
+  boulderbuffet: ['1v3'],
+  // Survival games whose 1 vs 3 puts the solo alien in charge of the danger.
+  tidetiles: ['ffa', '1v3'],
+  cannoncay: ['ffa', '1v3'],
 };
+export function miniModes(index: number): MiniMode[] {
+  return MODES[arcadeInfo(index).id] ?? ['ffa'];
+}
 export function miniMode(index: number): MiniMode {
-  return TEAM_MODES[arcadeInfo(index).id] ?? 'ffa';
+  return miniModes(index)[0];
+}
+export function supportsMode(index: number, mode: MiniMode) {
+  return miniModes(index).includes(mode);
 }
 export const DEFAULT_MINIGAME_POOL: string[] = AVAILABLE_ARCADE.map(
   (game) => game.id,

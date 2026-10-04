@@ -415,6 +415,14 @@ export default function ArcadeGame(props: Props) {
     };
   }, [props.game.seed, props.game.mini, props.game.boardId, props.low]);
   const me = hud.actors.find((p) => p.id === props.meId) ?? hud.actors[0],
+    // Some 1 vs 3 games give the solo alien different controls.
+    role =
+      hud.mode === '1v3'
+        ? remixInfo(info.id)?.roles?.[me.team === 0 ? 'solo' : 'team']
+        : undefined,
+    controls = role?.controls ?? info.controls,
+    actionLabel = role?.action ?? info.action,
+    tip = role?.tip ?? info.tip,
     mates = hud.actors
       .filter((a) => a.team === me.team && a.id !== me.id)
       .map((a) => seats.find((p) => p.id === a.id)?.avatar.name ?? '?'),
@@ -687,7 +695,7 @@ export default function ArcadeGame(props: Props) {
           )}
           {info.id !== 'canopy' && (
             <>
-              <kbd>{connectedPad ? 'A' : 'SPACE'}</kbd> {info.action}
+              <kbd>{connectedPad ? 'A' : 'SPACE'}</kbd> {actionLabel}
             </>
           )}
           {info.id === 'race' && (
@@ -700,7 +708,7 @@ export default function ArcadeGame(props: Props) {
           {grand && info.id !== 'mangosluggers' ? (
             <>
               <kbd>{connectedPad ? 'B' : 'E'}</kbd>{' '}
-              {info.controls
+              {controls
                 .split(' · ')
                 .filter((s) => /E | E|E$/.test(s))
                 .join(' · ') || 'Secondary action'}
@@ -808,7 +816,7 @@ export default function ArcadeGame(props: Props) {
               edges.current.ar++;
             }}
           >
-            {info.action}
+            {actionLabel}
           </button>
         </div>
       </div>
@@ -842,17 +850,17 @@ export default function ArcadeGame(props: Props) {
                   </kbd>
                   <span>
                     {connectedPad
-                      ? info.controls
+                      ? controls
                           .replace(/WASD|Arrows|arrows/g, 'Stick / D-pad')
                           .replace(/Space|SPACE/g, 'A')
                           .replace(/\bE\b/g, 'B') +
                         (props.online
                           ? ' · Start / Menu leaves view; match keeps running'
                           : ' · Start / Menu to pause')
-                      : info.controls}
+                      : controls}
                   </span>
                 </div>
-                <p className="brief-tip">{info.tip}</p>
+                <p className="brief-tip">{tip}</p>
                 <div className="brief-team">
                   {hud.mode === '1v3'
                     ? me.team === 0

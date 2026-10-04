@@ -7,7 +7,7 @@ import {
 import {
   arcadeInfo,
   AVAILABLE_ARCADE,
-  miniMode,
+  supportsMode,
   normalizeMinigamePool,
   type MiniMode,
 } from './arcade/catalog';
@@ -357,7 +357,7 @@ export function arenaPlayers(s: Game): Player[] {
 }
 export function arenaFor(s: Game, index: number, seed: number) {
   const mode =
-    s.miniMode && miniMode(index) === s.miniMode ? s.miniMode : undefined;
+    s.miniMode && supportsMode(index, s.miniMode) ? s.miniMode : undefined;
   return createArena(index, arenaPlayers(s), s.difficulty, seed, mode);
 }
 /** Fewest forward steps between two spaces (main roads only). */
@@ -424,10 +424,10 @@ function startMini(s: Game, now: number, rng: () => number) {
       : blues.length === 1 || blues.length === 3
         ? '1v3'
         : 'ffa';
-  let pool = enabled.filter((n) => miniMode(n) === mode);
+  let pool = enabled.filter((n) => supportsMode(n, mode));
   if (!pool.length) {
     mode = 'ffa';
-    pool = enabled.filter((n) => miniMode(n) === 'ffa');
+    pool = enabled.filter((n) => supportsMode(n, 'ffa'));
   }
   // Only team games enabled: play them with seat-paired teams.
   if (!pool.length) pool = enabled;

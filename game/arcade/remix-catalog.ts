@@ -32,6 +32,8 @@ type Meta = {
   heats: boolean;
   /** Briefing for the fixed-solo board 1 vs 3 version. */
   soloBrief?: string;
+  /** Per-role controls in a 1 vs 3 where the solo alien plays differently. */
+  roles?: Record<'solo' | 'team', { controls: string; action: string; tip: string }>;
 };
 const entry = (
   name: string,
@@ -242,6 +244,34 @@ export const REMIX_META: Record<RemixKind, Meta> = {
 };
 REMIX_META.skewergallery.soloBrief =
   'One alien carries the beacon for 30 seconds while three rivals try to soak it. Keep it lit to win the showdown; three hits and the team wins.';
+REMIX_META.tidetiles.soloBrief =
+  'One alien rides the lava critter for 30 seconds: steer it and charge to bowl over the other three. Catch everyone to win; one survivor wins it for the team.';
+REMIX_META.cannoncay.soloBrief =
+  'One alien commands the snow sentries from the ice tower, aiming each throw across the pond. One hit knocks a runner out; get all three in 30 seconds to win.';
+REMIX_META.tidetiles.roles = {
+  solo: {
+    controls: 'WASD: steer the critter · Space: charge',
+    action: 'Charge',
+    tip: 'Charges are fast but recharge for two seconds. Herd runners toward walls and erupting fissures, then charge.',
+  },
+  team: {
+    controls: 'WASD: move · Space: hop',
+    action: 'Hop',
+    tip: 'A ridden critter is low enough to hop over. Spread out so it can only chase one of you, and stay off glowing fissures.',
+  },
+};
+REMIX_META.cannoncay.roles = {
+  solo: {
+    controls: 'WASD: aim the reticle · Space: throw',
+    action: 'Throw',
+    tip: 'Throws come from the glowing sentry and the next one loads after each throw. Aim where runners are heading, not where they are.',
+  },
+  team: {
+    controls: 'WASD: move · E: brake',
+    action: 'Move',
+    tip: 'Watch the glowing sentry and its aim line. One hit and you are out, but one survivor wins it for the team.',
+  },
+};
 REMIX_META.boulderbuffet.soloBrief =
   'One alien balances on the saucer for 30 seconds while three rivals splash waves at it. Stay aboard to win; fall off and the team wins.';
 export function remixInfo(id: string): Meta | undefined {
