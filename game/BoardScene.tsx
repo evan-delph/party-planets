@@ -19,6 +19,7 @@ import { terrainMaterial, addGroundDetail } from './Surfaces';
 import { createAlienScenery } from './AlienScenery';
 import { createPlanetarium } from './Planetarium';
 import { createBoardEffects } from './BoardEffects';
+import { createBoardDirector } from './BoardDirector';
 import { createFinale } from './Finale';
 import { createBoardSky } from './SpaceLife';
 type Props = {
@@ -480,6 +481,7 @@ export default function BoardScene(props: Props) {
     composer.addPass(bloom);
     composer.addPass(outputPass);
     const boardEffects = createBoardEffects(world, board);
+    const director = createBoardDirector(world, nodes);
     const ship = makeUfo();
     world.add(ship);
     const startNode = nodes[0],
@@ -568,7 +570,8 @@ export default function BoardScene(props: Props) {
       transition = 0,
       followZoom = 0,
       previousPhase = '',
-      previousPos = -1;
+      previousPos = -1,
+      lastAnnounce = -1;
     let finale: ReturnType<typeof createFinale> | undefined,
       finaleKey = '';
     const transitionPosition = new T.Vector3(),
@@ -706,6 +709,23 @@ export default function BoardScene(props: Props) {
             18 * (1 - landing),
           ),
         );
+      // Once the whole crew is out, the ship lifts clear so it never hides the start.
+      const crewOut =
+        !!game &&
+        !game.flight &&
+        game.players.every((q) => game.departed?.[q.id] !== undefined);
+      const lift = crewOut
+        ? T.MathUtils.smoothstep(
+            serverNow,
+            (game!.rampClosesAt ?? 0) + 1100,
+            (game!.rampClosesAt ?? 0) + 3600,
+          )
+        : 0;
+      if (lift > 0 && game?.phase !== 'finished' && game?.phase !== 'bonus') {
+        ship.position.y += lift * 8.5;
+        ship.position.addScaledVector(approach, -lift * 3);
+        if (!p.reduced) ship.position.y += Math.sin(worldClock * 0.9) * 0.25 * lift;
+      }
       ship.rotation.z =
         flight && !p.reduced ? Math.sin(landing * Math.PI) * 0.16 : 0;
       const rampOpen = flight
@@ -791,7 +811,8 @@ export default function BoardScene(props: Props) {
           !!game?.movement && i === game.active && game.phase === 'moving';
         const n = nodes[player?.pos ?? 0];
         let d = 0,
-          speed = 0;
+          speed = 0,
+          hop = 0;
         m.visible = true;
         if (boarded) {
           target.set(i % 2 ? 0.57 : -0.57, 1.3, i < 2 ? 0.42 : -0.42);
@@ -835,8 +856,10 @@ export default function BoardScene(props: Props) {
           m.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
           d = progress < 1 ? 1 : 0;
           speed = BOARD_WALK_SPEED;
-          if (d && now - lastStep > 280) {
-            lastStep = now;
+          // One springy hop per space, like a game piece bounding along the road.
+          hop = p.reduced ? 0 : Math.sin(progress * Math.PI) * 0.62;
+          if (progress >= 0.9 && lastStep !== edge.startedAt) {
+            lastStep = edge.startedAt;
             window.dispatchEvent(
               new CustomEvent('sp-sound', {
                 detail: { kind: 'step', delta: 0 },
@@ -878,20 +901,43 @@ export default function BoardScene(props: Props) {
           mood = react ? (delta >= 0 ? 'happy' : 'sad') : 'neutral';
         m.position.y =
           0.96 +
+          hop +
           (!p.reduced && react && delta > 0
             ? Math.max(0, Math.sin(age * 8)) * 0.65
-            : !p.reduced && d > 0.1
-              ? Math.abs(Math.sin(now * 0.017)) * 0.07
-              : 0);
+            : 0);
         m.scale.set(a.width * 0.72, a.height * 0.72, a.width * 0.72);
+        // Stretch while airborne, squash on touchdown.
+        if (hop > 0) {
+          const stretch = 1 + (hop / 0.62 - 0.5) * 0.16;
+          m.scale.y *= stretch;
+          m.scale.x /= Math.sqrt(stretch);
+          m.scale.z /= Math.sqrt(stretch);
+        }
         animateAvatar(m, now / 1000, d > 0.1 ? speed : 0, mood, p.reduced);
       });
+      if (!studio)
+        director.frame({
+          game: game?.practice ? undefined : game,
+          serverNow,
+          dt,
+          meshes,
+          reduced: !!p.reduced,
+          camera,
+        });
       const movementLive = game?.phase === 'moving';
       if (movementLive && previousPhase !== 'moving') {
         followZoom = 2;
         p.onOrbitView?.(false);
         transition = 0;
       }
+      // Each new turn frames the explorer and their dice block up close.
+      const announceId = game?.announce?.id ?? -1;
+      if (game?.phase === 'turn' && announceId !== lastAnnounce) {
+        followZoom = 2.4;
+        transition = 0;
+        p.onOrbitView?.(false);
+      }
+      lastAnnounce = announceId;
       if (
         game &&
         previousPos !== -1 &&
@@ -905,7 +951,10 @@ export default function BoardScene(props: Props) {
         p.focus &&
         !studio &&
         !p.orbital &&
-        (movementLive || game?.phase === 'arrival' || followZoom > 0) &&
+        (movementLive ||
+          game?.phase === 'arrival' ||
+          game?.phase === 'rolling' ||
+          followZoom > 0) &&
         meshes[p.active ?? 0]
       ) {
         followZoom = Math.max(0, followZoom - dt);
@@ -913,18 +962,46 @@ export default function BoardScene(props: Props) {
         const desired =
           game?.phase === 'arrival'
             ? ship.position.clone().add(new T.Vector3(0, 2, 0))
-            : subject.position.clone();
+            : subject.position.clone().setY(1.6);
         const follow = 1 - Math.exp(-dt * 3.4);
         const shift = desired.clone().sub(orbit.target).multiplyScalar(follow);
         orbit.target.add(shift);
         camera.position.add(shift);
-        if (followZoom > 0 || game?.phase === 'arrival') {
+        if (
+          followZoom > 0 ||
+          game?.phase === 'arrival' ||
+          game?.phase === 'rolling'
+        ) {
           const distance = camera.position.distanceTo(orbit.target),
-            wanted = game?.phase === 'arrival' ? 19 : 29;
+            wanted =
+              game?.phase === 'arrival'
+                ? 19
+                : game?.phase === 'turn' || game?.phase === 'rolling'
+                  ? 17
+                  : 25;
           const direction = camera.position
             .clone()
             .sub(orbit.target)
             .normalize();
+          if (game?.phase !== 'arrival' && followZoom > 0) {
+            // Settle into a high view from the island's interior, so the
+            // parked ship and outer scenery sit behind the explorer.
+            const inward = new T.Vector3(-desired.x, 0, -desired.z);
+            if (inward.lengthSq() < 16)
+              inward.set(direction.x, 0, direction.z);
+            inward.normalize();
+            const elevation = 0.95;
+            direction
+              .lerp(
+                new T.Vector3(
+                  inward.x * Math.cos(elevation),
+                  Math.sin(elevation),
+                  inward.z * Math.cos(elevation),
+                ),
+                1 - Math.exp(-dt * 2.4),
+              )
+              .normalize();
+          }
           camera.position
             .copy(orbit.target)
             .addScaledVector(
@@ -1110,6 +1187,7 @@ export default function BoardScene(props: Props) {
       outputPass.dispose();
       composer.dispose();
       perf.dispose();
+      director.dispose();
       finale?.dispose();
       disposeObject(scene);
       renderer.dispose();

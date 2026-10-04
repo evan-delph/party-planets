@@ -4442,3 +4442,38 @@ button {
     animation: none;
   }
 }
+/* v0.8 board feel: the dice result callout under the in-world dice block. */
+.roll-callout {
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  bottom: 14%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 22px 10px;
+  border-radius: 999px;
+  background: #ffffffee;
+  box-shadow: 0 10px 40px #0d2f4a40;
+  color: #163a7a;
+  pointer-events: none;
+  animation: callout-pop 0.35s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+}
+.roll-callout b {
+  font-size: 40px;
+  font-weight: 1000;
+  line-height: 1;
+}
+.roll-callout span {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+@keyframes callout-pop {
+  from {
+    transform: translateX(-50%) scale(0.4);
+    opacity: 0;
+  }
+}

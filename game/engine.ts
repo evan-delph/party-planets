@@ -465,9 +465,9 @@ function beginTurn(s: Game, now: number) {
     id: (s.announce?.id ?? 0) + 1,
     player: p.id,
     startedAt: now,
-    until: now + 2000,
+    until: now + 1400,
   };
-  s.due = now + (p.cpu ? 2600 : RULES.turnTimeout);
+  s.due = now + (p.cpu ? 2000 : RULES.turnTimeout);
 }
 export function routeChoices(s: Game): number[] {
   const p = s.players[s.active],
@@ -497,7 +497,7 @@ function continueWalk(s: Game, now: number) {
   if (choices.length > 1) {
     s.phase = 'fork';
     s.movement = undefined;
-    s.due = now + (s.players[s.active].cpu ? 1300 : 30000);
+    s.due = now + (s.players[s.active].cpu ? 900 : 30000);
   } else beginEdge(s, choices[0], now);
 }
 function finishMini(s: Game, now: number, scores?: number[]) {
@@ -1025,13 +1025,13 @@ function landPlayer(s: Game, now: number, rng: () => number) {
           ? 5500
           : type === 'thief'
             ? 2400
-            : 1200);
+            : 1000);
   s.phase = 'landed';
   s.bought = false;
   s.shopStock = BOARD[p.pos].type === 'shop' ? randomShopStock(rng) : undefined;
   s.due = Math.max(
     s.presentUntil + 300,
-    now + (p.cpu ? 1800 : RULES.turnTimeout),
+    now + (p.cpu ? 1300 : RULES.turnTimeout),
   );
   // A hazard can carry a player back onto a previously declined diamond.
   // Preserve its completed landing effects while asking for a new decision.
@@ -1601,8 +1601,9 @@ export function reduceGame(
       values,
       bonus,
       startedAt,
-      revealAt: startedAt + 1700,
-      until: startedAt + 2800,
+      // Spin, jump into the block at the reveal, then the counter takes over.
+      revealAt: startedAt + 1150,
+      until: startedAt + 1750,
     };
     s.lastRoll = total;
     s.remaining = total;

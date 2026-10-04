@@ -83,7 +83,6 @@ const Scene = dynamic(() => import('./Scene'), {
   ssr: false,
   loading: () => <div className="scene" aria-hidden="true" />,
 });
-const DiceRoll = dynamic(() => import('./DiceRoll'), { ssr: false });
 const ArcadeGame = dynamic(() => import('./arcade/ArcadeGame'), {
   ssr: false,
   loading: () => (
@@ -721,6 +720,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
     if (game.phase === 'arrival') playSfx('arrival', 0, muted);
     if (game.phase === 'turn') playSfx('turn', 0, muted);
     if (game.phase === 'vote') playSfx('vote', 0, muted);
+    if (game.phase === 'lastTurns') playSfx('lastTurns', 0, muted);
   }, [game?.phase, game?.active, panel]);
   const matchOptions = (
     <div className="match-options">
@@ -1832,13 +1832,18 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               <p>{myTurn ? 'Your turn to explore!' : 'It’s your turn!'}</p>
             </div>
           )}
-          {rolling && (
-            <DiceRoll
-              key={game.dice!.startedAt}
-              dice={game.dice!}
-              clockOffset={offsetRef.current}
-              reduced={reduced}
-            />
+          {rolling && clock >= game.dice!.revealAt && (
+            <div className="roll-callout" role="status" key={game.dice!.startedAt}>
+              <b>
+                {game.dice!.values.reduce((a, b) => a + b, 0) + game.dice!.bonus}
+              </b>
+              <span>
+                {game.dice!.values.length > 1
+                  ? game.dice!.values.join(' + ')
+                  : 'spaces'}
+                {game.dice!.bonus ? ` + ${game.dice!.bonus} boost` : ''}
+              </span>
+            </div>
           )}
           {game.phase === 'rolling' && !rolling && (
             <div className="departure-caption" role="status">

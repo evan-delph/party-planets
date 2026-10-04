@@ -2112,4 +2112,4 @@ export function pearlDestinations(boardId: string | undefined, from: number) {
     )
     .map(([n]) => n);
 }
-export const BOARD_WALK_SPEED = 9;
+export const BOARD_WALK_SPEED = 10.5;
