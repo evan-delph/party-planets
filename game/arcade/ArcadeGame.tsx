@@ -823,7 +823,11 @@ export default function ArcadeGame(props: Props) {
                   : info.category.toUpperCase()}
             </span>
             <h2>{paused ? 'Party paused' : info.name}</h2>
-            <p>{error || info.brief}</p>
+            <p>
+              {error ||
+                (hud.mode === '1v3' && remixInfo(info.id)?.soloBrief) ||
+                info.brief}
+            </p>
             {!paused && !error && (
               <>
                 <div className="brief-controls">

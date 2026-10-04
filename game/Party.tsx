@@ -42,6 +42,19 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useGamepadUI } from './useGamepadUI';
 import Lottery from './Lottery';
+import {
+  AlienPortrait,
+  CoinIcon,
+  CrownIcon,
+  DiamondIcon,
+  DiceIcon,
+  ItemIcon,
+  KlaxonPortrait,
+  NabbitPortrait,
+  PlaceBadge,
+  SpaceIcon,
+  Sparkle,
+} from './art';
 import { BOARDS, PLANETS, getBoard, getPlanet } from './boards';
 import { playSfx, setSfxMuted } from './audio';
 import { useMusic } from './useMusic';
@@ -1827,9 +1840,26 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               key={game.announce?.id}
               role="status"
             >
-              <span className="eyebrow">NEXT EXPLORER</span>
-              <h2>{active?.avatar.name}</h2>
-              <p>{myTurn ? 'Your turn to explore!' : 'It’s your turn!'}</p>
+              {active && (
+                <AlienPortrait
+                  className="announce-portrait"
+                  shirt={active.avatar.shirt}
+                  size={92}
+                />
+              )}
+              <div>
+                <span className="eyebrow">
+                  ROUND {game.round} · NEXT EXPLORER
+                </span>
+                <h2>{active?.avatar.name}</h2>
+                <p>
+                  {myTurn
+                    ? 'Your turn — hit the dice block!'
+                    : `${active?.avatar.name}'s turn to explore!`}
+                </p>
+              </div>
+              <Sparkle className="announce-spark s1" size={22} />
+              <Sparkle className="announce-spark s2" size={14} color="#7cf3ff" />
             </div>
           )}
           {rolling && clock >= game.dice!.revealAt && (
@@ -1871,7 +1901,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                     disabled={!myTurn || busy}
                     onClick={() => dispatch({ type: 'route', value: to })}
                   >
-                    <ArrowRight />
+                    <SpaceIcon kind={BOARD[to].type} size={30} />
                     <span>
                       {getBoard(game.boardId).routeLabels?.[active!.pos]?.[i] ??
                         'Road ' + (i + 1)}
@@ -1904,7 +1934,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               aria-modal="true"
               aria-labelledby="diamond-title"
             >
-              <Gem className="diamond-symbol" size={42} />
+              <DiamondIcon className="diamond-symbol" size={72} />
               <span className="eyebrow">
                 DIAMOND STOP · SPACE {active!.pos + 1}
               </span>
@@ -1920,7 +1950,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                     disabled={busy || active!.shells < RULES.pearlPrice}
                     onClick={() => dispatch({ type: 'diamond', value: 1 })}
                   >
-                    <Gem /> Buy for {RULES.pearlPrice} points
+                    <DiamondIcon size={22} /> Buy for {RULES.pearlPrice} points
                   </button>
                   {active!.shells < RULES.pearlPrice && (
                     <p className="muted">
@@ -1953,9 +1983,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               aria-modal="true"
               aria-labelledby="steal-title"
             >
-              <span className="steal-symbol" aria-hidden="true">
-                🦝
-              </span>
+              <NabbitPortrait className="steal-symbol" size={104} />
               <span className="eyebrow">{NABBER.toUpperCase()}’S DEN</span>
               <h2 id="steal-title">“Want me to nab something?”</h2>
               <p>
@@ -1969,16 +1997,11 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                     .filter((p) => p.id !== active!.id)
                     .map((p) => (
                       <div className="steal-target" key={p.id}>
-                        <span
-                          className="player-badge"
-                          style={{ background: p.avatar.shirt }}
-                        >
-                          {p.avatar.name.slice(0, 1)}
-                        </span>
+                        <AlienPortrait shirt={p.avatar.shirt} size={34} />
                         <strong>{p.avatar.name}</strong>
                         <small>
-                          <Gem size={13} /> {p.pearls} · <Coins size={13} />{' '}
-                          {p.shells}
+                          <DiamondIcon size={15} /> {p.pearls}{' '}
+                          <CoinIcon size={15} /> {p.shells}
                         </small>
                         <button
                           className="secondary"
@@ -1991,7 +2014,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                             dispatch({ type: 'steal', value: 1, target: p.id })
                           }
                         >
-                          <Coins size={15} /> Points
+                          <CoinIcon size={17} /> Points
                         </button>
                         <button
                           className="primary"
@@ -2004,7 +2027,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                             dispatch({ type: 'steal', value: 2, target: p.id })
                           }
                         >
-                          <Gem size={15} /> Diamond
+                          <DiamondIcon size={17} /> Diamond
                         </button>
                       </div>
                     ))}
@@ -2042,16 +2065,19 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                         game.lastTurns!.trailing.includes(p.id) ? 'trailing' : ''
                       }
                     >
-                      <span
-                        className="player-badge"
-                        style={{ background: p.avatar.shirt }}
-                      >
-                        {p.avatar.name.slice(0, 1)}
-                      </span>
+                      <AlienPortrait
+                        shirt={p.avatar.shirt}
+                        size={34}
+                        mood={
+                          game.lastTurns!.trailing.includes(p.id)
+                            ? 'sad'
+                            : 'happy'
+                        }
+                      />
                       <strong>{p.avatar.name}</strong>
                       <span>
-                        <Gem size={14} /> {p.pearls} · <Coins size={14} />{' '}
-                        {p.shells}
+                        <DiamondIcon size={16} /> {p.pearls}{' '}
+                        <CoinIcon size={16} /> {p.shells}
                       </span>
                     </li>
                   ))}
@@ -2081,7 +2107,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
             game.effect.detail &&
             clock < (game.presentUntil ?? 0) && (
               <div className="villain-banner" role="status" key={game.effect.id}>
-                <span aria-hidden="true">☠</span>
+                <KlaxonPortrait size={84} className="villain-portrait" />
                 <div>
                   <b>{VILLAIN.toUpperCase()} STRIKES!</b>
                   <p>{game.effect.detail}</p>
@@ -2091,17 +2117,35 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
           {game.vote && game.phase === 'vote' && game.miniMode && (
             <div className={`mode-banner mode-${game.miniMode}`} role="status">
               <b>{MODE_LABEL[game.miniMode]}</b>
-              {game.miniMode !== 'ffa' && (
-                <span>
-                  {(() => {
-                    const seats = arenaPlayers(game),
-                      split = game.miniMode === '1v3' ? 1 : 2;
-                    const names = (list: typeof seats) =>
-                      list.map((p) => p.avatar.name).join(' & ');
-                    return `${names(seats.slice(0, split))} vs ${names(seats.slice(split))}`;
-                  })()}
-                </span>
-              )}
+              {(() => {
+                const seats = arenaPlayers(game),
+                  split =
+                    game.miniMode === '1v3'
+                      ? 1
+                      : game.miniMode === '2v2'
+                        ? 2
+                        : 4;
+                const side = (list: typeof seats, team: string) => (
+                  <span className={`mode-side ${team}`}>
+                    {list.map((p) => (
+                      <AlienPortrait
+                        key={p.id}
+                        shirt={p.avatar.shirt}
+                        size={30}
+                      />
+                    ))}
+                  </span>
+                );
+                return split === 4 ? (
+                  side(seats, 'all')
+                ) : (
+                  <>
+                    {side(seats.slice(0, split), 'left')}
+                    <em>VS</em>
+                    {side(seats.slice(split), 'right')}
+                  </>
+                );
+              })()}
             </div>
           )}
           {game.phase === 'vote' && game.vote && (
@@ -2201,12 +2245,31 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               <div
                 className={`player-card ${game.active === i && game.phase !== 'results' && game.phase !== 'finished' ? 'active' : ''}`}
                 key={p.id}
+                style={{ '--player': p.avatar.shirt } as React.CSSProperties}
               >
-                <span
-                  className="player-badge"
-                  style={{ background: p.avatar.shirt }}
-                >
-                  {i + 1}
+                <span className="player-portrait">
+                  <AlienPortrait
+                    shirt={p.avatar.shirt}
+                    size={46}
+                    mood={
+                      game.effect?.player === p.id &&
+                      clock < (game.presentUntil ?? 0) &&
+                      game.effect.delta < 0
+                        ? 'sad'
+                        : 'happy'
+                    }
+                  />
+                  <PlaceBadge
+                    className="player-place"
+                    size={24}
+                    place={
+                      game.players.filter(
+                        (q) =>
+                          q.pearls > p.pearls ||
+                          (q.pearls === p.pearls && q.shells > p.shells),
+                      ).length + 1
+                    }
+                  />
                 </span>
                 <div className="player-info">
                   <strong>
@@ -2226,10 +2289,10 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 </div>
                 <div className="currency">
                   <span>
-                    <Gem /> {p.pearls}
+                    <DiamondIcon size={19} /> {p.pearls}
                   </span>
                   <span>
-                    <Coins /> {p.shells}
+                    <CoinIcon size={19} /> {p.shells}
                   </span>
                 </div>
               </div>
@@ -2242,12 +2305,13 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   {getBoard(game.boardId).name.toUpperCase()}
                 </span>
                 <span>
-                  <Gem size={16} /> Diamond at space {game.pearl + 1} ·{' '}
-                  {RULES.pearlPrice} points · Goal:{' '}
-                  {game.diamondGoal || 'turn limit'}
+                  <DiamondIcon size={18} /> {RULES.pearlPrice} points ·{' '}
+                  {game.diamondGoal
+                    ? `first to ${game.diamondGoal}`
+                    : `round ${game.round} of ${game.rounds}`}
                 </span>
                 <span className="bank-pot">
-                  BANK: {game.bank ?? 0} points · Shortcuts{' '}
+                  <CoinIcon size={18} /> Bank {game.bank ?? 0} · Shortcuts{' '}
                   {game.routesOpen === false ? 'closed' : 'open'}
                 </span>
                 {game.lastTurns && (
@@ -2267,10 +2331,11 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               <section className="turn-panel">
                 <div className="turn-title">
                   <span className="dice-face">
-                    {game.phase === 'landed' ? (
-                      game.lastRoll
-                    ) : (
-                      <Dices size={30} />
+                    {active && (
+                      <AlienPortrait shirt={active.avatar.shirt} size={52} />
+                    )}
+                    {game.phase === 'landed' && (
+                      <b className="last-roll">{game.lastRoll}</b>
                     )}
                   </span>
                   <div>
@@ -2297,7 +2362,8 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                             })
                           }
                         >
-                          <Dices /> Roll the dice <span>SPACE</span>
+                          <DiceIcon size={30} value={6} /> Roll the dice{' '}
+                          <span>SPACE</span>
                         </button>
                         <div className="inventory-label">
                           YOUR BAG <small>Use one before rolling</small>
@@ -2311,7 +2377,8 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                                 dispatch({ type: 'use', item: 'five' })
                               }
                             >
-                              <Zap size={15} /> Lucky +5 ×{me.lotteryBoosts}
+                              <ItemIcon id="five" size={26} /> Lucky +5 ×
+                              {me.lotteryBoosts}
                             </button>
                           )}
                           {me?.items.map((id, i) => (
@@ -2325,7 +2392,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                                 dispatch({ type: 'use', item: id })
                               }
                             >
-                              <Zap size={15} />
+                              <ItemIcon id={id} size={26} />
                               {ITEMS.find((x) => x.id === id)?.name}
                             </button>
                           ))}
@@ -2337,7 +2404,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                     ) : (
                       <>
                         <p className="landing">
-                          Space {active!.pos + 1} ·{' '}
+                          <SpaceIcon kind={BOARD[active!.pos].type} size={24} />
                           {SPACE_INFO[BOARD[active!.pos].type].name}
                         </p>
                         {BOARD[active!.pos].type === 'shop' && !game.bought && (
@@ -2361,9 +2428,10 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                                     dispatch({ type: 'buy', item: item.id })
                                   }
                                 >
+                                  <ItemIcon id={item.id} size={30} />
                                   <span>{item.name}</span>
                                   <b>
-                                    {item.cost} <Coins size={13} />
+                                    {item.cost} <CoinIcon size={15} />
                                   </b>
                                 </button>
                               ))}
@@ -2503,7 +2571,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               }
             >
               <div className="result-symbol">
-                <Crown />
+                <CrownIcon size={56} />
               </div>
               <span className="eyebrow">
                 {game.phase === 'finished'
@@ -2529,10 +2597,13 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                           : q.score > p.score,
                       ).length + 1;
                     return (
-                      <div key={p.id}>
-                        <strong className={rank === 1 ? 'winner' : ''}>
-                          {rank}
-                        </strong>
+                      <div key={p.id} className={rank === 1 ? 'is-first' : ''}>
+                        <PlaceBadge place={rank} size={34} />
+                        <AlienPortrait
+                          shirt={p.avatar.shirt}
+                          size={40}
+                          mood={rank === 1 ? 'happy' : rank === 4 ? 'sad' : 'neutral'}
+                        />
                         <span>
                           {p.avatar.name}
                           <small>
@@ -2542,7 +2613,15 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                         <b>
                           {game.phase === 'finished'
                             ? `${p.pearls} diamonds · ${p.shells} points`
-                            : `${scoreLabel(game.mini, p.score)} · +${p.prize ?? RULES.minigameReward[rank - 1]} points`}
+                            : `${
+                                game.arcade?.mode
+                                  ? p.prize === RULES.teamTie
+                                    ? 'TIE'
+                                    : p.prize
+                                      ? 'WIN'
+                                      : 'LOSS'
+                                  : scoreLabel(game.mini, p.score)
+                              } · +${p.prize ?? RULES.minigameReward[rank - 1]} points`}
                         </b>
                       </div>
                     );

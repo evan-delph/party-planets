@@ -27,7 +27,9 @@ const result = await build({
   },
 });
 const css = await postcss([tailwind()]).process(
-  await readFile('app/globals.css', 'utf8'),
+  (await readFile('app/globals.css', 'utf8')) +
+    '\n' +
+    (await readFile('app/skin.css', 'utf8')),
   { from: resolve('app/globals.css') },
 );
 const sticker =

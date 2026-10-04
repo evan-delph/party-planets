@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
+// v0.8 sticker skin; its :root-prefixed selectors outrank the older layers.
+import './skin.css';
 export const metadata: Metadata = {
   title: 'Party Planets · Across the Galaxy',
   description:

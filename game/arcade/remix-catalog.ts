@@ -30,6 +30,8 @@ type Meta = {
   policy: 'survival' | 'race' | 'points';
   teams: boolean;
   heats: boolean;
+  /** Briefing for the fixed-solo board 1 vs 3 version. */
+  soloBrief?: string;
 };
 const entry = (
   name: string,
@@ -238,6 +240,10 @@ export const REMIX_META: Record<RemixKind, Meta> = {
     true,
   ),
 };
+REMIX_META.skewergallery.soloBrief =
+  'One alien carries the beacon for 30 seconds while three rivals try to soak it. Keep it lit to win the showdown; three hits and the team wins.';
+REMIX_META.boulderbuffet.soloBrief =
+  'One alien balances on the saucer for 30 seconds while three rivals splash waves at it. Stay aboard to win; fall off and the team wins.';
 export function remixInfo(id: string): Meta | undefined {
   return REMIX_META[id as RemixKind];
 }
