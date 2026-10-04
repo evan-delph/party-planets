@@ -159,7 +159,7 @@ export default function BoardScene(props: Props) {
     for (const water of board.waterFeatures) {
       const shore = kit.mesh(
         new T.CylinderGeometry(1, 1, 0.06, 48),
-        board.id === 'alpine' ? '#eaffff' : board.edge,
+        board.edge,
         water.x,
         0.59,
         water.z,
@@ -168,7 +168,7 @@ export default function BoardScene(props: Props) {
       shore.rotation.y = water.angle;
       const lake = kit.mesh(
         new T.CylinderGeometry(1, 1, 0.07, 48),
-        board.id === 'alpine' ? '#a1dce5' : board.water,
+        board.water,
         water.x,
         0.64,
         water.z,
@@ -176,14 +176,7 @@ export default function BoardScene(props: Props) {
       lake.scale.set(water.rx, 1, water.rz);
       lake.rotation.y = water.angle;
     }
-    const pathColor =
-      board.planet !== 'earth'
-        ? board.edge
-        : board.id === 'alpine'
-          ? '#b3cddd'
-          : board.id === 'moss'
-            ? '#c4bf98'
-            : '#efd8aa';
+    const pathColor = board.planet !== 'earth' ? board.edge : '#efd8aa';
     for (const a of nodes)
       for (const n of a.next) {
         const b = nodes[n],
@@ -236,21 +229,9 @@ export default function BoardScene(props: Props) {
           x,
           z,
           0.7 + (i % 3) * 0.3,
-          board.id === 'alpine' ? '#a4b9c6' : '#7b977f',
+          '#7b977f',
         );
-      else
-        kit.tree(
-          x,
-          z,
-          board.id === 'alpine'
-            ? 'pine'
-            : board.id === 'moss'
-              ? i % 3
-                ? 'jungle'
-                : 'mushroom'
-              : 'palm',
-          0.7 + (i % 4) * 0.13,
-        );
+      else kit.tree(x, z, 'palm', 0.7 + (i % 4) * 0.13);
     }
     for (const n of nodes.filter(
       (n) => n.type === 'bank' || n.type === 'shop' || n.type === 'lottery',
@@ -291,12 +272,8 @@ export default function BoardScene(props: Props) {
         kit.hut(
           x,
           z,
-          n.type === 'bank'
-            ? '#edcb77'
-            : board.id === 'moss'
-              ? '#a9b887'
-              : '#d8b994',
-          board.id === 'alpine',
+          n.type === 'bank' ? '#edcb77' : '#d8b994',
+          false,
         );
       else {
         const color = n.type === 'bank' ? '#e8c267' : board.accent;
@@ -486,48 +463,6 @@ export default function BoardScene(props: Props) {
           '#736059',
         );
       }
-    } else if (board.id === 'alpine') {
-      for (let i = 0; i < 3; i++) {
-        const x = landmark.x / sceneryScale + (i - 1) * 1.6,
-          z = landmark.z / sceneryScale;
-        detailKit.mesh(
-          new T.ConeGeometry(1.5, 7 + (i % 3), 9),
-          '#829eaf',
-          x,
-          3,
-          z,
-        );
-        detailKit.mesh(
-          new T.ConeGeometry(0.85, 4 + (i % 3), 9),
-          '#f0f1e6',
-          x,
-          5.5,
-          z,
-        );
-      }
-    } else if (board.id === 'moss') {
-      for (let i = 0; i < 5; i++)
-        detailKit.box(
-          landmark.x / sceneryScale,
-          0.5 + i * 0.7,
-          landmark.z / sceneryScale,
-          7 - i,
-          1,
-          7 - i,
-          '#a3ae88',
-        );
-      detailKit.arch(
-        landmark.x / sceneryScale,
-        landmark.z / sceneryScale,
-        '#c2c5a0',
-      );
-      detailKit.mesh(
-        new T.SphereGeometry(0.8, 12, 8),
-        '#8ce5b5',
-        landmark.x / sceneryScale,
-        5,
-        landmark.z / sceneryScale,
-      );
     }
     detailKit.bake();
     details.scale.set(sceneryScale, 1, sceneryScale);
@@ -560,14 +495,9 @@ export default function BoardScene(props: Props) {
     const motes: T.Mesh[] = [];
     for (let i = 0; i < 28; i++) {
       const m = new T.Mesh(
-        new T.SphereGeometry(board.id === 'alpine' ? 0.06 : 0.08, 5, 4),
+        new T.SphereGeometry(0.08, 5, 4),
         new T.MeshBasicMaterial({
-          color:
-            board.id === 'moss'
-              ? '#eeffa1'
-              : board.id === 'alpine'
-                ? '#fffef3'
-                : '#f9c995',
+          color: '#f9c995',
         }),
       );
       ambiance.add(m);
@@ -1146,13 +1076,7 @@ export default function BoardScene(props: Props) {
           haz = effect!.kind === 'hazard',
           t = age + i * 0.027,
           source = haz ? landmark : n;
-        const color = haz
-          ? board.id === 'alpine'
-            ? '#f1f5ee'
-            : board.id === 'moss'
-              ? '#9470a3'
-              : '#ff9e35'
-          : '#ffcf56';
+        const color = haz ? '#ff9e35' : '#ffcf56';
         (m.material as T.MeshBasicMaterial).color.set(color);
         const f = Math.min(1, t / 1.1);
         m.position.set(
@@ -1169,13 +1093,11 @@ export default function BoardScene(props: Props) {
         }
         m.position.set(
           Math.sin(i * 2.4) * 29 * sceneryScale,
-          board.id === 'alpine'
-            ? 8 - ((now * 0.0005 + i * 0.4) % 8)
-            : 1.2 + Math.sin(now * 0.0008 + i) * 0.6,
+          1.2 + Math.sin(now * 0.0008 + i) * 0.6,
           Math.cos(i * 2.4) * 23 * sceneryScale,
         );
       });
-      const n = nodes[p.pearl ?? (board.id === 'moss' ? 23 : 22)];
+      const n = nodes[p.pearl ?? 22];
       prize.position.set(
         n.x,
         2.1 + (p.reduced ? 0 : Math.sin(now * 0.002) * 0.18),

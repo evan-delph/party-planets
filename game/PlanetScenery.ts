@@ -134,12 +134,7 @@ export function createPlanetScenery(
     }
     if (['harbor', 'chalet', 'hot-spring'].includes(district.kind)) {
       if (district.kind !== 'hot-spring')
-        kit.hut(
-          x,
-          z,
-          board.id === 'moss' ? '#cbb78b' : '#e8cda0',
-          board.id === 'alpine',
-        );
+        kit.hut(x, z, '#e8cda0', false);
       else
         kit.mesh(
           new T.CylinderGeometry(1.8, 2, 0.18, 24),
@@ -180,25 +175,21 @@ export function createPlanetScenery(
         kit.tree(
           x + Math.sin(i * 2.1) * 1.6,
           z + Math.cos(i * 2.1) * 1.6,
-          board.id === 'alpine'
-            ? 'pine'
-            : board.id === 'moss'
-              ? 'jungle'
-              : 'palm',
+          'palm',
           0.9 + i * 0.1,
         );
       const critter = new T.Group();
       const ck = new WorldKit(critter);
       ck.mesh(
         new T.SphereGeometry(0.22, 10, 8),
-        board.id === 'alpine' ? '#f8f6df' : '#ffb44f',
+        '#ffb44f',
         0,
         0.4,
         0,
       ).scale.z = 1.5;
       ck.mesh(
         new T.SphereGeometry(0.16, 10, 8),
-        board.id === 'alpine' ? '#f8f6df' : '#ffb44f',
+        '#ffb44f',
         0,
         0.57,
         0.25,

@@ -1010,9 +1010,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                           ? '✧'
                           : b.id === 'crown'
                             ? '☀'
-                            : b.id === 'alpine'
-                              ? '❄'
-                              : '❋'}
+                            : '❋'}
                     </span>
                     <b>{b.name}</b>
                     <small>{b.ecosystem.split(' & ')[0]}</small>

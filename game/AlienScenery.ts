@@ -143,7 +143,6 @@ export function createAlienScenery(
       if (i % 5 === 0) crater(x, z, 1.6 + (i % 3));
       else kit.rock(x, z, 0.3 + (i % 4) * 0.16, board.edge);
     }
-    if (board.id === 'crystal') crystal(x, z, 0.6 + (i % 3) * 0.2);
     if (board.id === 'fissure') {
       kit.rock(x, z, 1 + (i % 3) * 0.35, board.edge);
       if (i % 4 === 0) {
@@ -157,21 +156,9 @@ export function createAlienScenery(
         glow(vent);
       }
     }
-    if (board.id === 'lumen') {
-      if (i % 6 === 0) pod(x, z, 0.8);
-      else {
-        kit.tree(x, z, i % 2 ? 'mushroom' : 'jungle', 0.6 + (i % 4) * 0.17);
-        crystal(x + 0.7, z, 0.3);
-      }
-    }
     if (board.id === 'coral') {
       coral(x, z, 0.6 + (i % 3) * 0.3);
       if (i % 12 === 0) pod(x, z, 0.6);
-    }
-    if (board.id === 'dunes') {
-      const rock = kit.rock(x, z, 1 + (i % 4) * 0.35, '#af6e86');
-      rock.scale.set(0.6, 2, 0.6);
-      if (i % 7 === 0) coral(x + 0.7, z, 0.6);
     }
   }
   for (const [i, district] of board.districts.entries()) {
@@ -234,7 +221,6 @@ export function createAlienScenery(
   }
   const lm = board.landmark;
   if (board.id === 'crater') crater(lm.x, lm.z, 5);
-  else if (board.id === 'crystal') crystal(lm.x, lm.z, 3.2);
   else if (board.id === 'fissure')
     for (let j = 0; j < 5; j++) {
       const p = kit.mesh(
@@ -246,7 +232,6 @@ export function createAlienScenery(
       );
       p.rotation.z = (j - 2) * 0.12;
     }
-  else if (board.id === 'lumen') pod(lm.x, lm.z, 3);
   else if (board.id === 'coral') {
     coral(lm.x, lm.z, 3.4);
     const ring = kit.mesh(

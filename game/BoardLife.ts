@@ -22,8 +22,6 @@ export function createBoardLife(
       group: T.Group;
       tick: (t: number) => void;
     }[] = [];
-  const pine = board.id === 'alpine',
-    moss = board.id === 'moss';
   for (let i = 0; i < (low ? 8 : 14); i++) {
     const a = i * 2.39996,
       r = radius * (1.13 + (i % 3) * 0.12),
@@ -44,71 +42,12 @@ export function createBoardLife(
       0.08,
       z,
     ).scale.z = 0.7;
-    staticKit.rock(
-      x + small * 0.4,
-      z,
-      0.75,
-      pine ? '#9eb3c8' : moss ? '#78937d' : '#d0b287',
-    );
+    staticKit.rock(x + small * 0.4, z, 0.75, '#d0b287');
     if (i % 2 === 0)
-      staticKit.tree(
-        x - small * 0.35,
-        z,
-        pine ? 'pine' : moss ? 'mushroom' : 'palm',
-        0.8 + (i % 3) * 0.2,
-      );
-    if (i % 4 === 1)
-      staticKit.hut(
-        x,
-        z,
-        pine ? '#b78866' : moss ? '#9fb48c' : '#efc981',
-        pine,
-      );
-    if (moss)
-      for (let j = 0; j < 4; j++)
-        staticKit.mesh(
-          new T.CylinderGeometry(0.65, 0.65, 0.04, 10),
-          '#6eaf77',
-          x + Math.sin(j * 2) * small,
-          -0.44,
-          z + Math.cos(j * 2) * small,
-        );
+      staticKit.tree(x - small * 0.35, z, 'palm', 0.8 + (i % 3) * 0.2);
+    if (i % 4 === 1) staticKit.hut(x, z, '#efc981', false);
   }
-  if (pine) {
-    for (let i = 0; i < 9; i++) {
-      const x = (i - 4) * radius * 0.3,
-        z = -radius * (0.99 + (i % 2) * 0.18),
-        h = 9 + (i % 3) * 5;
-      staticKit.mesh(
-        new T.ConeGeometry(7 + (i % 3), h, 7),
-        '#7695ac',
-        x,
-        h / 2 - 1,
-        z,
-      );
-      staticKit.mesh(
-        new T.ConeGeometry(4, h * 0.5, 7),
-        '#f1f9fa',
-        x,
-        h * 0.77,
-        z,
-      );
-    }
-  } else if (moss) {
-    for (let i = 0; i < 7; i++) {
-      const x = (i - 3) * radius * 0.32,
-        z = -radius * 0.98;
-      staticKit.mesh(
-        new T.CylinderGeometry(1.5, 2, 6 + (i % 3), 7),
-        '#879c88',
-        x,
-        2,
-        z,
-      );
-      staticKit.tree(x, z, 'jungle', 1.3);
-    }
-    staticKit.arch(-radius * 0.95, -radius * 0.2, '#a9b18a');
-  } else {
+  {
     const x = radius * 0.72,
       z = -radius * 0.79;
     staticKit.mesh(new T.CylinderGeometry(4, 6, 2, 18), '#ba9f84', x, -0.5, z);
@@ -247,83 +186,6 @@ export function createBoardLife(
           );
           m.scale.setScalar(0.5 + p * 1.8);
         });
-    });
-  } else if (pine) {
-    event('Ridge cable car', 0, 12, (k, g) => {
-      k.box(0, 0, 0, 2, 1.7, 1.6, '#d66e56');
-      k.box(0, 0.25, 0.82, 1.5, 0.6, 0.04, '#aadbe6');
-      k.box(0, 1.4, 0, 0.09, 1.2, 0.09, '#4a6981');
-      return (t) => {
-        g.position.set((-13 + t * 25) * scale, 6.5, -3 * scale);
-        g.rotation.z = Math.sin(t * 18) * 0.06;
-      };
-    });
-    event('Aurora curtains', 15, 12, (k, g) => {
-      const ribbons = Array.from({ length: 5 }, (_, i) => {
-        const m = k.mesh(
-          new T.TorusGeometry(radius * 0.55 + i * 1.2, 0.25, 5, 48, Math.PI),
-          i % 2 ? '#68dba9' : '#81b7f4',
-          0,
-          i * 1.3,
-          0,
-        );
-        m.rotation.x = 0.25;
-        return m;
-      });
-      g.position.set(0, 13, -radius);
-      return (t) =>
-        ribbons.forEach((m, i) => {
-          m.rotation.z = Math.sin(t * 7 + i) * 0.07;
-          m.scale.y = 0.6 + Math.sin(t * Math.PI) * 0.7;
-        });
-    });
-    event('Snow fox crossing', 30, 10, (k, g) => {
-      const foxes = Array.from({ length: 3 }, (_, i) => {
-        const a = new T.Group();
-        k.root.add(a);
-        k.mesh(
-          new T.CapsuleGeometry(0.23, 0.6, 4, 8),
-          '#eef6ee',
-          0,
-          0.4,
-          0,
-          a,
-        ).rotation.z = Math.PI / 2;
-        k.mesh(
-          new T.ConeGeometry(0.23, 0.5, 4),
-          '#eff8f6',
-          0.5,
-          0.5,
-          0,
-          a,
-        ).rotation.z = -Math.PI / 2;
-        for (const x of [-0.25, 0.25])
-          for (const z of [-0.14, 0.14])
-            k.box(x, 0.15, z, 0.07, 0.3, 0.07, '#6c7a8b', a);
-        return a;
-      });
-      return (t) =>
-        foxes.forEach((v, i) => {
-          v.position.set(
-            (-6 + t * 12) * scale,
-            Math.abs(Math.sin(t * 35 + i)) * 0.2,
-            (10 + i) * scale,
-          );
-        });
-    });
-    event('Distant powder gust', 45, 10, (k, g) => {
-      const snow = Array.from({ length: low ? 12 : 22 }, () =>
-        k.mesh(new T.IcosahedronGeometry(0.18, 0), '#f7ffff'),
-      );
-      g.position.set(-radius * 0.5, 5, -radius * 0.92);
-      return (t) =>
-        snow.forEach((m, i) =>
-          m.position.set(
-            t * radius * 0.8 + Math.sin(i) * 2,
-            Math.sin(t * 10 + i) * 2 + (i % 3),
-            (i % 5) * 1.1,
-          ),
-        );
     });
   } else {
     event('Temple awakening', 0, 11, (k, g) => {
