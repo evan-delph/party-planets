@@ -69,12 +69,15 @@ export default function BoardScene(props: Props) {
     const board = getBoard(props.boardId),
       nodes = board.spaces,
       sceneryScale = board.radius / 35;
+    // Each world keeps its own sky: tropical day, lunar night, ember dusk, pastel haze.
     const skyColor =
       board.planet === 'earth'
         ? '#9edbf3'
         : board.planet === 'selene'
-          ? '#536e9a'
-          : '#648da5';
+          ? '#2a3558'
+          : board.planet === 'ignara'
+            ? '#3a2438'
+            : '#b9c9e6';
     renderer.setPixelRatio(Math.min(devicePixelRatio, props.low ? 1 : 1.5));
     renderer.setClearColor(skyColor);
     renderer.shadowMap.enabled = !props.low;
@@ -393,6 +396,7 @@ export default function BoardScene(props: Props) {
     // procedural scenery stays visible until it loads and is the fallback.
     let seaMaterial: T.MeshStandardMaterial | undefined,
       lava: T.MeshStandardMaterial | undefined,
+      lavaSea: T.MeshStandardMaterial | undefined,
       boardAmbient = 2.7,
       boardEnvironment = 0.55;
     loadModel(`/models/board-${board.id}.glb`).then(
@@ -417,6 +421,25 @@ export default function BoardScene(props: Props) {
             mesh.renderOrder = -1;
           }
           if (material.name === 'Lava') lava = material;
+          if (material.name === 'LavaSea') {
+            // Molten sea: the baked Ignara crust and crack-glow maps, tiled and drifting.
+            const loader = new T.TextureLoader();
+            const tile = (url: string, srgb: boolean) => {
+              const t = loader.load(url);
+              t.wrapS = t.wrapT = T.RepeatWrapping;
+              t.repeat.set(5, 5);
+              t.colorSpace = srgb ? T.SRGBColorSpace : T.NoColorSpace;
+              return t;
+            };
+            material.map = tile('/textures/planets/ignara-color.webp', true);
+            material.emissiveMap = tile('/textures/planets/ignara-glow.webp', true);
+            material.color.set('#8a7a7a');
+            material.emissive.set('#ffffff');
+            material.emissiveIntensity = 1.15;
+            material.roughness = 0.6;
+            material.needsUpdate = true;
+            lavaSea = material;
+          }
         });
         world.add(island);
         scenery.visible = false;
@@ -747,6 +770,11 @@ export default function BoardScene(props: Props) {
       if (lava && !p.reduced)
         lava.emissiveIntensity = 3.2 + Math.sin(worldClock * 2.3) * 0.6 + Math.sin(worldClock * 7.1) * 0.25;
       if (seaMaterial) seaMaterial.opacity = 0.78 + Math.sin(worldClock * 0.8) * 0.03;
+      if (lavaSea?.map && lavaSea.emissiveMap && !p.reduced) {
+        lavaSea.map.offset.set(worldClock * 0.004, worldClock * 0.002);
+        lavaSea.emissiveMap.offset.copy(lavaSea.map.offset);
+        lavaSea.emissiveIntensity = 1.1 + Math.sin(worldClock * 1.7) * 0.18;
+      }
       universe.root.visible = !!p.orbital && !studio;
       if (universe.root.visible)
         universe.draw(worldClock, !!p.reduced, p.titleScreen, p.sunBrightness);
