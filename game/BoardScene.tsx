@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadModel } from './models';
+import { createTerrainMaterial } from './TerrainMaterial';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createShop } from './Shop';
 import { Avatar, SPACE_INFO } from './config';
@@ -115,7 +116,10 @@ export default function BoardScene(props: Props) {
     const boardSky = createBoardSky(scene, board.planet === 'earth');
     const world = new T.Group();
     scene.add(world);
-    const kit = new WorldKit(world);
+    // Procedural scenery lives in its own group so Blender-built scenery can replace it.
+    const scenery = new T.Group();
+    world.add(scenery);
+    const kit = new WorldKit(scenery);
     const sea = kit.mesh(
       new T.PlaneGeometry(board.radius * 3.2, board.radius * 3.2),
       board.water,
@@ -145,7 +149,7 @@ export default function BoardScene(props: Props) {
       board.terrain,
       board.radius * 0.38,
     );
-    addGroundDetail(world, board, !!props.low);
+    addGroundDetail(scenery, board, !!props.low);
     for (const water of board.waterFeatures) {
       const shore = kit.mesh(
         new T.CylinderGeometry(1, 1, 0.06, 48),
@@ -317,7 +321,7 @@ export default function BoardScene(props: Props) {
       const { x, z } = clearing;
       if (n.type === 'shop' || n.type === 'lottery') {
         createShop(
-          world,
+          scenery,
           x,
           z,
           n.x,
@@ -385,6 +389,46 @@ export default function BoardScene(props: Props) {
           );
       }
     }
+    // Blender-built island, roads and props (art/blender/board.py). The
+    // procedural scenery stays visible until it loads and is the fallback.
+    let seaMaterial: T.MeshStandardMaterial | undefined,
+      lava: T.MeshStandardMaterial | undefined,
+      boardAmbient = 2.7,
+      boardEnvironment = 0.55;
+    loadModel(`/models/board-${board.id}.glb`).then(
+      (gltf) => {
+        if (disposed) return;
+        const island = gltf.scene;
+        island.traverse((o) => {
+          const mesh = o as T.Mesh;
+          if (!mesh.isMesh) return;
+          if (mesh.name === 'Terrain') {
+            mesh.material = createTerrainMaterial(board.id, mesh.geometry);
+            mesh.receiveShadow = true;
+            return;
+          }
+          const material = mesh.material as T.MeshStandardMaterial;
+          mesh.receiveShadow = true;
+          mesh.castShadow = material.name !== 'Water' && mesh.name !== 'Terrain';
+          if (material.name === 'Water') {
+            seaMaterial = material;
+            material.transparent = true;
+            material.depthWrite = false;
+            mesh.renderOrder = -1;
+          }
+          if (material.name === 'Lava') lava = material;
+        });
+        world.add(island);
+        scenery.visible = false;
+        // Scanned materials want softer fill and more image-based light than
+        // the flat procedural colors were tuned for.
+        boardAmbient = 1.3;
+        boardEnvironment = 0.85;
+      },
+      () => {
+        // No board model (e.g. the offline file): keep procedural scenery.
+      },
+    );
     // Blender-built Nabbit figures beside every steal stop (public/models/nabbit.glb).
     const nabbits: {
       node: (typeof nodes)[number];
@@ -433,7 +477,7 @@ export default function BoardScene(props: Props) {
       );
     const landmark = board.landmark;
     const details = new T.Group();
-    world.add(details);
+    scenery.add(details);
     const detailKit = new WorldKit(details);
     if (board.id === 'crown') {
       detailKit.mesh(
@@ -514,11 +558,11 @@ export default function BoardScene(props: Props) {
     kit.bake();
     const life =
       board.planet === 'earth'
-        ? createBoardLife(world, board, landmark, !!props.low)
-        : createAlienScenery(world, board, !!props.low);
+        ? createBoardLife(scenery, board, landmark, !!props.low)
+        : createAlienScenery(scenery, board, !!props.low);
     const planetLife =
       board.planet === 'earth'
-        ? createPlanetScenery(world, board, !!props.low)
+        ? createPlanetScenery(scenery, board, !!props.low)
         : { draw: () => {} };
     const universe = createPlanetarium(scene, board.id);
     const boardEffects = createBoardEffects(world, board);
@@ -535,7 +579,7 @@ export default function BoardScene(props: Props) {
     ship.rotation.y = Math.atan2(approach.x, approach.z);
     let worldClock = 0;
     const ambiance = new T.Group();
-    world.add(ambiance);
+    scenery.add(ambiance);
     const motes: T.Mesh[] = [];
     for (let i = 0; i < 28; i++) {
       const m = new T.Mesh(
@@ -696,16 +740,19 @@ export default function BoardScene(props: Props) {
       }
       if (!studio && !document.hidden && elapsed < 250)
         worldClock += elapsed / 1000;
-      if (!p.orbital) {
+      if (!p.orbital && scenery.visible) {
         life.draw(worldClock, !!p.reduced);
         planetLife.draw(worldClock, !!p.reduced);
       }
+      if (lava && !p.reduced)
+        lava.emissiveIntensity = 3.2 + Math.sin(worldClock * 2.3) * 0.6 + Math.sin(worldClock * 7.1) * 0.25;
+      if (seaMaterial) seaMaterial.opacity = 0.78 + Math.sin(worldClock * 0.8) * 0.03;
       universe.root.visible = !!p.orbital && !studio;
       if (universe.root.visible)
         universe.draw(worldClock, !!p.reduced, p.titleScreen, p.sunBrightness);
       // Low fill in orbit gives the planets a real night side.
-      ambient.intensity = p.orbital ? 0.35 : 2.7;
-      scene.environmentIntensity = p.orbital ? 0 : 0.55;
+      ambient.intensity = p.orbital ? 0.35 : boardAmbient;
+      scene.environmentIntensity = p.orbital ? 0 : boardEnvironment;
       sun.intensity = p.orbital ? 0.6 : 1.5 + (p.sunBrightness ?? 0.55) * 2;
       boardSky.root.visible = !p.orbital && !studio;
       boardSky.draw(camera, worldClock, p.sunBrightness ?? 0.55, !!p.reduced);

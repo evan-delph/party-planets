@@ -93,7 +93,7 @@ GEM = kit.flat('Gem', '#ff5a8a', rough=0.1, emit=0.3)
 
 # ── Primitive builders (three.js space) ─────────────────────────────────────
 def sphere(name, mat, pos, scale=(1, 1, 1), rot=(0, 0, 0), seg=24):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=seg, ring_count=max(8, seg // 2), radius=1)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=seg, ring_count=max(4, seg // 2), radius=1)
     obj = bpy.context.active_object
     obj.name = name
     obj.data.materials.append(mat)
@@ -191,7 +191,7 @@ def group(name, objects, parent):
 root = empty('Alien', (0, 0, 0))
 
 # ── Head: one sculpted shape — wide cranium tapering to a narrow chin ───────
-bpy.ops.mesh.primitive_uv_sphere_add(segments=64, ring_count=40, radius=0.46)
+bpy.ops.mesh.primitive_uv_sphere_add(segments=44, ring_count=28, radius=0.46)
 head = bpy.context.active_object
 head.name = 'Head'
 for v in head.data.vertices:
@@ -210,19 +210,19 @@ kit.smooth(head, 80)
 place(head, (0, 1.76, 0))
 body_parts = [head]
 for side in (-1, 1):
-    body_parts.append(sphere(f'Ear{side}', SKIN, (side * 0.475, 1.785, -0.01), (0.105, 0.184, 0.061), (0, 0, side * -0.36)))
-    body_parts.append(sphere(f'EarIn{side}', SHADE, (side * 0.497, 1.79, 0.034), (0.06, 0.115, 0.017), (0, 0, side * -0.36)))
-    body_parts.append(sphere(f'Cheek{side}', CHEEK, (side * 0.22, 1.5, 0.296), (0.06, 0.03, 0.012)))
+    body_parts.append(sphere(f'Ear{side}', SKIN, (side * 0.475, 1.785, -0.01), (0.105, 0.184, 0.061), (0, 0, side * -0.36), seg=16))
+    body_parts.append(sphere(f'EarIn{side}', SHADE, (side * 0.497, 1.79, 0.034), (0.06, 0.115, 0.017), (0, 0, side * -0.36), seg=12))
+    body_parts.append(sphere(f'Cheek{side}', CHEEK, (side * 0.22, 1.5, 0.296), (0.06, 0.03, 0.012), seg=12))
 torso = lathe('Torso', SKIN, [(0.0, 0.66), (0.2, 0.67), (0.235, 0.75), (0.245, 0.9), (0.24, 1.04), (0.225, 1.12),
                               (0.17, 1.22), (0.13, 1.3), (0.125, 1.38), (0.15, 1.46), (0.0, 1.47)])
 body_parts.append(torso)
 for side in (-1, 1):
-    body_parts.append(sphere(f'Shoulder{side}', SKIN, (side * 0.27, 1.1, 0), (0.085, 0.085, 0.085)))
+    body_parts.append(sphere(f'Shoulder{side}', SKIN, (side * 0.27, 1.1, 0), (0.085, 0.085, 0.085), seg=14))
 body = group('Body', body_parts, root)
 
 # ── Shirt: cloth shell with wrinkles, rolled hem and sleeve caps ───────────
 shirt = lathe('ShirtShell', SHIRT, [(0.252, 0.715), (0.262, 0.74), (0.27, 0.8), (0.279, 0.93), (0.273, 1.05),
-                                     (0.251, 1.12), (0.205, 1.18), (0.165, 1.215)], steps=72, subdiv=2, close_top=False)
+                                     (0.251, 1.12), (0.205, 1.18), (0.165, 1.215)], steps=40, subdiv=1, close_top=False)
 noise = bpy.data.textures.new('Wrinkles', 'CLOUDS')
 noise.noise_scale = 0.07
 disp = shirt.modifiers.new('Wrinkles', 'DISPLACE')
@@ -231,12 +231,10 @@ disp.strength = 0.011
 disp.mid_level = 0.5
 solid = shirt.modifiers.new('Thickness', 'SOLIDIFY')
 solid.thickness = 0.008
-shirt_parts = [shirt, torus('Hem', SEAM, (0, 0.737, 0), 0.256, 0.013)]
+shirt_parts = [shirt, torus('Hem', SEAM, (0, 0.737, 0), 0.256, 0.013, seg=32),
+               torus('HemStitch', THREAD, (0, 0.754, 0), 0.266, 0.004, seg=32)]
 for side in (-1, 1):
-    shirt_parts.append(sphere(f'SleeveCap{side}', SHIRT, (side * 0.27, 1.1, 0), (0.1, 0.098, 0.1)))
-for i in range(24):
-    a = i * math.pi / 12
-    shirt_parts.append(sphere('Stitch', THREAD, (math.sin(a) * 0.266, 0.754, math.cos(a) * 0.266), (0.005, 0.012, 0.004), (0, a, 0.3), seg=8))
+    shirt_parts.append(sphere(f'SleeveCap{side}', SHIRT, (side * 0.27, 1.1, 0), (0.1, 0.098, 0.1), seg=16))
 group('Shirt', shirt_parts, root)
 
 # Option overlays for the five patterns.
@@ -260,7 +258,7 @@ dots = []
 for i in range(14):
     a = i * 2.4
     y = 0.79 + (i % 4) * 0.085
-    dots.append(sphere('PolkaDot', DOT, (math.sin(a) * 0.279, y, math.cos(a) * 0.279), (0.03, 0.03, 0.008), (0, a, 0), seg=12))
+    dots.append(sphere('PolkaDot', DOT, (math.sin(a) * 0.279, y, math.cos(a) * 0.279), (0.03, 0.03, 0.008), (0, a, 0), seg=8))
 group('Dots', dots, root)
 overalls = [box('Bib', DENIM, (0, 0.82, 0.262), (0.34, 0.2, 0.03)),
             torus('Waistband', DENIM, (0, 0.735, 0), 0.262, 0.02)]
@@ -284,10 +282,10 @@ for i in range(11):
         th = petal * math.pi * 0.4
         local = Vector((math.sin(th) * 0.026, math.cos(th) * 0.026, 0.004))
         local.rotate(Euler((0, a, 0)))
-        aloha.append(sphere('Petal', PETAL_A if i % 2 else PETAL_B, center + local, (0.02, 0.028, 0.006), (0, a, -th), seg=10))
-    aloha.append(sphere('FlowerHeart', BLOOM, center + Vector((math.sin(a), 0, math.cos(a))) * 0.008, (0.016, 0.016, 0.006), (0, a, 0), seg=10))
+        aloha.append(sphere('Petal', PETAL_A if i % 2 else PETAL_B, center + local, (0.02, 0.028, 0.006), (0, a, -th), seg=6))
+    aloha.append(sphere('FlowerHeart', BLOOM, center + Vector((math.sin(a), 0, math.cos(a))) * 0.008, (0.016, 0.016, 0.006), (0, a, 0), seg=6))
     leaf_pos = center + Vector((math.cos(a) * 0.04, -0.03, -math.sin(a) * 0.04))
-    aloha.append(sphere('Leaf', LEAF, leaf_pos, (0.014, 0.034, 0.005), (0, a, -0.6), seg=10))
+    aloha.append(sphere('Leaf', LEAF, leaf_pos, (0.014, 0.034, 0.005), (0, a, -0.6), seg=6))
 group('Aloha', aloha, root)
 
 # ── Arms: rigid shoulder joints with skinned-shape limbs and two hand types ──
@@ -326,8 +324,8 @@ for index, side in enumerate((-1, 1)):
     o = Vector((side * 0.14, 0.67, 0))
     leg = skin_tube(f'LegSkin{index}', SKIN, [o + Vector((0, 0.02, 0)), o + Vector((0, -0.25, 0.008)), o + Vector((0, -0.5, 0))], [0.072, 0.06, 0.052])
     kit.parent(leg, joint)
-    shoe = [sphere(f'ShoeUpper{index}', SHOE, tuple(o + Vector((0, -0.565, 0.075))), (0.112, 0.085, 0.2), seg=32),
-            sphere(f'ShoeSole{index}', SOLE, tuple(o + Vector((0, -0.628, 0.08))), (0.118, 0.026, 0.21), seg=32),
+    shoe = [sphere(f'ShoeUpper{index}', SHOE, tuple(o + Vector((0, -0.565, 0.075))), (0.112, 0.085, 0.2), seg=20),
+            sphere(f'ShoeSole{index}', SOLE, tuple(o + Vector((0, -0.628, 0.08))), (0.118, 0.026, 0.21), seg=20),
             sphere(f'ShoeToe{index}', SOLE, tuple(o + Vector((0, -0.6, 0.235))), (0.08, 0.045, 0.06), seg=20),
             box(f'HeelTab{index}', SHIRT, tuple(o + Vector((0, -0.54, -0.105))), (0.06, 0.07, 0.016))]
     for lace in range(3):

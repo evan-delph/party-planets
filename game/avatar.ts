@@ -157,8 +157,84 @@ function buildModeled(g: T.Group, a: Avatar, model: T.Object3D) {
     face.add(m);
   }
   happy.visible = sad.visible = false;
+  // Few draw calls: merge each rigid group's visible static parts by material.
+  const animated = new Set<T.Object3D>([
+    ...arms,
+    ...legs,
+    ...eyes,
+    ...eyelids,
+    face,
+    nose,
+    part('Brow0')!,
+    part('Brow1')!,
+  ]);
+  mergeByMaterial(root, animated, true);
+  for (const limb of [...arms, ...legs]) mergeByMaterial(limb, new Set(), true);
+  for (const o of animated)
+    o.traverse((x) => {
+      if ((x as T.Mesh).isMesh) x.castShadow = false;
+    });
   g.add(root);
   g.userData.rig = { arms, legs, neutral, happy, sad, eyes, eyeBases, eyelids };
+}
+
+/** Merge visible meshes under `group` (excluding `skip` subtrees) per material. */
+function mergeByMaterial(group: T.Object3D, skip: Set<T.Object3D>, shadows: boolean) {
+  group.updateMatrixWorld(true);
+  const toLocal = group.matrixWorld.clone().invert();
+  const buckets = new Map<T.Material, T.BufferGeometry[]>();
+  const done: T.Object3D[] = [];
+  const visit = (o: T.Object3D) => {
+    if (o !== group && skip.has(o)) return;
+    if (!o.visible) {
+      done.push(o); // hidden option parts are dropped entirely
+      return;
+    }
+    const mesh = o as T.Mesh;
+    if (mesh.isMesh && !Array.isArray(mesh.material)) {
+      const geometry = mesh.geometry.clone();
+      for (const name of Object.keys(geometry.attributes))
+        if (!['position', 'normal', 'uv'].includes(name)) geometry.deleteAttribute(name);
+      if (!geometry.attributes.uv)
+        geometry.setAttribute(
+          'uv',
+          new T.BufferAttribute(new Float32Array(geometry.attributes.position.count * 2), 2),
+        );
+      geometry.applyMatrix4(toLocal.clone().multiply(mesh.matrixWorld));
+      const list = buckets.get(mesh.material) ?? [];
+      list.push(geometry.index ? geometry : geometry);
+      buckets.set(mesh.material, list);
+      done.push(mesh);
+    }
+    for (const child of [...o.children]) visit(child);
+  };
+  for (const child of [...group.children]) visit(child);
+  for (const [material, list] of buckets) {
+    const indexed = list.filter((g) => g.index),
+      plain = list.filter((g) => !g.index);
+    for (const set of [indexed, plain]) {
+      if (!set.length) continue;
+      const merged = mergeGeometries(set, false);
+      set.forEach((g) => g.dispose());
+      if (!merged) continue;
+      const mesh = new T.Mesh(merged, material);
+      mesh.castShadow = shadows;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
+  }
+  // Remove merged sources (keeping any subtree that still holds animated parts).
+  for (const o of done) {
+    let keepsAnimated = false;
+    o.traverse((x) => {
+      if (x !== o && skip.has(x)) keepsAnimated = true;
+    });
+    if (keepsAnimated) {
+      if ((o as T.Mesh).isMesh) (o as T.Mesh).visible = false;
+      continue;
+    }
+    o.removeFromParent();
+  }
 }
 
 function makeProceduralAvatar(a: Avatar) {

@@ -52,7 +52,11 @@ def scanned(name, asset, res='1k', tint=None, rough_bias=0.0, metal=None, flat_c
     key = (name, asset, res, tint, rough_bias, metal, flat_color)
     if key in _cache:
         return _cache[key]
-    base = os.path.join(SOURCE, asset, f'{asset}_{{}}_{res}.jpg')
+    # Use whichever resolution was fetched (see art/assets.json).
+    for candidate in (res, '1k', '2k', '4k'):
+        base = os.path.join(SOURCE, asset, f'{asset}_{{}}_{candidate}.jpg')
+        if os.path.exists(base.format('Diffuse')):
+            break
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
@@ -82,6 +86,44 @@ def scanned(name, asset, res='1k', tint=None, rough_bias=0.0, metal=None, flat_c
     nt.links.new(nmap.outputs['Normal'], bsdf.inputs['Normal'])
     _cache[key] = m
     return m
+
+
+def recolor(asset, dark, light, gamma=1.0, tag='tint'):
+    """Gradient-map a scan's diffuse (by brightness) onto a dark→light palette.
+
+    Keeps the photographed detail but gives game-friendly color (e.g. lush grass
+    from a dull field scan). Returns the asset name of the new texture set.
+    """
+    import numpy as np
+    for res in ('1k', '2k', '4k'):
+        src = os.path.join(SOURCE, asset, f'{asset}_Diffuse_{res}.jpg')
+        if os.path.exists(src):
+            break
+    out_asset = f'{asset}_{tag}'
+    out_dir = os.path.join(SOURCE, out_asset)
+    os.makedirs(out_dir, exist_ok=True)
+    img = bpy.data.images.load(src)
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(px)
+    px = px.reshape(-1, 4)
+    lum = (0.2126 * px[:, 0] + 0.7152 * px[:, 1] + 0.0722 * px[:, 2])
+    lo, hi = np.percentile(lum, 2), np.percentile(lum, 98)
+    t = np.clip((lum - lo) / max(1e-5, hi - lo), 0, 1) ** gamma
+    a, b = np.array(linear(dark)[:3]), np.array(linear(light)[:3])
+    px[:, :3] = a + (b - a) * t[:, None]
+    out = bpy.data.images.new(out_asset, w, h)
+    out.pixels.foreach_set(px.ravel())
+    out.filepath_raw = os.path.join(out_dir, f'{out_asset}_Diffuse_{res}.jpg')
+    out.file_format = 'JPEG'
+    out.save()
+    # Reuse the source normal and ARM maps.
+    import shutil
+    for kind in ('nor_gl', 'arm'):
+        shutil.copyfile(os.path.join(SOURCE, asset, f'{asset}_{kind}_{res}.jpg'), os.path.join(out_dir, f'{out_asset}_{kind}_{res}.jpg'))
+    bpy.data.images.remove(img)
+    bpy.data.images.remove(out)
+    return out_asset
 
 
 def flat(name, color, rough=0.5, metal=0.0, emit=0.0, alpha=1.0):
@@ -232,7 +274,7 @@ def export(name, animations=False):
     return path
 
 
-def preview(name, shots, target=(0, 0, 1), size=900, sky='#a9c9e6'):
+def preview(name, shots, target=(0, 0, 1), size=900, sky='#a9c9e6', ground=True):
     """Render EEVEE previews: shots = [(label, (x, y, z), lens)]."""
     scene = bpy.context.scene
     world = bpy.data.worlds.new('PreviewWorld')
@@ -251,9 +293,9 @@ def preview(name, shots, target=(0, 0, 1), size=900, sky='#a9c9e6'):
     fill.location = (6, -7, 5)
     fill.rotation_euler = (math.radians(60), 0, math.radians(40))
     scene.collection.objects.link(fill)
-    bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 0, 0))
-    ground = bpy.context.active_object
-    ground.data.materials.append(flat('PreviewGround', '#7f8f84', rough=0.95))
+    if ground:
+        bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 0, 0))
+        bpy.context.active_object.data.materials.append(flat('PreviewGround', '#7f8f84', rough=0.95))
     cam = bpy.data.objects.new('PreviewCam', bpy.data.cameras.new('PreviewCam'))
     scene.collection.objects.link(cam)
     scene.camera = cam
