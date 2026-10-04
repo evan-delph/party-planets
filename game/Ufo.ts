@@ -210,7 +210,56 @@ export function makeUfo() {
   ufo.userData.rimFrame = -1;
   // Board character staging can use this local-space point, transformed by ufo.localToWorld.
   ufo.userData.exit = new T.Vector3(0, 0.05, 3.94);
+  upgradeUfo(ufo);
   return ufo;
+}
+
+// Blender-built saucer (art/blender/ufo.py → public/models/ufo.glb). The
+// procedural ship above renders immediately and remains the offline fallback.
+let ufoModel: Promise<T.Object3D> | undefined;
+function upgradeUfo(ufo: T.Group) {
+  ufoModel ??= import('three/addons/loaders/GLTFLoader.js').then(
+    ({ GLTFLoader }) =>
+      new GLTFLoader().loadAsync('/models/ufo.glb').then((gltf) => gltf.scene),
+  );
+  ufoModel
+    .then((model) => {
+      const rig = ufo.userData,
+        hull = rig.hull as T.Group;
+      if (!hull.parent) return; // ship was disposed while loading
+      const ship = model.clone(true);
+      const lamps = new Map<string, T.MeshStandardMaterial>();
+      ship.traverse((o) => {
+        const mesh = o as T.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.castShadow = mesh.receiveShadow = true;
+        const swap = (m: T.Material) => {
+          if (!m.name.startsWith('Lamp')) return m;
+          if (!lamps.has(m.name))
+            lamps.set(m.name, (m as T.MeshStandardMaterial).clone());
+          return lamps.get(m.name)!;
+        };
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map(swap)
+          : swap(mesh.material);
+        if (!Array.isArray(mesh.material) && mesh.material.name === 'Glass')
+          mesh.renderOrder = 2;
+      });
+      const ramp = ship.getObjectByName('Ramp');
+      if (!ramp) return;
+      // Keep the code-driven rim lights and engine halo; hide the old body.
+      const keep = new Set<T.Object3D>([...rig.rimLights, rig.engineHalo]);
+      for (const child of [...hull.children])
+        if (!keep.has(child)) child.visible = false;
+      hull.add(ship);
+      rig.ramp = ramp;
+      rig.lights = lamps.get('LampGreen') ?? rig.lights;
+      rig.blueLights = lamps.get('LampBlue') ?? rig.blueLights;
+      rig.amber = lamps.get('LampAmber');
+    })
+    .catch(() => {
+      // Missing model (e.g. the offline file): keep the procedural ship.
+    });
 }
 
 /** Openness is 0 closed / 1 open; the owner controls arrival/landing position. */
@@ -252,4 +301,8 @@ export function animateUfo(
   rig.engineHalo.scale.setScalar(
     reduced ? 1 : 1 + Math.sin(time * 3.2) * 0.025,
   );
+  if (rig.amber)
+    rig.amber.emissiveIntensity = reduced
+      ? 2.2
+      : 1.6 + (Math.sin(time * 5) > 0.6 ? 2.4 : 0);
 }

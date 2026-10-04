@@ -1,0 +1,24 @@
+{
+  "_note": "CC0 source assets from Poly Haven (polyhaven.com, CC0 1.0). Fetch with: node scripts/fetch-assets.mjs. Downloads land in art/source/ (git-ignored); only built GLBs/textures ship.",
+  "textures": {
+    "metal_plate": { "res": "1k", "use": "UFO hull panels" },
+    "blue_metal_plate": { "res": "1k", "use": "UFO trim and ramp" },
+    "coast_sand_01": { "res": "2k", "use": "Crown Cay beaches" },
+    "leafy_grass": { "res": "2k", "use": "Crown Cay meadows" },
+    "coast_land_rocks_01": { "res": "1k", "use": "Crown Cay cliffs and boulders" },
+    "palm_bark": { "res": "1k", "use": "Palm trunks" },
+    "brown_planks_05": { "res": "1k", "use": "Docks, bridges, huts" },
+    "clay_roof_tiles_02": { "res": "1k", "use": "Hut and shop roofs" },
+    "large_sandstone_blocks": { "res": "1k", "use": "Crown Cay paths" },
+    "moon_dusted_02": { "res": "2k", "use": "Moonwake regolith" },
+    "moon_meteor_01": { "res": "1k", "use": "Moonwake crater rocks" },
+    "concrete_panels": { "res": "1k", "use": "Moon base structures and paths" },
+    "dark_rock": { "res": "2k", "use": "Emberfault basalt" },
+    "rocky_terrain_02": { "res": "1k", "use": "Emberfault slopes" },
+    "volcanic_rock_tiles": { "res": "1k", "use": "Emberfault paths" },
+    "coral_ground_02": { "res": "2k", "use": "Nimbus Reef islands" },
+    "coral_stone_wall": { "res": "1k", "use": "Nimbus Reef cliffs" },
+    "white_sandstone_bricks": { "res": "1k", "use": "Nimbus Reef paths and ruins" }
+  },
+  "maps": ["Diffuse", "nor_gl", "arm"]
+}

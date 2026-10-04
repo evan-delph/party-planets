@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createShop } from './Shop';
 import { Avatar, SPACE_INFO } from './config';
 import { getBoard, BOARD_WALK_SPEED } from './boards';
@@ -82,6 +83,10 @@ export default function BoardScene(props: Props) {
     root.appendChild(renderer.domElement);
     const perf = performanceMeter(renderer, root, board.name);
     const scene = new T.Scene();
+    // Image-based reflections so scanned metals and painted alloys read as such.
+    const pmrem = new T.PMREMGenerator(renderer);
+    const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = environment;
     const boardFog = new T.Fog(skyColor, 85 * sceneryScale, 180 * sceneryScale);
     scene.fog = boardFog;
     const camera = new T.PerspectiveCamera(42, 1, 0.1, 6000);
@@ -702,6 +707,7 @@ export default function BoardScene(props: Props) {
         universe.draw(worldClock, !!p.reduced, p.titleScreen, p.sunBrightness);
       // Low fill in orbit gives the planets a real night side.
       ambient.intensity = p.orbital ? 0.35 : 2.7;
+      scene.environmentIntensity = p.orbital ? 0 : 0.55;
       sun.intensity = p.orbital ? 0.6 : 1.5 + (p.sunBrightness ?? 0.55) * 2;
       boardSky.root.visible = !p.orbital && !studio;
       boardSky.draw(camera, worldClock, p.sunBrightness ?? 0.55, !!p.reduced);
@@ -1245,6 +1251,8 @@ export default function BoardScene(props: Props) {
       perf.dispose();
       disposed = true;
       director.dispose();
+      environment.dispose();
+      pmrem.dispose();
       finale?.dispose();
       disposeObject(scene);
       renderer.dispose();
