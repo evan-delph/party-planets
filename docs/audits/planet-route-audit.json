@@ -1,0 +1,170 @@
+[
+  {
+    "board": "Crown Cay",
+    "spaces": 138,
+    "edges": 142,
+    "forks": [
+      {
+        "id": 1,
+        "choices": [
+          "Coconut coast",
+          "Lagoon footbridge"
+        ]
+      },
+      {
+        "id": 2,
+        "choices": [
+          "Volcanic gardens",
+          "Mangrove market"
+        ]
+      },
+      {
+        "id": 3,
+        "choices": [
+          "Coral headland",
+          "Caldera overlook"
+        ]
+      },
+      {
+        "id": 8,
+        "choices": [
+          "Palm picnic trail",
+          "Lagoon stepping stones"
+        ]
+      }
+    ],
+    "minimumGap": 3.120000000000001,
+    "shortestEdge": 3.120000000000001,
+    "longestEdge": 3.553026480872163,
+    "unconnectedCrossings": 0,
+    "radius": 62.15799091580888,
+    "specialSpaces": {
+      "start": 1,
+      "blue": 87,
+      "bank": 7,
+      "red": 13,
+      "shop": 3,
+      "switch": 4,
+      "spring": 3,
+      "event": 6,
+      "hazard": 6,
+      "portal": 3,
+      "lucky": 3,
+      "thief": 2
+    },
+    "strongConnectivity": "All 138 nodes can reach every other node",
+    "diamondCandidates": "At least one from every node"
+  },
+  {
+    "board": "Aurora Alps",
+    "spaces": 138,
+    "edges": 142,
+    "forks": [
+      {
+        "id": 0,
+        "choices": [
+          "Chalet crescent",
+          "Ski-school slalom"
+        ]
+      },
+      {
+        "id": 2,
+        "choices": [
+          "Frozen valley crossing",
+          "Ice-cave shortcut"
+        ]
+      },
+      {
+        "id": 3,
+        "choices": [
+          "Pinewood switchback",
+          "Hot-spring trail"
+        ]
+      },
+      {
+        "id": 5,
+        "choices": [
+          "Avalanche ascent",
+          "Exposed summit pass"
+        ]
+      }
+    ],
+    "minimumGap": 3.1199999999999997,
+    "shortestEdge": 4.246013099722762,
+    "longestEdge": 4.954315999134604,
+    "unconnectedCrossings": 0,
+    "radius": 64.82703599772809,
+    "specialSpaces": {
+      "start": 1,
+      "blue": 89,
+      "bank": 6,
+      "red": 10,
+      "shop": 2,
+      "switch": 4,
+      "spring": 3,
+      "event": 7,
+      "portal": 3,
+      "thief": 2,
+      "hazard": 9,
+      "lucky": 2
+    },
+    "strongConnectivity": "All 138 nodes can reach every other node",
+    "diamondCandidates": "At least one from every node"
+  },
+  {
+    "board": "Mossveil Ruins",
+    "spaces": 138,
+    "edges": 142,
+    "forks": [
+      {
+        "id": 0,
+        "choices": [
+          "Firefly delta",
+          "Glow-worm trail"
+        ]
+      },
+      {
+        "id": 3,
+        "choices": [
+          "Root staircase",
+          "Sunken shrine"
+        ]
+      },
+      {
+        "id": 7,
+        "choices": [
+          "Riverbend outpost",
+          "Vine bridge"
+        ]
+      },
+      {
+        "id": 10,
+        "choices": [
+          "Explorer camp",
+          "Fern hollow"
+        ]
+      }
+    ],
+    "minimumGap": 3.1199999999999988,
+    "shortestEdge": 4.213038062916997,
+    "longestEdge": 4.890793373492212,
+    "unconnectedCrossings": 0,
+    "radius": 81.94250531941914,
+    "specialSpaces": {
+      "start": 1,
+      "blue": 87,
+      "bank": 7,
+      "lucky": 3,
+      "switch": 4,
+      "event": 10,
+      "spring": 2,
+      "hazard": 6,
+      "portal": 3,
+      "red": 9,
+      "thief": 3,
+      "shop": 3
+    },
+    "strongConnectivity": "All 138 nodes can reach every other node",
+    "diamondCandidates": "At least one from every node"
+  }
+]

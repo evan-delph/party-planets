@@ -1,0 +1,426 @@
+[
+  {
+    "board": "crown",
+    "sceneryScale": 1.7759425975945395,
+    "layoutScale": 1.2527189871483995,
+    "primary": {
+      "x": 12.088633195286716,
+      "z": -19.695444017663842,
+      "roadCenterClearance": 9.854681809100667,
+      "edge": [
+        108,
+        109
+      ],
+      "safeSolidRadius": 8.704681809100666,
+      "safeSquareHalfExtent": 5.866786568205912
+    },
+    "districts": [
+      {
+        "name": "Sunset Harbor",
+        "kind": "harbor",
+        "x": -38.02012629064926,
+        "z": 24.14972053253014,
+        "roadCenterClearance": 5.942167901292216,
+        "edge": [
+          10,
+          11
+        ],
+        "safeSolidRadius": 4.792167901292217,
+        "safeSquareHalfExtent": 3.367762671971661
+      },
+      {
+        "name": "Coconut Cove",
+        "kind": "grove",
+        "x": -38.02012629064926,
+        "z": -3.4100971847346475,
+        "roadCenterClearance": 6.758329845523463,
+        "edge": [
+          22,
+          23
+        ],
+        "safeSolidRadius": 5.608329845523462,
+        "safeSquareHalfExtent": 3.7294932390822475
+      },
+      {
+        "name": "Fireflower Caldera",
+        "kind": "volcano",
+        "x": 12.088633195286716,
+        "z": -19.695444017663842,
+        "roadCenterClearance": 9.854681809100667,
+        "edge": [
+          108,
+          109
+        ],
+        "safeSolidRadius": 8.704681809100666,
+        "safeSquareHalfExtent": 5.866786568205912
+      },
+      {
+        "name": "Coral Lighthouse",
+        "kind": "lighthouse",
+        "x": 37.14301293825471,
+        "z": -20.94816300481224,
+        "roadCenterClearance": 8.640306883236612,
+        "edge": [
+          50,
+          51
+        ],
+        "safeSolidRadius": 7.490306883236611,
+        "safeSquareHalfExtent": 5.469226906631912
+      },
+      {
+        "name": "Blueglass Lagoon",
+        "kind": "lagoon",
+        "x": 10.835914208138316,
+        "z": 14.127968635342945,
+        "roadCenterClearance": 12.149075376272403,
+        "edge": [
+          71,
+          72
+        ],
+        "safeSolidRadius": 10.999075376272403,
+        "safeSquareHalfExtent": 7.516064138735187
+      }
+    ],
+    "initialDiamond14": {
+      "id": 14,
+      "x": -48.14389331819439,
+      "z": 23.99669783699324,
+      "type": "shop",
+      "next": [
+        15
+      ]
+    },
+    "recommendedInitial": 22,
+    "hazards": [
+      {
+        "id": 33,
+        "x": -19.735805659276856,
+        "z": -29.822834831578614,
+        "distance": 33.39699018033842
+      },
+      {
+        "id": 34,
+        "x": -16.6346123941492,
+        "z": -31.27646631134855,
+        "distance": 30.970064813588497
+      },
+      {
+        "id": 35,
+        "x": -13.289888343535115,
+        "z": -32.03361957600336,
+        "distance": 28.21878685565434
+      },
+      {
+        "id": 107,
+        "x": 0.727511523582917,
+        "z": -16.29064788153962,
+        "distance": 11.86034242203083
+      },
+      {
+        "id": 108,
+        "x": 3.3340838402635566,
+        "z": -14.04915635361127,
+        "distance": 10.417422848035338
+      },
+      {
+        "id": 109,
+        "x": 6.043178858201015,
+        "z": -11.912609418979349,
+        "distance": 9.854949646358865
+      }
+    ]
+  },
+  {
+    "board": "alpine",
+    "sceneryScale": 1.852201028506517,
+    "layoutScale": 1.2247528209068916,
+    "primary": {
+      "x": -25.16279266901047,
+      "z": -28.644439360648693,
+      "roadCenterClearance": 9.45881727586781,
+      "edge": [
+        76,
+        77
+      ],
+      "safeSolidRadius": 8.30881727586781,
+      "safeSquareHalfExtent": 6.8546345068615455
+    },
+    "districts": [
+      {
+        "name": "Starlight Lodge",
+        "kind": "chalet",
+        "x": -3.1172418926864225,
+        "z": 33.51176630037605,
+        "roadCenterClearance": 4.912463515741359,
+        "edge": [
+          99,
+          100
+        ],
+        "safeSolidRadius": 3.762463515741359,
+        "safeSquareHalfExtent": 2.812584157681735
+      },
+      {
+        "name": "Crystal Lake",
+        "kind": "lake",
+        "x": 11.579791958196276,
+        "z": 9.016709882238223,
+        "roadCenterClearance": 3.5268963260164856,
+        "edge": [
+          32,
+          33
+        ],
+        "safeSolidRadius": 2.3768963260164857,
+        "safeSquareHalfExtent": 1.9933839826286346
+      },
+      {
+        "name": "Whistling Pines",
+        "kind": "grove",
+        "x": -28.837051131731148,
+        "z": 1.6681929567968734,
+        "roadCenterClearance": 7.120439464274332,
+        "edge": [
+          44,
+          4
+        ],
+        "safeSolidRadius": 5.970439464274332,
+        "safeSquareHalfExtent": 4.157262223924594
+      },
+      {
+        "name": "Cloudcap Summit",
+        "kind": "mountain",
+        "x": -25.16279266901047,
+        "z": -28.644439360648693,
+        "roadCenterClearance": 9.45881727586781,
+        "edge": [
+          76,
+          77
+        ],
+        "safeSolidRadius": 8.30881727586781,
+        "safeSquareHalfExtent": 6.8546345068615455
+      },
+      {
+        "name": "Moonwater Springs",
+        "kind": "hot-spring",
+        "x": -4.341994713593314,
+        "z": -11.804088073178935,
+        "roadCenterClearance": 4.8990112836275665,
+        "edge": [
+          8,
+          111
+        ],
+        "safeSolidRadius": 3.7490112836275666,
+        "safeSquareHalfExtent": 3.3702013239780713
+      }
+    ],
+    "initialDiamond14": {
+      "id": 14,
+      "x": -0.42609774311352927,
+      "z": 41.61525113730714,
+      "type": "shop",
+      "next": [
+        15
+      ]
+    },
+    "recommendedInitial": 22,
+    "hazards": [
+      {
+        "id": 50,
+        "x": -10.130780945410253,
+        "z": -18.231983978119345,
+        "distance": 18.286076767628938
+      },
+      {
+        "id": 51,
+        "x": -5.220478818632962,
+        "z": -17.59891621865761,
+        "distance": 22.79691784402486
+      },
+      {
+        "id": 52,
+        "x": -0.3992089612754798,
+        "z": -16.468191703459674,
+        "distance": 27.59521851805488
+      },
+      {
+        "id": 60,
+        "x": 43.03668862009167,
+        "z": -12.891439376985572,
+        "distance": 69.99518738161848
+      },
+      {
+        "id": 61,
+        "x": 46.52110391430082,
+        "z": -16.2045712011586,
+        "distance": 72.75528399499491
+      },
+      {
+        "id": 62,
+        "x": 47.86450329231381,
+        "z": -20.812419838100936,
+        "distance": 73.44607876002924
+      },
+      {
+        "id": 121,
+        "x": 17.396253160957457,
+        "z": -25.867805159769922,
+        "distance": 42.64952613385992
+      },
+      {
+        "id": 122,
+        "x": 12.819401061847833,
+        "z": -27.586372638457632,
+        "distance": 37.99692811000726
+      },
+      {
+        "id": 123,
+        "x": 8.188180525767935,
+        "z": -29.16260009433803,
+        "distance": 33.35499817995446
+      }
+    ]
+  },
+  {
+    "board": "moss",
+    "sceneryScale": 2.3412144376976896,
+    "layoutScale": 1.5399679287365042,
+    "primary": {
+      "x": 1.394242823715728,
+      "z": -45.055821505965746,
+      "roadCenterClearance": 12.474141847382645,
+      "edge": [
+        48,
+        49
+      ],
+      "safeSolidRadius": 11.324141847382645,
+      "safeSquareHalfExtent": 8.57526165005108
+    },
+    "districts": [
+      {
+        "name": "Firefly Delta",
+        "kind": "lagoon",
+        "x": -24.785211964804844,
+        "z": 38.10244664580548,
+        "roadCenterClearance": 10.765769162938128,
+        "edge": [
+          13,
+          14
+        ],
+        "safeSolidRadius": 9.615769162938127,
+        "safeSquareHalfExtent": 7.964131007728122
+      },
+      {
+        "name": "Whispering Bog",
+        "kind": "bog",
+        "x": -40.95487521653814,
+        "z": 13.077967803837288,
+        "roadCenterClearance": 9.762294639476083,
+        "edge": [
+          27,
+          28
+        ],
+        "safeSolidRadius": 8.612294639476083,
+        "safeSquareHalfExtent": 5.801674917717607
+      },
+      {
+        "name": "Sun Temple",
+        "kind": "temple",
+        "x": 1.394242823715728,
+        "z": -45.055821505965746,
+        "roadCenterClearance": 12.474141847382645,
+        "edge": [
+          48,
+          49
+        ],
+        "safeSolidRadius": 11.324141847382645,
+        "safeSquareHalfExtent": 8.57526165005108
+      },
+      {
+        "name": "Orchid Falls",
+        "kind": "waterfall",
+        "x": 39.89344104212833,
+        "z": -34.27604600481022,
+        "roadCenterClearance": 9.317956737183295,
+        "edge": [
+          57,
+          58
+        ],
+        "safeSolidRadius": 8.167956737183294,
+        "safeSquareHalfExtent": 5.740806596915476
+      },
+      {
+        "name": "Fern Hollow",
+        "kind": "grove",
+        "x": -7.845564748703297,
+        "z": 2.6831842848658845,
+        "roadCenterClearance": 10.123504205786444,
+        "edge": [
+          131,
+          3
+        ],
+        "safeSolidRadius": 8.973504205786444,
+        "safeSquareHalfExtent": 6.191189848942598
+      },
+      {
+        "name": "Lantern Outpost",
+        "kind": "harbor",
+        "x": 38.35347311339183,
+        "z": 35.022510788332475,
+        "roadCenterClearance": 7.699839643682524,
+        "edge": [
+          8,
+          82
+        ],
+        "safeSolidRadius": 6.549839643682525,
+        "safeSquareHalfExtent": 4.49654907179716
+      }
+    ],
+    "initialDiamond14": {
+      "id": 14,
+      "x": -27.603143266601958,
+      "z": 48.8710414718239,
+      "type": "blue",
+      "next": [
+        15
+      ]
+    },
+    "recommendedInitial": 23,
+    "hazards": [
+      {
+        "id": 24,
+        "x": -53.328684332756815,
+        "z": 18.258124987006187,
+        "distance": 83.68545021141676
+      },
+      {
+        "id": 25,
+        "x": -52.88276215790107,
+        "z": 13.756398057215534,
+        "distance": 80.03043445916246
+      },
+      {
+        "id": 26,
+        "x": -50.97402585234469,
+        "z": 9.653942544210873,
+        "distance": 75.73370350480721
+      },
+      {
+        "id": 102,
+        "x": 15.546299615561361,
+        "z": -24.867744012440028,
+        "distance": 24.65439482778321
+      },
+      {
+        "id": 103,
+        "x": 19.587384185705762,
+        "z": -22.435272348858266,
+        "distance": 29.02894481007652
+      },
+      {
+        "id": 104,
+        "x": 22.568548759722677,
+        "z": -18.767993778161806,
+        "distance": 33.75501619786779
+      }
+    ]
+  }
+]
