@@ -340,6 +340,17 @@ export function createBoardDirector(world: T.Object3D, nodes: Space[]) {
       popup(grow ? 'GROW!' : 'SHRINK!', grow ? '#ff9b3d' : '#c08bff', above(actor, 0.5), clock, true);
       sparkBurst(above(actor, -1), grow ? '#ffb347' : '#c08bff', clock);
       sound(grow ? 'grow' : 'shrink');
+    } else if (ev.kind === 'bank' && actor) {
+      // Coins hop from the walker into the bank tile.
+      const tile = nodes[ev.space] ?? nodes[0];
+      popup(`−${ev.delta} BANK`, '#ffd23f', above(actor), clock);
+      coinBurst(above(actor, -0.6), new T.Vector3(tile.x, 1, tile.z), ev.delta, clock);
+      ripple(tile, '#ffd23f', clock);
+      sound('count', 3);
+    } else if (ev.kind === 'lap' && actor) {
+      popup(`+${ev.delta} LAP`, '#7dffb2', above(actor, 0.3), clock);
+      coinBurst(new T.Vector3(actor.position.x, 1, actor.position.z), above(actor, -0.6), 4, clock);
+      sound('spring');
     } else if (ev.kind === 'lastTurns' && actor) {
       popup('BOOST!', '#7dffb2', above(actor, 0.5), clock, true);
       sparkBurst(above(actor, -1), '#7dffb2', clock);

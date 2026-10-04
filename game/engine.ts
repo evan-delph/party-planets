@@ -37,7 +37,15 @@ import {
 /** Discrete board moments for presentation (stomps, steals, villain strikes…). */
 export type BoardEvent = {
   id: number;
-  kind: 'stomp' | 'steal' | 'villain' | 'lastTurns' | 'size' | 'launch';
+  kind:
+    | 'stomp'
+    | 'steal'
+    | 'villain'
+    | 'lastTurns'
+    | 'size'
+    | 'launch'
+    | 'bank'
+    | 'lap';
   player: string;
   target?: string;
   space: number;
@@ -1113,10 +1121,27 @@ function arriveAtSpace(s: Game, now: number, rng: () => number) {
         s.bank +
         '.',
     );
+    if (deposit)
+      pushEvent(s, {
+        kind: 'bank',
+        player: p.id,
+        space: p.pos,
+        delta: deposit,
+        text: `Deposited ${deposit} points`,
+        at: now,
+      });
   }
   if (p.pos === 0) {
     p.shells += RULES.lapReward;
     log(s, p.avatar.name + ' returned to the landing pad: +10 points.');
+    pushEvent(s, {
+      kind: 'lap',
+      player: p.id,
+      space: p.pos,
+      delta: RULES.lapReward,
+      text: 'Lap bonus',
+      at: now,
+    });
   }
   if (p.size === 'mega')
     for (const q of s.players) {
