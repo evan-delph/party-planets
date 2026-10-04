@@ -12,8 +12,10 @@ export function createPlanetarium(parent: T.Object3D, boardId: string) {
     labels: T.Object3D[] = [],
     globes: ReturnType<typeof createGlobe>[] = [],
     beacons: T.Mesh[] = [];
-  const orbitRadii = [245, 385, 540],
-    phases = [2.7, 5.5, 0.7];
+  const orbitRadii = [225, 345, 465, 590],
+    phases = [2.7, 5.5, 0.7, 3.9],
+    sizes = [0.7, 0.48, 0.6, 0.8],
+    speeds = [0.004, 0.0027, 0.0021, 0.0016];
   const star = new T.Mesh(
     new T.SphereGeometry(57, 48, 32),
     new T.MeshBasicMaterial({
@@ -134,7 +136,7 @@ export function createPlanetarium(parent: T.Object3D, boardId: string) {
       0,
       Math.sin(phases[index]) * orbitRadii[index],
     );
-    group.scale.setScalar([0.7, 0.48, 0.78][index]);
+    group.scale.setScalar(sizes[index]);
     root.add(group);
     worlds.push(group);
     const radius = 106;
@@ -245,7 +247,7 @@ export function createPlanetarium(parent: T.Object3D, boardId: string) {
       });
       worlds.forEach((g, i) => {
         const phase =
-          phases[i] + (reduced ? 0 : time * [0.004, 0.0027, 0.0018][i]);
+          phases[i] + (reduced ? 0 : time * speeds[i]);
         g.position.set(
           Math.cos(phase) * orbitRadii[i],
           0,

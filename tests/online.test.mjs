@@ -48,7 +48,7 @@ const host = await post({
   type: 'create',
   avatar,
   rounds: 10,
-  boardId: 'moss',
+  boardId: 'coral',
 });
 assert.equal(host.status, 200, JSON.stringify(host));
 const code = host.data.code,
@@ -72,7 +72,7 @@ assert.equal(nonhost.status, 400);
 const started = await post({ type: 'start', code }, players[0].token);
 assert.equal(started.status, 200);
 assert.equal(started.data.game.players.length, 4);
-assert.equal(started.data.game.boardId, 'moss');
+assert.equal(started.data.game.boardId, 'coral');
 assert.equal(started.data.game.bank, 0);
 assert.equal(started.data.game.players.filter((p) => p.cpu).length, 0);
 async function waitState(code, key, predicate, limit = 90000) {
@@ -333,7 +333,7 @@ const filled = await post({
   rounds: 5,
   difficulty: 2,
   diamondGoal: 5,
-  boardId: 'alpine',
+  boardId: 'crater',
 });
 assert.equal(filled.status, 200, JSON.stringify(filled));
 for (let i = 0; i < 2; i++)

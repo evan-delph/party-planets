@@ -92,44 +92,6 @@ assert.equal(
   now + 999999 + 1500,
   'Delayed arrivals retain a full decision interval',
 );
-for (const boardId of ['alpine', 'moss']) {
-  const g = newGame(DEFAULT_AVATAR, 5, 1, undefined, boardId, 0);
-  const board = getBoard(boardId),
-    hazard = board.spaces.find((n) => n.type === 'hazard')!;
-  const diamond = board.spaces.find((n) => n.type === 'blue')!;
-  g.phase = 'moving';
-  g.pearl = diamond.id;
-  g.players[0].shells = 100;
-  g.path = boardId === 'alpine' ? [diamond.id, 1, 2] : [diamond.id, 1];
-  g.remaining = 1;
-  g.due = now;
-  g.movement = {
-    from: 1,
-    to: hazard.id,
-    startedAt: now - 1000,
-    arrivesAt: now,
-  };
-  const hazardStop = reduceGame(g, '', { type: 'tick' }, now);
-  assert.equal(
-    hazardStop.phase,
-    'diamond',
-    boardId + ' forced landing prompts',
-  );
-  assert.equal(hazardStop.players[0].pos, diamond.id);
-  const resolved = reduceGame(
-    hazardStop,
-    'local',
-    { type: 'diamond', value: 0 },
-    now,
-  );
-  assert.equal(resolved.phase, 'landed');
-  assert.equal(
-    resolved.players[0].shells,
-    hazardStop.players[0].shells,
-    'Hazard effects never replay',
-  );
-  assert.equal(resolved.players[0].stats!.lossSpaces, 1);
-}
 for (const board of BOARDS) {
   const reachable = new Set<number>([0]),
     queue = [0];

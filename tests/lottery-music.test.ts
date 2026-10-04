@@ -181,8 +181,12 @@ const legacy = structuredClone(shop);
 legacy.contentRevision = 7;
 delete legacy.shopStock;
 const migrated = migrateGame(legacy, now);
-assert.equal(migrated.shopStock!.length, 5);
-assert.deepEqual(migrated.players, legacy.players);
+// v0.8 layouts: an old mid-turn save restarts the turn from the landing pad.
+assert.equal(migrated.phase, 'turn');
+assert.deepEqual(
+  migrated.players.map((p) => [p.shells, p.pearls, p.items, p.pos]),
+  legacy.players.map((p) => [p.shells, p.pearls, p.items, 0]),
+);
 assert.equal(migrateGame(migrated, now), migrated);
 const scores = MINIGAMES.map((mini) =>
   JSON.stringify(musicScore(`mini:${mini.id}`)),

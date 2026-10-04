@@ -547,3 +547,15 @@
     animation: none;
   }
 }
+
+/* v0.8 board gimmick status tag. */
+:root .game-shell.light-ui .board-label .gimmick-tag {
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 700;
+  background: #d9f6ff;
+}
+:root .game-shell.light-ui .board-label .gimmick-tag.closed {
+  background: #ffe1d6;
+}

@@ -40,6 +40,10 @@ function fresh(board = 'crown', goal = 0) {
   );
   return newGame(DEFAULT_AVATAR, 5, 1, players, board, goal);
 }
+/** Points, diamonds and items without positions (v0.8 layouts reset positions). */
+function possessions(g: Game) {
+  return wallets(g).map(({ pos: _pos, ...rest }) => rest);
+}
 function wallets(g: Game) {
   return g.players.map((p) => ({
     points: p.shells,
@@ -103,7 +107,7 @@ check(
   ALL_ARCADE.length >= 50 && arcadeInfo(47).id !== ARCADE[0].id,
   'Retired games retain metadata for completed saved results',
 );
-equal(BOARDS.length, 9, 'All nine playable boards are available');
+equal(BOARDS.length, 4, 'Four hand-designed boards are available');
 
 for (const board of BOARDS) {
   const g = fresh(board.id),
@@ -424,10 +428,12 @@ for (const resolved of [false, true]) {
   const original = copy(g),
     updated = migrateGame(g, NOW);
   equal(g, original, 'Migration does not mutate a saved snapshot');
+  // v0.8 replaced every board layout, so pre-revision-11 saves restart at the
+  // landing pad while keeping points, diamonds and items.
   equal(
     wallets(updated),
-    wallets(g),
-    'Refreshing an old ballot preserves board possessions and positions',
+    wallets(g).map((w) => ({ ...w, pos: 0 })),
+    'Refreshing an old ballot preserves possessions and returns the crew to the pad',
   );
   equal(updated.bank, 29, 'Migration preserves the shared bank');
   check(
@@ -449,8 +455,8 @@ oldRemix.arcade = createArena(12, oldRemix.players, 1, 123);
 delete oldRemix.arcade.remix;
 const restarted = migrateGame(oldRemix, NOW);
 equal(
-  wallets(restarted),
-  wallets(oldRemix),
+  possessions(restarted),
+  possessions(oldRemix),
   'Restarting changed mechanics never replays board rewards',
 );
 check(
@@ -470,8 +476,8 @@ equal(
   'Retired completed results retain their identity and recorded scores',
 );
 equal(
-  wallets(retained),
-  wallets(oldResults),
+  possessions(retained),
+  possessions(oldResults),
   'Retired results keep their already-paid prizes',
 );
 const nextRound = reduceGame(retained, 'online', { type: 'tick' }, NOW, rng);

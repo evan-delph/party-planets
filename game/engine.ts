@@ -1,4 +1,9 @@
-import { getBoard, pearlDestinations, BOARD_WALK_SPEED } from './boards';
+import {
+  BOARD_WALK_SPEED,
+  getBoard,
+  pearlDestinations,
+  RETIRED_BOARDS,
+} from './boards';
 import {
   arcadeInfo,
   AVAILABLE_ARCADE,
@@ -72,7 +77,7 @@ export type Player = {
   prize?: number;
 };
 export type Game = {
-  contentRevision?: 7 | 8 | 9 | 10;
+  contentRevision?: 7 | 8 | 9 | 10 | 11;
   /** Arena seat order (player ids), grouped by team for 1 vs 3 and 2 vs 2. */
   lineup?: string[];
   miniMode?: MiniMode;
@@ -247,13 +252,14 @@ export function newGame(
   minigamePool?: string[],
 ): Game {
   const now = Date.now();
+  boardId = RETIRED_BOARDS[boardId] ?? boardId;
   return {
     version: 1,
-    contentRevision: 10,
+    contentRevision: 11,
     minigamePool: normalizeMinigamePool(minigamePool),
     boardId: getBoard(boardId).id,
     bank: 0,
-    routesOpen: true,
+    routesOpen: gimmickOpen(boardId, 1),
     players: others ?? [
       player('local', avatar),
       ...BOT_NAMES.map((name, i) =>
@@ -298,6 +304,40 @@ export function newGame(
 }
 function log(s: Game, msg: string) {
   s.log = [msg, ...s.log].slice(0, 30);
+}
+/** Is the board's gimmick branch open this round? (tide, ferry, eruption) */
+export function gimmickOpen(boardId: string | undefined, round: number) {
+  const gimmick = getBoard(boardId).gimmick;
+  if (gimmick === 'tide') return round % 2 === 1;
+  if (gimmick === 'ferry') return round % 2 === 0;
+  if (gimmick === 'eruption') return round % 3 !== 0;
+  return true;
+}
+/** Set this round's shortcut state from the board gimmick and announce changes. */
+function applyGimmick(s: Game) {
+  const board = getBoard(s.boardId),
+    open = gimmickOpen(s.boardId, s.round),
+    changed = s.routesOpen !== open;
+  s.routesOpen = open;
+  if (!changed) return;
+  const branch = board.districtRoads.find(
+    (r) => board.routeLabels[r.from]?.[1] === r.name,
+  )?.name;
+  const text =
+    board.gimmick === 'tide'
+      ? open
+        ? `Low tide! The ${branch} is open.`
+        : `High tide floods the ${branch}.`
+      : board.gimmick === 'ferry'
+        ? open
+          ? `The cloud ferry has docked — ride the ${branch}!`
+          : `The cloud ferry drifts away from the ${branch}.`
+        : board.gimmick === 'eruption'
+          ? open
+            ? `The lava cools. The ${branch} is passable again.`
+            : `ERUPTION! The ${branch} melts away this round.`
+          : '';
+  if (text) log(s, text);
 }
 function rollDie(rng: () => number, sides: number = RULES.diceSides) {
   return 1 + Math.floor(rng() * sides);
@@ -914,16 +954,6 @@ function landPlayer(s: Game, now: number, rng: () => number) {
       const loss = Math.min(p.shells, board.loss);
       p.shells -= loss;
       log(s, `${board.hazard}! ${p.avatar.name} loses ${loss} points.`);
-      if (board.id === 'alpine' || board.id === 'moss') {
-        p.pos =
-          s.path[Math.max(0, s.path.length - (board.id === 'alpine' ? 4 : 3))];
-        log(
-          s,
-          board.id === 'alpine'
-            ? 'The avalanche swept you back along your trail!'
-            : 'Sticky roots dragged you back along your trail!',
-        );
-      }
     }
   }
   if (type === 'spring') {
@@ -1437,6 +1467,7 @@ export function reduceGame(
         x.used = false;
         x.color = undefined;
       });
+      applyGimmick(s);
       if (
         !s.lastTurns &&
         s.rounds > lastTurnsCount(s.rounds) &&
@@ -1648,11 +1679,32 @@ export function reduceGame(
 }
 /** Upgrade device/room saves once; board prizes and balances are never replayed. */
 export function migrateGame(state: Game, now = Date.now()): Game {
-  if (state.contentRevision === 10) return state;
+  if (state.contentRevision === 11) return state;
   const s = structuredClone(state);
   // Revision 10 adds team colors, steals, villain spaces and size items;
   // all new fields are optional, so older saves only need the stamp.
-  s.contentRevision = 10;
+  // Revision 11 replaces every board layout: keep wallets and the round,
+  // but return the crew to the landing pad of the matching new board.
+  if ((state.contentRevision ?? 0) < 11) {
+    s.boardId = getBoard(RETIRED_BOARDS[s.boardId ?? ''] ?? s.boardId).id;
+    s.players.forEach((p) => (p.pos = 0));
+    s.pearl =
+      pearlDestinations(s.boardId, 0).find(
+        (n) => getBoard(s.boardId).spaces[n].type === 'blue',
+      ) ?? pearlDestinations(s.boardId, 0)[0] ?? 1;
+    s.routesOpen = gimmickOpen(s.boardId, s.round);
+    s.path = [];
+    s.movement = undefined;
+    s.remaining = 0;
+    s.steal = undefined;
+    s.lottery = undefined;
+    if (['rolling', 'moving', 'fork', 'diamond', 'steal', 'lottery', 'landed'].includes(s.phase)) {
+      s.phase = 'turn';
+      s.dice = undefined;
+      s.due = now + RULES.turnTimeout;
+    }
+  }
+  s.contentRevision = 11;
   const savedPool = s.minigamePool?.filter((id) =>
     AVAILABLE_ARCADE.some((m) => m.id === id),
   );

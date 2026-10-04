@@ -154,6 +154,8 @@ function finishVote(f: Fixture, rng = constant(0)) {
 // The roll does not teleport the player or preselect a future fork.
 for (const board of BOARDS) {
   const f = fresh(board.id);
+  // Board gimmicks can close a branch for the round; this check needs it open.
+  f.game.routesOpen = true;
   const fork = board.spaces.find((s) => s.next.length > 1)!;
   check(!!fork, `${board.id} has a real branch`);
   f.game.players[0].pos = fork.id;

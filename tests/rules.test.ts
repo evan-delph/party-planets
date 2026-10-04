@@ -56,7 +56,7 @@ for (const b of BOARD) {
   check(b.id >= 0 && BOARD[b.id] === b, 'Stable board IDs');
   for (const n of b.next) check(!!BOARD[n], 'Every edge has a destination');
 }
-check(BOARD.length === 138, '138 board spaces');
+check(BOARD.length >= 50 && BOARD.length <= 80, 'Boards hold 50–80 spaces');
 function boardGame(boardId = 'crown') {
   const s = newGame(DEFAULT_AVATAR, 10, 1, undefined, boardId, 0);
   s.phase = 'turn';
@@ -436,7 +436,10 @@ assert.throws(() => validateAvatar({ ...DEFAULT_AVATAR, hair: 8 }));
 assertions += 2;
 
 for (const board of BOARDS) {
-  check(board.spaces.length === 138, 'Every ecosystem has 138 spaces');
+  check(
+    board.spaces.length >= 50 && board.spaces.length <= 80,
+    'Every board has 50–80 hand-placed spaces',
+  );
   const visit = new Set([0]),
     q = [0];
   for (let i = 0; i < q.length; i++)
@@ -447,7 +450,10 @@ for (const board of BOARDS) {
         q.push(n);
       }
     }
-  check(visit.size === 138, 'Every district and branch is reachable');
+  check(
+    visit.size === board.spaces.length,
+    'Every district and branch is reachable',
+  );
   const spaces = board.spaces;
   const bankBefore = spaces.find(
     (s) =>
@@ -509,20 +515,27 @@ for (const board of BOARDS) {
     hazard.players[0].shells === 20 && !hazard.players[0].shield,
     'Shield blocks hazard once',
   );
+  // Jump pads exist only on Moonwake Basin.
   const beforePortal = spaces.find(
     (s) => s.next.length === 1 && spaces[s.next[0]].type === 'portal',
-  )!;
-  let portal = boardGame(board.id);
-  portal.players[0].pos = beforePortal.id;
-  portal.bank = 12;
-  const entered = beforePortal.next[0];
-  portal = rollToLanding(portal);
-  check(
-    portal.players[0].pos !== entered &&
-      spaces[portal.players[0].pos].type === 'portal' &&
-      portal.bank === 12,
-    'Portal moves districts without pass effects',
   );
+  check(
+    !!beforePortal === (board.gimmick === 'jumppads'),
+    'Jump pads appear exactly on the jump-pad board',
+  );
+  if (beforePortal) {
+    let portal = boardGame(board.id);
+    portal.players[0].pos = beforePortal.id;
+    portal.bank = 12;
+    const entered = beforePortal.next[0];
+    portal = rollToLanding(portal);
+    check(
+      portal.players[0].pos !== entered &&
+        spaces[portal.players[0].pos].type === 'portal' &&
+        portal.bank === 12,
+      'Jump pads fling players across the basin without pass effects',
+    );
+  }
   const destinations = pearlDestinations(board.id, 14);
   check(
     destinations.length > 0 &&
@@ -531,14 +544,9 @@ for (const board of BOARDS) {
       ),
     'Diamonds have reachable suitable spaces',
   );
-  const beforeSwitch = spaces.find(
-    (s) => s.next.length === 1 && spaces[s.next[0]].type === 'switch',
-  )!;
+  // Board gimmicks (tide, ferry, eruption) close the branch roads.
   let gate = boardGame(board.id);
-  gate.players[0].pos = beforeSwitch.id;
-  gate = rollToLanding(gate);
-  check(gate.routesOpen === false, 'Switch closes alternative routes');
-  gate.phase = 'turn';
+  gate.routesOpen = false;
   const fork = spaces.find((s) => s.next.length > 1)!;
   gate.players[0].pos = fork.id;
   gate = rollToLanding(gate);

@@ -6,6 +6,7 @@ import { miniMode } from '../game/arcade/catalog';
 import {
   arenaPlayers,
   cpuItem,
+  gimmickOpen,
   lastTurnsRound,
   migrateGame,
   newGame,
@@ -485,13 +486,58 @@ equal(
   equal(cpuItem(g, p), 'warp', 'A CPU that can afford a diamond warps to it');
 }
 
+// ── Board gimmicks and wormholes ─────────────────────────────────────────────
+{
+  equal(
+    [1, 2, 3, 4].map((r) => gimmickOpen('crown', r)),
+    [true, false, true, false],
+    'Crown Cay: the footbridge opens at low tide on odd rounds',
+  );
+  equal(
+    [1, 2, 3, 4].map((r) => gimmickOpen('coral', r)),
+    [false, true, false, true],
+    'Nimbus Reef: the cloud ferry docks on even rounds',
+  );
+  equal(
+    [1, 2, 3, 6].map((r) => gimmickOpen('fissure', r)),
+    [true, true, false, false],
+    'Emberfault: every third round erupts and closes the Lava Bridge',
+  );
+  check(
+    [1, 2, 3].every((r) => gimmickOpen('crater', r)),
+    'Moonwake Basin never closes roads',
+  );
+  equal(newGame(DEFAULT_AVATAR, 10, 1, undefined, 'coral', 0).routesOpen, false, 'Round 1 starts with the ferry away');
+  // Round transitions apply the gimmick and announce it.
+  const g = fresh();
+  g.phase = 'results';
+  g.round = 1;
+  const next = reduceGame(g, 'p0', { type: 'next' }, NOW, constant(0.5));
+  check(
+    next.routesOpen === false && /High tide/.test(next.log[0]),
+    'High tide floods the footbridge and is announced',
+  );
+  // Each board carries one Shrink Ray wormhole that only tiny players see.
+  for (const id of ['crown', 'crater', 'fissure', 'coral']) {
+    const spaces = getBoard(id).spaces;
+    const holes = spaces.filter((s) => s.miniNext?.length);
+    equal(holes.length, 1, `${id} has one wormhole`);
+    const w = fresh();
+    w.boardId = id;
+    w.players[0].pos = holes[0].id;
+    w.players[0].size = 'mini';
+    check(routeChoices(w).includes(holes[0].miniNext![0]), `${id}: tiny explorers can enter the wormhole`);
+  }
+  equal(getBoard('alpine').id, 'crown', 'Retired board links resolve to their replacement');
+}
+
 // ── Save migration ───────────────────────────────────────────────────────────
 {
   const g = fresh();
   g.contentRevision = 9;
   const before = JSON.stringify(g);
   const upgraded = migrateGame(g, NOW);
-  equal(upgraded.contentRevision, 10, 'Revision 9 saves upgrade to revision 10');
+  equal(upgraded.contentRevision, 11, 'Revision 9 saves upgrade to revision 11');
   equal(JSON.stringify(g), before, 'Migration never mutates the saved snapshot');
   equal(
     upgraded.players.map((p) => p.shells),

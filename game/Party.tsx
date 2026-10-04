@@ -2311,8 +2311,23 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                     : `round ${game.round} of ${game.rounds}`}
                 </span>
                 <span className="bank-pot">
-                  <CoinIcon size={18} /> Bank {game.bank ?? 0} · Shortcuts{' '}
-                  {game.routesOpen === false ? 'closed' : 'open'}
+                  <CoinIcon size={18} /> Bank {game.bank ?? 0}
+                </span>
+                <span
+                  className={`gimmick-tag ${game.routesOpen === false ? 'closed' : 'open'}`}
+                  title={getBoard(game.boardId).gimmickRule}
+                >
+                  {(() => {
+                    const board = getBoard(game.boardId),
+                      open = game.routesOpen !== false;
+                    if (board.gimmick === 'tide')
+                      return open ? '🌊 Low tide · footbridge open' : '🌊 High tide · footbridge flooded';
+                    if (board.gimmick === 'ferry')
+                      return open ? '☁️ Cloud ferry docked' : '☁️ Ferry away · next round';
+                    if (board.gimmick === 'eruption')
+                      return open ? '🌋 Lava bridge passable' : '🌋 Eruption · bridge closed';
+                    return '🚀 Jump pads active';
+                  })()}
                 </span>
                 {game.lastTurns && (
                   <span className="last-turns-tag">
@@ -2321,7 +2336,10 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 )}
               </div>
               <div className="activity">
-                <span className="eyebrow">EARTH ENCOUNTERS</span>
+                <span className="eyebrow">
+                  {getPlanet(getBoard(game.boardId).planet).name.toUpperCase()}{' '}
+                  ENCOUNTERS
+                </span>
                 {game.log.slice(0, 3).map((line, i) => (
                   <p key={i} className={i === 0 ? 'new' : ''}>
                     {line}
