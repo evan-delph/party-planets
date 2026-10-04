@@ -559,3 +559,85 @@
 :root .game-shell.light-ui .board-label .gimmick-tag.closed {
   background: #ffe1d6;
 }
+/* ── Online reactions ─────────────────────────────────────────────────── */
+:root .game-shell .emote-bubble {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-left: -23px;
+  border: 3px solid var(--ink, #1b2440);
+  border-radius: 50%;
+  background: #fff;
+  font-size: 26px;
+  line-height: 1;
+  box-shadow: 0 4px 0 var(--ink, #1b2440);
+  animation: emote-pop 3.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  pointer-events: none;
+}
+:root .game-shell .emote-bubble::before {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  margin-left: -7px;
+  border: 7px solid transparent;
+  border-bottom: 8px solid var(--ink, #1b2440);
+  border-top: 0;
+}
+@keyframes emote-pop {
+  0% { transform: scale(0.2) translateY(-10px); opacity: 0; }
+  12% { transform: scale(1.15); opacity: 1; }
+  20% { transform: scale(1); }
+  85% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.8) translateY(-6px); opacity: 0; }
+}
+:root .game-shell .emote-bar {
+  position: fixed;
+  right: 12px;
+  top: 50%;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transform: translateY(-50%);
+}
+:root .game-shell .emote-bar button {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--ink, #1b2440);
+  border-radius: 50%;
+  background: #ffffffe6;
+  font-size: 21px;
+  line-height: 1;
+  box-shadow: 0 3px 0 var(--ink, #1b2440);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+:root .game-shell .emote-bar button:hover {
+  transform: scale(1.12) rotate(-6deg);
+}
+:root .game-shell .emote-bar button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ink, #1b2440);
+}
+@media (max-width: 760px) {
+  :root .game-shell .emote-bar {
+    top: auto;
+    bottom: 160px;
+    transform: none;
+    gap: 4px;
+  }
+  :root .game-shell .emote-bar button {
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root .game-shell .emote-bubble { animation: none; }
+}

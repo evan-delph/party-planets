@@ -10,24 +10,44 @@ import {
   reduceGame,
   validateAvatar,
 } from '@/game/engine';
-import { DEFAULT_AVATAR, OUTFITS } from '@/game/config';
+import { DEFAULT_AVATAR, EMOTES, OUTFITS } from '@/game/config';
+type Seat = {
+  id: string;
+  token: string;
+  avatar: Player['avatar'];
+  /** Last poll time, recorded at most every few seconds. */
+  seen?: number;
+  /** Disconnected mid-match: a CPU plays this seat until they return. */
+  away?: boolean;
+};
+type Emote = { id: number; seat: string; emoji: string; at: number };
 type Room = {
   boardId?: string;
   host: string;
-  seats: { id: string; token: string; avatar: Player['avatar'] }[];
+  seats: Seat[];
+  /** Bumped by presence and emote writes, which don't advance `revision`. */
+  pulse?: number;
+  emotes?: Emote[];
   game: Game | null;
   rounds: number;
   difficulty: number;
   diamondGoal?: number;
   minigamePool?: string[];
 };
+const EMOTE_LIFE = 4000,
+  /** A human silent this long mid-match is handed to a CPU. */
+  AWAY_AFTER = 30000,
+  SEEN_EVERY = 8000;
 const response = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
 function visible(room: Room, revision: number) {
+  const now = Date.now();
   return {
-    serverTime: Date.now(),
+    serverTime: now,
     host: room.host,
-    seats: room.seats.map(({ id, avatar }) => ({ id, avatar })),
+    seats: room.seats.map(({ id, avatar, away }) => ({ id, avatar, away: !!away })),
+    pulse: room.pulse ?? 0,
+    emotes: (room.emotes ?? []).filter((e) => now - e.at < EMOTE_LIFE),
     game:
       room.game?.lottery && room.game.lottery.stage !== 'revealed'
         ? {
@@ -52,6 +72,13 @@ function checkOrigin(request: Request) {
   const origin = request.headers.get('origin');
   if (origin && origin !== new URL(request.url).origin)
     throw Error('Invalid origin.');
+}
+/** Hand a seat to (or back from) the CPU, on the board and in a running minigame. */
+function setCpu(game: Game, id: string, cpu: boolean) {
+  const p = game.players.find((q) => q.id === id);
+  if (p) p.cpu = cpu;
+  const runner = game.arcade?.actors.find((q) => q.id === id);
+  if (runner) runner.cpu = cpu;
 }
 async function load(code: string) {
   if (!/^[A-Z0-9]{8}$/.test(code))
@@ -79,15 +106,50 @@ async function save(code: string, room: Room, revision: number) {
     .run();
   return result.meta.changes === 1;
 }
+/**
+ * Presence and emotes don't advance the game revision (which guards actions
+ * against stale intent); they bump `pulse` so polls still notice them. A lost
+ * race only drops a heartbeat or an emote, never game state.
+ */
+async function saveQuiet(code: string, room: Room, revision: number) {
+  room.pulse = (room.pulse ?? 0) + 1;
+  const result = await database()
+    .prepare('UPDATE rooms SET data = ? WHERE code = ? AND revision = ?')
+    .bind(JSON.stringify(room), code, revision)
+    .run();
+  return result.meta.changes === 1;
+}
 export async function GET(request: Request) {
   try {
-    const code = new URL(request.url).searchParams.get('code') ?? '',
+    const url = new URL(request.url),
+      code = url.searchParams.get('code') ?? '',
+      since = url.searchParams.get('since') ?? '',
       key = request.headers.get('x-party-token') ?? '';
     for (let retry = 0; retry < 4; retry++) {
       const { room, revision } = await load(code);
       const seat = auth(room, key),
-        now = Date.now(),
-        targetArenaTime = room.game
+        now = Date.now();
+      // Presence: a returning player takes their seat back from the CPU, and
+      // anyone silent mid-match is covered by one so the party never stalls.
+      let changed = false,
+        heartbeat = false;
+      if (seat.away) {
+        seat.away = false;
+        if (room.game) setCpu(room.game, seat.id, false);
+        changed = true;
+      }
+      if (!seat.seen || now - seat.seen > SEEN_EVERY) {
+        seat.seen = now;
+        heartbeat = true;
+      }
+      if (room.game && room.game.phase !== 'finished')
+        for (const other of room.seats)
+          if (!other.away && other.seen && now - other.seen > AWAY_AFTER) {
+            other.away = true;
+            setCpu(room.game, other.id, true);
+            changed = true;
+          }
+      const targetArenaTime = room.game
           ? Math.max(0, (now - room.game.miniStart) / 1000)
           : 0,
         shouldAdvance =
@@ -100,10 +162,22 @@ export async function GET(request: Request) {
         const next = reduceGame(room.game, 'online', { type: 'tick' }, now);
         if (next !== room.game) {
           room.game = next;
-          if (!(await save(code, room, revision))) continue;
-          return response(visible(room, revision + 1));
+          changed = true;
         }
       }
+      if (changed) {
+        if (!(await save(code, room, revision))) continue;
+        return response(visible(room, revision + 1));
+      }
+      if (heartbeat) await saveQuiet(code, room, revision);
+      // Nothing new since the caller's last view: skip the full state.
+      if (since === `${revision}.${room.pulse ?? 0}`)
+        return response({
+          unchanged: true,
+          revision,
+          pulse: room.pulse ?? 0,
+          serverTime: Date.now(),
+        });
       return response(visible(room, revision));
     }
     return response({ error: 'Room is busy. Retrying…' }, 409);
@@ -133,7 +207,7 @@ export async function POST(request: Request) {
         : 10;
       const room: Room = {
         host: id,
-        seats: [{ id, token: key, avatar }],
+        seats: [{ id, token: key, avatar, seen: Date.now() }],
         game: null,
         rounds,
         minigamePool: normalizeMinigamePool(body.minigamePool),
@@ -160,7 +234,12 @@ export async function POST(request: Request) {
         if (room.game) throw Error('This party has already started.');
         if (room.seats.length >= 4) throw Error('This party is full.');
         const avatar = validateAvatar(body.avatar),
-          seat = { id: crypto.randomUUID(), token: token(), avatar };
+          seat = {
+            id: crypto.randomUUID(),
+            token: token(),
+            avatar,
+            seen: Date.now(),
+          };
         room.seats.push(seat);
         if (!(await save(code, room, revision))) continue;
         return response({
@@ -171,15 +250,30 @@ export async function POST(request: Request) {
         });
       }
       const seat = auth(room, request.headers.get('x-party-token') ?? '');
+      seat.seen = Date.now();
+      if (body.type === 'emote') {
+        if (!EMOTES.includes(body.emoji)) throw Error('Unknown emote.');
+        const now = Date.now(),
+          recent = (room.emotes ?? []).filter((e) => now - e.at < EMOTE_LIFE);
+        // One live emote per player keeps spam off everyone's screen.
+        if (recent.some((e) => e.seat === seat.id && now - e.at < 900))
+          return response({ ok: true, serverTime: now });
+        room.emotes = [
+          ...recent,
+          {
+            id: (room.emotes?.at(-1)?.id ?? 0) + 1,
+            seat: seat.id,
+            emoji: body.emoji,
+            at: now,
+          },
+        ].slice(-8);
+        if (!(await saveQuiet(code, room, revision))) continue;
+        return response(visible(room, revision));
+      }
       if (body.type === 'leave') {
         room.seats = room.seats.filter((s) => s.id !== seat.id);
         if (room.host === seat.id) room.host = room.seats[0]?.id ?? '';
-        if (room.game) {
-          const player = room.game.players.find((p) => p.id === seat.id);
-          if (player) player.cpu = true;
-          const runner = room.game.arcade?.actors.find((p) => p.id === seat.id);
-          if (runner) runner.cpu = true;
-        }
+        if (room.game) setCpu(room.game, seat.id, true);
         if (!(await save(code, room, revision))) continue;
         return response({ left: true, serverTime: Date.now() });
       } else if (body.type === 'start') {
@@ -200,6 +294,7 @@ export async function POST(request: Request) {
           room.difficulty = body.difficulty;
           room.diamondGoal = body.diamondGoal;
         }
+        if (body.boardId !== undefined) room.boardId = getBoard(body.boardId).id;
         const players = room.seats.map((s) => player(s.id, s.avatar));
         while (players.length < 4) {
           const i = players.length;

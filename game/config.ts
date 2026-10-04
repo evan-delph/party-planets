@@ -175,6 +175,8 @@ export function spaceColor(kind: SpaceKind): TeamColor | undefined {
 }
 export const NABBER = 'Nabbit';
 export const VILLAIN = 'Captain Klaxon';
+/** Quick reactions friends can send during an online party. */
+export const EMOTES = ['👋', '😂', '😱', '🎉', '😡', '👏', '🤞', '💤'];
 export const SPACE_INFO = {
   lottery: {
     color: '#ed91ee',

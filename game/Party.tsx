@@ -71,6 +71,7 @@ import {
   Avatar,
   ALIEN_SKIN,
   DEFAULT_AVATAR,
+  EMOTES,
   ITEMS,
   MINIGAMES,
   NABBER,
@@ -112,12 +113,18 @@ type Room = {
   diamondGoal: number;
   minigamePool?: string[];
   host: string;
-  seats: { id: string; avatar: Avatar }[];
+  seats: { id: string; avatar: Avatar; away?: boolean }[];
   game: Game | null;
   rounds: number;
   revision: number;
+  /** Presence/emote counter that changes without advancing `revision`. */
+  pulse?: number;
+  emotes?: { id: number; seat: string; emoji: string; at: number }[];
 };
 type Session = { code: string; id: string; token: string };
+/** The last online room on this device, so a closed tab can rejoin. */
+const LAST_ROOM = 'sp-room-last';
+type RequestError = Error & { status?: number };
 function Ufo({ className = '' }: { className?: string }) {
   return (
     <span className={'ufo-symbol ' + className} aria-hidden="true">
@@ -220,6 +227,8 @@ const hair = [
   ];
 export default function Party({ offline = false }: { offline?: boolean } = {}) {
   const [started, setStarted] = useState(false);
+  const [lastRoom, setLastRoom] = useState<Session | null>(null);
+  const [invite, setInvite] = useState('');
   const [arcadeSearch, setArcadeSearch] = useState('');
   const [minigamePool, setMinigamePool] = useState<string[]>(
     DEFAULT_MINIGAME_POOL,
@@ -392,6 +401,19 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
       }
       const se = sessionStorage.getItem('sp-room');
       if (se && !offline) setSession(JSON.parse(se));
+      else if (!offline) {
+        // A closed tab can rejoin its last room (rooms live for 24 hours).
+        const last = JSON.parse(localStorage.getItem(LAST_ROOM) ?? 'null');
+        if (last && Date.now() - last.at < 86400000)
+          setLastRoom({ code: last.code, id: last.id, token: last.token });
+      }
+      // Invite links (?join=CODE) open straight into the join form.
+      const join = new URLSearchParams(location.search).get('join');
+      if (join && /^[A-Za-z0-9]{8}$/.test(join) && !offline) {
+        setInvite(join.toUpperCase());
+        setCode(join.toUpperCase());
+        history.replaceState(null, '', location.pathname);
+      }
     } catch {}
     setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }, []);
@@ -439,6 +461,12 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
       setBoardId(data.boardId ?? 'crown');
     }
     const entering = !!data.game && !onlineRef.current?.game;
+    const seenEmote = onlineRef.current?.emotes?.at(-1)?.id ?? 0;
+    if (
+      onlineRef.current &&
+      data.emotes?.some((e) => e.id > seenEmote && e.seat !== session?.id)
+    )
+      playSfx('pass', 0, muted);
     onlineRef.current = data;
     setRoom(data);
     if (data.game) {
@@ -457,21 +485,25 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
     const controller = new AbortController();
     async function poll() {
       try {
-        const sent = Date.now();
-        const res = await fetch(`/api/room?code=${session!.code}`, {
+        const sent = Date.now(),
+          known = onlineRef.current;
+        // The server answers "unchanged" when it has nothing newer than this.
+        const since = known ? `&since=${known.revision}.${known.pulse ?? 0}` : '';
+        const res = await fetch(`/api/room?code=${session!.code}${since}`, {
           headers: { 'x-party-token': session!.token },
           signal: AbortSignal.any([
             controller.signal,
             AbortSignal.timeout(10000),
           ]),
         });
-        const data = (await res.json()) as Room & Session & { error?: string };
+        const data = (await res.json()) as Room &
+          Session & { error?: string; unchanged?: boolean };
         if (!stop) {
           if (res.ok) {
             failures = 0;
             offsetRef.current =
               data.serverTime + (Date.now() - sent) / 2 - Date.now();
-            receive(data);
+            if (!data.unchanged) receive(data);
           } else {
             failures++;
             setNotice(data.error ?? 'Could not reach the party.');
@@ -498,8 +530,8 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
             : ['minigame', 'moving', 'rolling', 'arrival', 'vote'].includes(
                   gameRef.current?.phase ?? '',
                 )
-              ? 300
-              : 900,
+              ? 220
+              : 650,
         );
     }
     void poll();
@@ -521,9 +553,22 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
       signal: AbortSignal.timeout(10000),
     });
     const data = (await res.json()) as Room & Session & { error?: string };
-    if (!res.ok) throw Error(data.error ?? 'The request failed.');
+    if (!res.ok) {
+      const error: RequestError = Error(data.error ?? 'The request failed.');
+      error.status = res.status;
+      throw error;
+    }
     offsetRef.current = data.serverTime + (Date.now() - sent) / 2 - Date.now();
     return data;
+  }
+  /** Fetch the room's latest full state (used to recover from stale actions). */
+  async function refresh() {
+    if (!session) return;
+    const res = await fetch(`/api/room?code=${session.code}`, {
+      headers: { 'x-party-token': session.token },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) receive((await res.json()) as Room);
   }
   async function connect(type: 'create' | 'join') {
     setBusy(true);
@@ -542,6 +587,9 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
       onlineRef.current = null;
       setSession(s);
       sessionStorage.setItem('sp-room', JSON.stringify(s));
+      try {
+        localStorage.setItem(LAST_ROOM, JSON.stringify({ ...s, at: Date.now() }));
+      } catch {}
       receive(data);
       sound();
     } catch (e) {
@@ -555,11 +603,22 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
     setBusy(true);
     try {
       if (session) {
-        const data = await request({
-          type: 'action',
-          action,
-          revision: onlineRef.current?.revision,
-        });
+        const send = () =>
+          request({
+            type: 'action',
+            action,
+            revision: onlineRef.current?.revision,
+          });
+        let data: Room;
+        try {
+          data = await send();
+        } catch (e) {
+          // The room advanced (a timer or another player) since our last poll:
+          // catch up once and resend if the action still makes sense.
+          if ((e as RequestError).status !== 409) throw e;
+          await refresh();
+          data = await send();
+        }
         receive(data);
       } else setGame((g) => (g ? reduceGame(g, g.players[0].id, action) : g));
       sound(action.type === 'roll' ? 690 : 430);
@@ -575,6 +634,10 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
     setRoom(null);
     onlineRef.current = null;
     sessionStorage.removeItem('sp-room');
+    try {
+      localStorage.removeItem(LAST_ROOM);
+    } catch {}
+    setLastRoom(null);
     setPanel('menu');
     setGame(null);
   }
@@ -699,6 +762,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
   const back = () => setPanel(game ? 'play' : 'menu');
   const startScreen = () => {
     setStarted(true);
+    if (invite && !session) setPanel('online');
     sound(659);
   };
   const padConnected = useGamepadUI({
@@ -1460,6 +1524,24 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   {copied ? <Check /> : <Copy />}
                   {copied ? 'Copied' : 'Copy code'}
                 </button>
+                <button
+                  className="light-button"
+                  onClick={async () => {
+                    const link = `${location.origin}${location.pathname}?join=${session.code}`;
+                    try {
+                      if (navigator.share && matchMedia('(pointer: coarse)').matches)
+                        await navigator.share({ title: 'Party Planets', text: 'Join my party!', url: link });
+                      else {
+                        await navigator.clipboard.writeText(link);
+                        setNotice('Invite link copied — send it to your friends.');
+                      }
+                    } catch {
+                      setNotice(link);
+                    }
+                  }}
+                >
+                  <Users /> Invite link
+                </button>
               </div>
               <div className="seats">
                 {[0, 1, 2, 3].map((i) => (
@@ -1539,6 +1621,20 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 Create a room or join your friends. Empty seats become CPU
                 rivals when the host starts.
               </p>
+              {lastRoom && (
+                <button
+                  className="primary"
+                  onClick={() => {
+                    sessionStorage.setItem('sp-room', JSON.stringify(lastRoom));
+                    onlineRef.current = null;
+                    setSession(lastRoom);
+                    setLastRoom(null);
+                    sound();
+                  }}
+                >
+                  <RotateCcw /> Rejoin party {lastRoom.code}
+                </button>
+              )}
               {matchOptions}
               <Choice
                 label="Online board"
@@ -2282,7 +2378,13 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                     )}
                   </strong>
                   <small>
-                    {p.cpu ? 'CPU' : p.id === me?.id ? 'YOU' : 'PLAYER'}{' '}
+                    {room?.seats.find((s) => s.id === p.id)?.away
+                      ? 'AWAY · CPU'
+                      : p.cpu
+                        ? 'CPU'
+                        : p.id === me?.id
+                          ? 'YOU'
+                          : 'PLAYER'}{' '}
                     {p.shield ? '· SHIELDED' : ''}
                     {p.size === 'mini' ? '· TINY' : p.size === 'mega' ? '· GIANT' : ''}
                   </small>
@@ -2295,9 +2397,38 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                     <CoinIcon size={19} /> {p.shells}
                   </span>
                 </div>
+                {(() => {
+                  const emote = room?.emotes
+                    ?.filter((e) => e.seat === p.id && clock - e.at < 3500)
+                    .at(-1);
+                  return (
+                    emote && (
+                      <span className="emote-bubble" key={emote.id} aria-label={`${p.avatar.name} reacts ${emote.emoji}`}>
+                        {emote.emoji}
+                      </span>
+                    )
+                  );
+                })()}
               </div>
             ))}
           </div>
+          {session && !game.finale && (
+            <div className="emote-bar" aria-label="Send a reaction">
+              {EMOTES.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => {
+                    void request({ type: 'emote', emoji })
+                      .then(receive)
+                      .catch(() => {});
+                  }}
+                  title={`React ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
           {(game.phase === 'turn' || game.phase === 'landed') && (
             <>
               <div className="board-label">
