@@ -17,7 +17,7 @@ import sys
 
 import bmesh
 import bpy
-from mathutils import Vector, noise
+from mathutils import Matrix, Vector, noise
 
 sys.path.insert(0, os.path.dirname(__file__))
 import kit  # noqa: E402
@@ -178,11 +178,23 @@ def height(x, z):
     # Lagoons: carved basins (only away from the roads).
     deep = lagoon_depth(x, z) * smoothstep(1.6, 3.0, d)
     h -= deep * 1.6
+    # Little sandbar islets out in the sea frame the main island.
+    for ix, iz, ir in ISLETS:
+        t = math.hypot(x - ix, z - iz) / ir
+        if t < 1.8:
+            h = max(h, TH['sea_level'] - 0.6 + 1.9 * max(0.0, 1 - t * t) ** 0.6 + fbm(x, z, 0.5, 2) * 0.15)
     return h
 
 
+ISLETS = []
+if TH['props'] == 'reef':
+    for k, (ang, dist, r) in enumerate(((-0.35, 1.32, 3.2), (0.55, 1.36, 2.4), (1.25, 1.3, 2.8), (2.3, 1.34, 3.4),
+                                         (2.95, 1.3, 2.2), (3.75, 1.36, 3.0), (4.6, 1.33, 2.6), (5.4, 1.3, 2.9))):
+        ISLETS.append((math.cos(ang) * radius * dist, math.sin(ang) * radius * dist * 0.92, r))
+
+
 # ── Terrain heightfield ─────────────────────────────────────────────────────
-size = radius * 2.5
+size = radius * (3.1 if ISLETS else 2.5)
 step = 0.65
 n = int(size / step)
 mesh = bpy.data.meshes.new('Terrain')
@@ -352,7 +364,8 @@ start = spaces[0]
 
 
 def clear(x, z, r):
-    if path_dist(x, z) < r + 1.4:
+    # Roads are drawn in three.js as raised ribbons ~1.6 either side of the line.
+    if path_dist(x, z) < r + 1.9:
         return False
     # Keep the UFO landing site open.
     if math.hypot(x - start['x'], z - start['z']) < 9:
@@ -509,6 +522,13 @@ def join_parts(parts, name):
     obj = kit.join(parts, name)
     for p in obj.data.polygons:
         p.use_smooth = True
+    # The joined mesh lives in the first part's space; bake that transform so
+    # the model's origin is its true base (otherwise placing it sinks it by
+    # the first part's offset).
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     return obj
 
 
@@ -756,6 +776,498 @@ def model_lighthouse():
     return join_parts(parts, 'Lighthouse')
 
 
+# ── Reef set-pieces (Nimbus Reef) ───────────────────────────────────────────
+# Each landmark has its own silhouette and colour so the board's places read
+# at a glance from the overview camera: conch cottages, a stranded treasure
+# ship (bank), a giant clam (lottery), a scallop-fan shop, a jellyfish
+# lighthouse, a coral arch, a windmill and kites over the kelp beds.
+
+
+def active():
+    return bpy.context.active_object
+
+
+def subsurf(obj, levels=2):
+    mod = obj.modifiers.new('Sub', 'SUBSURF')
+    mod.levels = levels
+    mod.render_levels = levels
+    kit.apply_all(obj)
+    for p in obj.data.polygons:
+        p.use_smooth = True
+    return obj
+
+
+def solidify(obj, thickness, inner_mat=None):
+    mod = obj.modifiers.new('Solid', 'SOLIDIFY')
+    mod.thickness = thickness
+    if inner_mat is not None:
+        obj.data.materials.append(inner_mat)
+        mod.material_offset = 1
+    kit.apply_all(obj)
+    return obj
+
+
+def cyl(r, depth, loc, mat, rot=(0, 0, 0), verts=24, r2=None):
+    if r2 is None:
+        bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=depth, location=loc, rotation=rot)
+    else:
+        bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r, radius2=r2, depth=depth, location=loc, rotation=rot)
+    o = active()
+    o.data.materials.append(mat)
+    return o
+
+
+def ball(r, loc, mat, scale=(1, 1, 1), seg=20, rings=12):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=seg, ring_count=rings, radius=r, location=loc)
+    o = active()
+    o.scale = scale
+    o.data.materials.append(mat)
+    for p in o.data.polygons:
+        p.use_smooth = True
+    return o
+
+
+def box(size, loc, mat, rot=(0, 0, 0)):
+    bpy.ops.mesh.primitive_cube_add(size=1, location=loc, rotation=rot)
+    o = active()
+    o.scale = size
+    o.data.materials.append(mat)
+    return o
+
+
+def ring(major, minor, loc, mat, rot=(0, 0, 0)):
+    bpy.ops.mesh.primitive_torus_add(major_radius=major, minor_radius=minor, location=loc, rotation=rot,
+                                     major_segments=32, minor_segments=8)
+    o = active()
+    o.data.materials.append(mat)
+    for p in o.data.polygons:
+        p.use_smooth = True
+    return o
+
+
+def text_mesh(body, size, mat, extrude=0.06):
+    bpy.ops.object.text_add()
+    t = active()
+    t.data.body = body
+    t.data.size = size
+    t.data.extrude = extrude
+    t.data.align_x = 'CENTER'
+    t.data.align_y = 'CENTER'
+    t.data.space_character = 1.05
+    t.data.materials.append(mat)
+    bpy.ops.object.convert(target='MESH')
+    return active()
+
+
+def apply_xform(obj):
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return obj
+
+
+def model_conch(name, body_hex, lip_hex):
+    body = kit.flat(name + 'Body', body_hex, rough=0.38)
+    lip = kit.flat(name + 'Lip', lip_hex, rough=0.32)
+    door_m = kit.flat('ConchDoor', '#4a2d3a', rough=0.7)
+    glow = kit.flat('ConchWindow', '#ffe6a0', rough=0.3, emit=2.2)
+    parts = []
+    n, turns = 40, 2.6
+    pts, radii = [], []
+    for k in range(n):
+        t = k / (n - 1)
+        a = t * turns * math.tau
+        rc = 0.55 * (1 - t) ** 1.1
+        pts.append(Vector((math.cos(a) * rc, math.sin(a) * rc, 0.7 + 2.9 * t ** 0.85)))
+        radii.append(1.15 * (1 - t) ** 0.95 + 0.07)
+    parts.append(skin_branches(name, [(k, k + 1) for k in range(n - 1)], pts, radii, body, subdiv=2))
+    parts.append(ball(1.38, (0, 0, 0.55), body, scale=(1, 1, 0.62), seg=32, rings=16))
+    parts.append(ring(1.32, 0.13, (0, 0, 0.32), lip))
+    # Round door and porthole windows on the front (-Y faces the camera).
+    parts.append(cyl(0.44, 0.3, (0, -1.22, 0.62), door_m, rot=(math.pi / 2, 0, 0), verts=24))
+    parts.append(ring(0.47, 0.08, (0, -1.32, 0.62), lip, rot=(math.pi / 2, 0, 0)))
+    for s in (-1, 1):
+        parts.append(cyl(0.17, 0.2, (s * 0.72, -1.02, 1.35), glow, rot=(math.pi / 2, 0, s * 0.55), verts=16))
+        parts.append(ring(0.2, 0.05, (s * 0.76, -1.1, 1.35), lip, rot=(math.pi / 2, 0, s * 0.55)))
+    # Pennant on the tip.
+    parts.append(cyl(0.04, 1.0, (0, 0, 3.95), lip, verts=8))
+    m = bpy.data.meshes.new('Pennant')
+    m.from_pydata([(0, 0, 4.4), (0.75, 0, 4.22), (0, 0, 4.02)], [], [(0, 1, 2)])
+    pen = bpy.data.objects.new('Pennant', m)
+    bpy.context.scene.collection.objects.link(pen)
+    pen.data.materials.append(kit.flat('PennantPink', '#ff5fa2', rough=0.6))
+    parts.append(pen)
+    return join_parts(parts, name)
+
+
+def model_shipbank():
+    wood = kit.scanned('ShipWood', 'brown_planks_05', metal=0.0)
+    hullm = kit.flat('ShipHull', '#7a4a33', rough=0.65)
+    trim = kit.flat('ShipTrim', '#2f5f86', rough=0.5)
+    sail = kit.flat('Sail', '#fff4e6', rough=0.85)
+    stripe = kit.flat('SailStripe', '#ff5f8f', rough=0.8)
+    glow = kit.flat('ShipWindow', '#ffe6a0', rough=0.3, emit=2.0)
+    parts = []
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=40, ring_count=20, radius=1)
+    hull = active()
+    bm = bmesh.new()
+    bm.from_mesh(hull.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z > 0.3], context='VERTS')
+    for v in bm.verts:
+        v.co.x *= 3.3
+        v.co.y *= 1.3
+        v.co.z *= 1.15
+        v.co.z += max(0.0, -v.co.x - 1.6) * 0.22 + max(0.0, v.co.x - 2.2) * 0.25  # sheer
+    bm.to_mesh(hull.data)
+    bm.free()
+    hull.data.materials.append(hullm)
+    solidify(hull, 0.12, trim)
+    for p in hull.data.polygons:
+        p.use_smooth = True
+    parts.append(hull)
+    deck = box((6.3, 2.35, 0.1), (0, 0, 0.26), wood)
+    kit.world_uvs(deck, 1.0)
+    parts.append(deck)
+    cabin = box((1.5, 2.0, 1.25), (-2.05, 0, 0.9), wood)
+    kit.world_uvs(cabin, 1.0)
+    parts.append(cabin)
+    parts.append(box((1.7, 2.2, 0.14), (-2.05, 0, 1.56), trim))
+    for k in (-0.45, 0.0, 0.45):
+        parts.append(box((0.26, 0.06, 0.3), (-2.05 + k, -1.02, 1.0), glow))
+    parts.append(box((0.3, 0.3, 0.3), (-2.05, 0, 1.78), gold))
+    # Mast, yard and a bellied sail with a pink band.
+    parts.append(cyl(0.11, 5.0, (0.4, 0, 2.7), hullm, verts=12))
+    parts.append(cyl(0.07, 3.0, (0.55, 0, 4.4), hullm, rot=(math.pi / 2, 0, 0), verts=8))
+    verts, faces, mats = [], [], []
+    W, H = 8, 8
+    for j in range(H + 1):
+        for i in range(W + 1):
+            u, v = i / W, j / H
+            verts.append((0.62 + 0.45 * math.sin(math.pi * u) * math.sin(math.pi * (0.2 + 0.8 * v)),
+                          (u - 0.5) * 2.7, 1.55 + 2.75 * v))
+    for j in range(H):
+        for i in range(W):
+            a = j * (W + 1) + i
+            faces.append((a, a + 1, a + W + 2, a + W + 1))
+            mats.append(1 if j in (3, 4) else 0)
+    me = bpy.data.meshes.new('Sail')
+    me.from_pydata(verts, [], faces)
+    sail_obj = bpy.data.objects.new('Sail', me)
+    bpy.context.scene.collection.objects.link(sail_obj)
+    sail_obj.data.materials.append(sail)
+    sail_obj.data.materials.append(stripe)
+    for p, mi in zip(sail_obj.data.polygons, mats):
+        p.material_index = mi
+        p.use_smooth = True
+    solidify(sail_obj, 0.03)
+    parts.append(sail_obj)
+    m = bpy.data.meshes.new('ShipFlag')
+    m.from_pydata([(0.4, 0, 5.2), (0.4, -1.0, 4.95), (0.4, 0, 4.7)], [], [(0, 1, 2)])
+    flag = bpy.data.objects.new('ShipFlag', m)
+    bpy.context.scene.collection.objects.link(flag)
+    flag.data.materials.append(stripe)
+    parts.append(flag)
+    parts.append(kit.strut('Bowsprit', (3.1, 0, 0.6), (4.4, 0, 1.25), 0.08, hullm, 8))
+    ship = join_parts(parts, 'ShipHullSet')
+    ship.rotation_euler = (0.16, 0.05, 0.0)
+    ship.location = (0, 0.2, -0.32)
+    apply_xform(ship)
+    # Treasure spilling onto the sand in front.
+    loot = []
+    loot.append(box((1.0, 0.65, 0.55), (1.0, -1.95, 0.27), hullm))
+    loot.append(cyl(0.33, 1.0, (1.0, -1.95, 0.55), gold, rot=(0, math.pi / 2, 0), verts=16))
+    loot.append(cyl(0.85, 0.5, (-0.5, -2.0, 0.25), gold, verts=24, r2=0.15))
+    rnd = random.Random(3)
+    for k in range(9):
+        a = rnd.uniform(0, math.tau)
+        r = rnd.uniform(0.9, 1.7)
+        loot.append(cyl(0.2, 0.06, (-0.3 + math.cos(a) * r, -2.0 + math.sin(a) * r * 0.6, 0.04), gold,
+                        rot=(rnd.uniform(-0.3, 0.3), rnd.uniform(-0.3, 0.3), 0), verts=14))
+    return join_parts([ship] + loot, 'ShipBank')
+
+
+def clam_half(name, outer, inner, upper):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=64, ring_count=16, radius=1)
+    o = active()
+    o.name = name
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z > 0.02], context='VERTS')
+    for v in bm.verts:
+        a = math.atan2(v.co.y, v.co.x)
+        rim = 1 - min(1.0, -v.co.z / 0.9)
+        flute = 1 + 0.07 * math.cos(a * 16) * (0.35 + 0.65 * rim)
+        v.co.x *= 1.95 * flute
+        v.co.y *= 1.65 * flute
+        v.co.z *= 0.78
+        v.co.z += 0.09 * math.cos(a * 16) * rim
+    bm.to_mesh(o.data)
+    bm.free()
+    o.data.materials.append(outer)
+    solidify(o, 0.13, inner)
+    if upper:
+        # Mirror into a lid hinged at the back (+Y), swung open toward the camera.
+        hinge = Vector((0, 1.62, 0.0))
+        rot = Matrix.Rotation(math.radians(-104), 4, 'X')
+        for v in o.data.vertices:
+            p = Vector((v.co.x, v.co.y, -v.co.z))
+            v.co = (rot @ (p - hinge).to_4d()).to_3d() + hinge
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        bmesh.ops.reverse_faces(bm, faces=bm.faces)
+        bm.to_mesh(o.data)
+        bm.free()
+    for p in o.data.polygons:
+        p.use_smooth = True
+    return o
+
+
+def model_clam():
+    outer = kit.flat('ClamOuter', '#8f5cff', rough=0.35)
+    inner = kit.flat('ClamInner', '#ffc9ea', rough=0.25)
+    pearl = kit.flat('ClamPearl', '#fff2fb', rough=0.08, metal=0.2, emit=1.4)
+    sand = kit.flat('ClamSand', '#f6dcc8', rough=0.9)
+    parts = [clam_half('ClamLow', outer, inner, False), clam_half('ClamLid', outer, inner, True)]
+    for o in parts:
+        o.location.z += 0.95
+    parts.append(ball(0.72, (0, 0.1, 1.15), pearl, seg=32, rings=16))
+    parts.append(ball(2.6, (0, 0, -0.1), sand, scale=(1, 0.95, 0.2), seg=32, rings=12))
+    return join_parts(parts, 'GiantClam')
+
+
+def model_scallop_shop():
+    wood = kit.scanned('Wood', 'brown_planks_05', metal=0.0)
+    fan = kit.flat('ShopFan', '#ff7fa8', rough=0.35)
+    fan_in = kit.flat('ShopFanInner', '#ffd6e4', rough=0.35)
+    top = kit.flat('ShopCounterTop', '#2fd3a6', rough=0.4)
+    jar_a = kit.flat('ShopJarA', '#7cf3ff', rough=0.1, emit=1.4)
+    jar_b = kit.flat('ShopJarB', '#ffd23f', rough=0.1, emit=1.4)
+    parts = []
+    # Scallop fan backdrop: radial ribs from a hinge at the counter.
+    rings_, segs = 6, 40
+    verts, faces = [], []
+    for j in range(rings_ + 1):
+        r = 0.25 + 2.35 * j / rings_
+        for i in range(segs + 1):
+            a = math.pi * (0.05 + 0.9 * i / segs)
+            corr = 0.13 * math.cos(a * 15) * (j / rings_)
+            verts.append((math.cos(a) * r * (1 + 0.04 * math.cos(a * 15)), 0.75 + corr, 0.8 + math.sin(a) * r))
+    for j in range(rings_):
+        for i in range(segs):
+            a = j * (segs + 1) + i
+            faces.append((a, a + 1, a + segs + 2, a + segs + 1))
+    me = bpy.data.meshes.new('ShopFan')
+    me.from_pydata(verts, [], faces)
+    fo = bpy.data.objects.new('ShopFan', me)
+    bpy.context.scene.collection.objects.link(fo)
+    fo.data.materials.append(fan)
+    solidify(fo, 0.14, fan_in)
+    for p in fo.data.polygons:
+        p.use_smooth = True
+    parts.append(fo)
+    c = box((2.6, 1.0, 0.95), (0, -0.25, 0.47), wood)
+    kit.world_uvs(c, 0.8)
+    parts.append(c)
+    parts.append(box((2.8, 1.15, 0.12), (0, -0.25, 1.0), top))
+    for k, (x, mat) in enumerate(((-0.8, jar_a), (0.0, jar_b), (0.8, jar_a))):
+        parts.append(cyl(0.22, 0.5, (x, -0.35, 1.31), mat, verts=16))
+        parts.append(cyl(0.24, 0.08, (x, -0.35, 1.6), wood, verts=16))
+    # Striped awning on two posts.
+    for x in (-1.3, 1.3):
+        parts.append(cyl(0.07, 2.4, (x, -0.85, 1.2), wood, verts=8))
+    for k in range(7):
+        s = box((0.4, 1.0, 0.07), (-1.2 + k * 0.4, -0.95, 2.35 - 0.02 * abs(k - 3)), cloth_a if k % 2 else cloth_b,
+                rot=(-0.32, 0, 0))
+        parts.append(s)
+    return join_parts(parts, 'ScallopShop')
+
+
+def model_jelly_lighthouse():
+    stone = mats['rock']
+    white = kit.flat('JellyTowerWhite', '#fff6f0', rough=0.5)
+    pink = kit.flat('JellyTowerPink', '#ff6f9f', rough=0.5)
+    rail = kit.flat('JellyRail', '#2f5f86', rough=0.4, metal=0.3)
+    lamp = kit.flat('JellyLamp', '#fff1b8', rough=0.2, emit=5.0)
+    bell = kit.flat('JellyBell', '#ff9ee4', rough=0.25, emit=1.6)
+    tent = kit.flat('JellyTentacle', '#ffc6f1', rough=0.3, emit=1.0)
+    parts = []
+    base = ball(2.1, (0, 0, 0.1), stone, scale=(1, 1, 0.45), seg=24, rings=12)
+    kit.world_uvs(base, 1.2)
+    parts.append(base)
+    z = 0.7
+    for k in range(4):
+        r1, r2 = 1.1 - k * 0.12, 1.1 - (k + 1) * 0.12
+        parts.append(cyl(r1, 1.35, (0, 0, z + 0.675), white if k % 2 == 0 else pink, verts=28, r2=r2))
+        z += 1.35
+    parts.append(cyl(1.1, 0.16, (0, 0, z + 0.08), rail, verts=32))
+    parts.append(ring(1.02, 0.05, (0, 0, z + 0.55), rail))
+    for k in range(10):
+        a = k * math.tau / 10
+        parts.append(cyl(0.035, 0.5, (math.cos(a) * 1.02, math.sin(a) * 1.02, z + 0.4), rail, verts=6))
+    parts.append(cyl(0.52, 0.8, (0, 0, z + 0.55), lamp, verts=20))
+    # Jellyfish bell lamp with scalloped rim and drifting tentacles.
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=40, ring_count=14, radius=1.15, location=(0, 0, z + 0.95))
+    b = active()
+    bm = bmesh.new()
+    bm.from_mesh(b.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < -0.05], context='VERTS')
+    for v in bm.verts:
+        a = math.atan2(v.co.y, v.co.x)
+        if v.co.z < 0.15:
+            v.co.z -= 0.12 * (1 + math.cos(a * 10)) * 0.5
+        v.co.z *= 0.8
+    bm.to_mesh(b.data)
+    bm.free()
+    b.data.materials.append(bell)
+    solidify(b, 0.08)
+    for p in b.data.polygons:
+        p.use_smooth = True
+    parts.append(b)
+    for k in range(8):
+        a = k * math.tau / 8 + 0.2
+        pts = []
+        for s in range(6):
+            rr = 0.85 + 0.12 * math.sin(s * 1.3 + k)
+            pts.append(Vector((math.cos(a) * rr + math.sin(s * 1.1 + k) * 0.12,
+                               math.sin(a) * rr + math.cos(s * 0.9 + k) * 0.12, z + 0.85 - s * 0.32)))
+        parts.append(skin_branches('Tentacle', [(s, s + 1) for s in range(5)], pts,
+                                   [0.09, 0.08, 0.07, 0.06, 0.05, 0.04], tent))
+    parts.append(ball(0.18, (0, 0, z + 2.05), lamp))
+    return join_parts(parts, 'JellyLighthouse')
+
+
+def model_coral_arch():
+    coral = kit.flat('ArchCoral', '#ff7a52', rough=0.5)
+    polyp = kit.flat('ArchPolyp', '#ffd3a8', rough=0.4, emit=0.4)
+    n = 22
+    pts, radii = [], []
+    for k in range(n):
+        a = math.pi * k / (n - 1)
+        pts.append(Vector((math.cos(a) * 2.9, 0.25 * math.sin(a * 3), -0.2 + math.sin(a) * 3.1)))
+        radii.append(0.62 + 0.25 * abs(math.cos(a)) + 0.08 * math.sin(k * 2.3))
+    arch = skin_branches('Arch', [(k, k + 1) for k in range(n - 1)], pts, radii, coral, subdiv=2)
+    for v in arch.data.vertices:
+        v.co += v.normal * noise.noise(v.co * 1.7) * 0.18
+    parts = [arch]
+    rnd = random.Random(19)
+    for k in range(18):
+        p = pts[rnd.randrange(3, n - 3)]
+        parts.append(ball(rnd.uniform(0.12, 0.22), p + Vector((rnd.uniform(-0.3, 0.3), rnd.uniform(-0.35, 0.35), radii[0] * 0.75)), polyp))
+    return join_parts(parts, 'CoralArch')
+
+
+def model_windmill2():
+    white = kit.flat('MillWhite', '#fff4ec', rough=0.55)
+    pink = kit.flat('MillPink', '#ff7fa8', rough=0.45)
+    wood_m = kit.scanned('MillWood', 'brown_planks_05', metal=0.0)
+    sail_m = kit.flat('MillSail', '#ffffff', rough=0.8)
+    parts = []
+    tower = kit.lathe('MillTower', [(1.2, 0), (1.15, 0.6), (0.95, 2.6), (0.78, 4.0), (0.0, 4.0)], steps=32)
+    tower.data.materials.append(white)
+    for p in tower.data.polygons:
+        p.use_smooth = True
+    parts.append(tower)
+    for zz in (1.2, 2.7):
+        parts.append(cyl(1.13 - zz * 0.07, 0.18, (0, 0, zz), pink, verts=32))
+    parts.append(ball(0.95, (0, 0, 4.0), pink, scale=(1, 1, 0.75), seg=24, rings=12))
+    parts.append(cyl(0.4, 0.1, (0, -1.13, 0.55), kit.flat('ConchDoor', '#4a2d3a', rough=0.7), rot=(math.pi / 2, 0, 0), verts=16))
+    hub = (0, -1.0, 3.75)
+    parts.append(cyl(0.2, 0.5, hub, wood_m, rot=(math.pi / 2, 0, 0), verts=12))
+    for k in range(4):
+        a = k * math.pi / 2 + 0.4
+        d = Vector((math.cos(a), 0, math.sin(a)))
+        tip = Vector(hub) + d * 2.6 + Vector((0, -0.1, 0))
+        parts.append(kit.strut('MillArm', hub, tip, 0.06, wood_m, 6))
+        side = Vector((-d.z, 0, d.x))
+        c = Vector(hub) + d * 1.65 + side * 0.3 + Vector((0, -0.12, 0))
+        s = box((0.55, 0.03, 1.8), c, sail_m, rot=(0, -a + math.pi / 2, 0))
+        parts.append(s)
+    return join_parts(parts, 'Windmill')
+
+
+def model_kite(color, tail_color, seed):
+    rnd = random.Random(seed)
+    kite_m = kit.flat(f'Kite{seed}', color, rough=0.6)
+    tail_m = kit.flat(f'KiteTail{seed}', tail_color, rough=0.6)
+    pole_m = kit.flat('KitePole', '#3fa58a', rough=0.6)
+    string_m = kit.flat('KiteString', '#fff6e8', rough=0.8)
+    parts = []
+    top = Vector((0, 0, 2.6))
+    parts.append(cyl(0.09, 2.6, (0, 0, 1.3), pole_m, verts=8))
+    kite = Vector((rnd.uniform(-1.2, 1.2), rnd.uniform(0.5, 1.5), rnd.uniform(5.6, 7.0)))
+    me = bpy.data.meshes.new('KiteSail')
+    me.from_pydata([(0, 0, 1.2), (0.9, 0, 0.1), (0, 0, -1.35), (-0.9, 0, 0.1)], [], [(0, 1, 2, 3)])
+    ko = bpy.data.objects.new('KiteSail', me)
+    bpy.context.scene.collection.objects.link(ko)
+    ko.data.materials.append(kite_m)
+    ko.location = kite
+    ko.rotation_euler = (0.5, 0, rnd.uniform(-0.3, 0.3))
+    solidify(ko, 0.04)
+    apply_xform(ko)
+    parts.append(ko)
+    parts.append(kit.strut('KiteLine', top, kite + Vector((0, -0.2, -0.6)), 0.018, string_m, 4))
+    for k in range(5):
+        parts.append(box((0.32, 0.05, 0.18), kite + Vector((math.sin(k * 1.4) * 0.3, 0.1 * k, -1.55 - k * 0.45)),
+                         tail_m, rot=(0, 0, k * 0.7)))
+    return join_parts(parts, f'Kite{seed}')
+
+
+def coral_tree(name, color, tip_color, height_, seed, depth=3, base_r=0.3, spread=0.8):
+    rnd = random.Random(seed)
+    mat = kit.flat(name, color, rough=0.45)
+    tip_m = kit.flat(name + 'Tip', tip_color, rough=0.35, emit=0.35)
+    pts, edges, radii, tips = [Vector((0, 0, 0))], [], [base_r], []
+
+    def grow(parent, direction, length, r, level):
+        tip = pts[parent] + direction * length
+        pts.append(tip)
+        radii.append(r)
+        idx = len(pts) - 1
+        edges.append((parent, idx))
+        if level < depth:
+            for k in range(2 if level else 3):
+                a = rnd.uniform(0, math.tau)
+                d = (direction + Vector((math.cos(a), math.sin(a), 0)) * spread).normalized()
+                d.z = max(d.z, 0.35)
+                grow(idx, d.normalized(), length * rnd.uniform(0.62, 0.8), r * 0.7, level + 1)
+        else:
+            tips.append((tip, r))
+
+    grow(0, Vector((0, 0, 1)), height_ * 0.36, base_r * 0.85, 0)
+    parts = [skin_branches(name, edges, pts, radii, mat)]
+    for p, r in tips:
+        parts.append(ball(r * 1.9 + 0.05, p, tip_m, seg=10, rings=6))
+    return join_parts(parts, name)
+
+
+def model_brain(color):
+    mat = kit.flat('BrainCoral', color, rough=0.55)
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=4, radius=0.95)
+    o = active()
+    for v in o.data.vertices:
+        c = v.co
+        v.co = c * (1 + 0.07 * math.sin(c.x * 9 + math.sin(c.y * 7) * 2) * math.cos(c.y * 8 + c.z * 3))
+        v.co.z = max(v.co.z * 0.72, -0.1)
+    o.data.materials.append(mat)
+    for p in o.data.polygons:
+        p.use_smooth = True
+    o.name = 'Brain'
+    return o
+
+
+def model_tubes(color, lip_color):
+    mat = kit.flat('TubeSponge', color, rough=0.5)
+    lip = kit.flat('TubeLip', lip_color, rough=0.4)
+    inner = kit.flat('TubeInner', '#3b2257', rough=0.8)
+    parts = []
+    for k, (x, y, h, r) in enumerate(((0, 0, 1.9, 0.3), (0.5, 0.2, 1.3, 0.24), (-0.42, 0.28, 1.05, 0.22), (0.12, -0.45, 0.8, 0.2), (-0.35, -0.3, 1.45, 0.23))):
+        parts.append(cyl(r, h, (x, y, h / 2), mat, verts=16, r2=r * 1.15))
+        parts.append(ring(r * 1.12, 0.06, (x, y, h), lip))
+        parts.append(cyl(r * 1.0, 0.02, (x, y, h - 0.02), inner, verts=16))
+    return join_parts(parts, 'Tubes')
+
+
 # ── Theme prop sets ─────────────────────────────────────────────────────────
 rocks = [stash(model_rock(s)) for s in range(3)]
 # (prototype, clearance, max count, scale range, sink)
@@ -792,10 +1304,10 @@ stone = kit.scanned('Stone', TH['road'][1], metal=0.0)
 buildings = []
 
 
-def beside(space, back=3.4, r=2.2):
+def beside(space, back=3.4, r=2.2, inward=False):
     """Find a clear spot next to a space, preferring the outside of the board."""
     sx, sz = space['x'], space['z']
-    base = math.atan2(sz, sx)
+    base = math.atan2(-sz, -sx) if inward else math.atan2(sz, sx)
     for k in range(24):
         a = base + (k % 2 * 2 - 1) * (k // 2) * 0.35
         for dist in (back, back + 1.2, back + 2.4):
@@ -887,7 +1399,123 @@ def bank(x, z, face):
     return place_obj(kit.join(parts, 'Bank'), x, z, face)
 
 
-for space in spaces:
+def spot_near(x, z, r, reach=12.0):
+    """Nearest clear spot to (x, z), searching outward in rings."""
+    for ring_i in range(int(reach / 0.7) + 1):
+        d = ring_i * 0.7
+        count = max(1, ring_i * 7)
+        for k in range(count):
+            a = k / count * math.tau + ring_i * 0.37
+            px, pz = x + math.cos(a) * d, z + math.sin(a) * d
+            if clear(px, pz, r):
+                return px, pz
+    return None
+
+
+# Blender Z-rotation that turns a front (-Y) toward the overview camera.
+FACE_CAMERA = 0.1
+
+
+def sign(text, x, z, plank_hex, width=3.4):
+    """A tilted plank sign facing the overview camera."""
+    plank = kit.flat('Sign' + text, plank_hex, rough=0.45)
+    letters = kit.flat('SignLetters', '#ffffff', rough=0.35, emit=0.25)
+    post = kit.flat('SignPost', '#5a3a2a', rough=0.7)
+    tilt = math.radians(55)
+    h = 1.5
+    normal = Vector((0, -math.cos(tilt), math.sin(tilt)))
+    parts = [box((width, 0.14, 1.15), (0, 0, h), plank, rot=(-tilt, 0, 0))]
+    edge = kit.flat('SignEdge', '#173a63', rough=0.5)
+    parts.append(box((width + 0.22, 0.1, 1.37), Vector((0, 0, h)) - normal * 0.04, edge, rot=(-tilt, 0, 0)))
+    t = text_mesh(text, 0.82, letters, extrude=0.03)
+    t.rotation_euler = (math.pi / 2 - tilt, 0, 0)
+    t.location = Vector((0, 0, h)) + normal * 0.09
+    apply_xform(t)
+    parts.append(t)
+    for sx in (-width * 0.36, width * 0.36):
+        parts.append(cyl(0.07, h, (sx, 0.1, h / 2), post, verts=8))
+    obj = join_parts(parts, 'Sign' + text)
+    place_obj(obj, x, z, FACE_CAMERA)
+    return obj
+
+
+if TH['props'] == 'reef':
+    # District centres are free for the set-pieces; each claims its own footprint.
+    occupied[:] = [o for o in occupied if o[2] != 2.5]
+
+    def put(obj, x, z, r, face=FACE_CAMERA, scale=1.0):
+        place_obj(obj, x, z, face, scale)
+        buildings.append(obj)
+        occupied.append((x, z, r))
+        return obj
+
+    for space in spaces:
+        kind = space['type']
+        if kind not in ('shop', 'bank', 'lottery'):
+            continue
+        r = {'bank': 4.3, 'lottery': 3.1, 'shop': 2.4}[kind]
+        # The bank ship sits inland of its space so the overview sees it whole.
+        spot = beside(space, back=r + 2.0, r=r, inward=kind == 'bank') or beside(space, back=r + 2.0, r=r)
+        if not spot:
+            print('NO ROOM for', kind, space['id'])
+            continue
+        x, z, _ = spot
+        if kind == 'bank':
+            # Turned three-quarters to the camera so hull, deck and sail all show.
+            obj = put(model_shipbank(), x, z, r, face=FACE_CAMERA + 0.7, scale=1.4)
+            label, hue = 'BANK', '#f2a91e'
+        elif kind == 'lottery':
+            obj = put(model_clam(), x, z, r, scale=1.35)
+            label, hue = 'LOTTO', '#e04fb4'
+        else:
+            obj = put(model_scallop_shop(), x, z, r, scale=1.1)
+            label, hue = 'SHOP', '#14b386'
+        obj.name = {'bank': 'Bank', 'lottery': 'Lottery', 'shop': 'Shop'}[kind]
+        # Sign in front (toward the camera), else to either side; only the
+        # road and other buildings block it.
+        for ox, oz in ((0.3, r + 0.5), (r + 0.9, 0.6), (-r - 0.9, 0.6), (0.3, -r - 0.6)):
+            px, pz = x + ox, z + oz
+            if path_dist(px, pz) > 2.3 and height(px, pz) > PATH_Y - 0.15 and \
+                    all(math.hypot(px - a, pz - b) > c + 0.6 for a, b, c in occupied[:-1]):
+                buildings.append(sign(label, px, pz, hue))
+                occupied.append((px, pz, 1.0))
+                break
+        else:
+            print('NO SIGN for', kind)
+
+    conch_colors = [('#ffb3c7', '#fff1e6', 1.15), ('#ffd08a', '#fff6e0', 1.0), ('#c9b3ff', '#f6f0ff', 1.25)]
+    kite_colors = [('#ffd23f', '#ff5f8f'), ('#38d6ff', '#ffd23f'), ('#ff6f9f', '#8f6bff')]
+    for q in districts:
+        kind, qx, qz = q['kind'], q['x'], q['z']
+        if kind == 'heart':
+            put(model_anemone(), qx, qz, 3.0, face=random.uniform(0, math.tau), scale=1.15)
+        elif kind == 'village':
+            for k, (body_hex, lip_hex, sc) in enumerate(conch_colors):
+                a = k * 2.1 + 0.4
+                s = spot_near(qx + math.cos(a) * 2.6, qz + math.sin(a) * 2.6, 1.6 * sc)
+                if s:
+                    put(model_conch(f'Conch{k}', body_hex, lip_hex), s[0], s[1], 1.7 * sc,
+                        face=FACE_CAMERA + random.uniform(-0.4, 0.4), scale=sc)
+        elif kind == 'mist':
+            s = spot_near(qx, qz, 2.0)
+            if s:
+                put(model_jelly_lighthouse(), s[0], s[1], 2.3)
+        elif kind == 'arch':
+            s = spot_near(qx, qz, 3.0)
+            if s:
+                put(model_coral_arch(), s[0], s[1], 3.2, face=FACE_CAMERA + 0.35)
+        elif kind == 'windmill':
+            s = spot_near(qx, qz, 2.6)
+            if s:
+                put(model_windmill2(), s[0], s[1], 2.8, scale=1.3)
+        elif kind == 'kelp':
+            for k, (kc, tc) in enumerate(kite_colors):
+                s = spot_near(qx + math.cos(k * 2.1) * 3.0, qz + math.sin(k * 2.1) * 3.0, 0.8)
+                if s:
+                    put(model_kite(kc, tc, 50 + k), s[0], s[1], 1.0, face=FACE_CAMERA + random.uniform(-0.5, 0.5),
+                        scale=1.9)
+
+for space in (spaces if TH['props'] != 'reef' else []):
     kind = space['type']
     if kind not in ('shop', 'bank', 'lottery'):
         continue
@@ -905,7 +1533,7 @@ for space in spaces:
     occupied.append((x, z, 2.4))
 
 # District landmarks and village buildings.
-for q in districts:
+for q in (districts if TH['props'] != 'reef' else []):
     kind = q['kind']
     special = {'lighthouse': model_lighthouse, 'observatory': model_dome, 'windmill': model_windmill,
                'vents': model_vent, 'heart': model_anemone}.get(kind)
@@ -937,9 +1565,71 @@ if TH['props'] == 'volcanic':
             instance(vent, x, z, random.uniform(0.8, 1.2), sink=0.1)
             occupied.append((x, z, 1.2))
 
+# Reef: deliberate clumps instead of an even sprinkle. Each clump has one hero
+# (big branching coral, brain coral or tube sponges) ringed by small accents;
+# a few low accents line the road edges like flower beds.
+if TH['props'] == 'reef':
+    heroes = [stash(coral_tree('HeroCoral0', '#ff4f9a', '#ffd1e6', 3.8, 41)),
+              stash(coral_tree('HeroCoral1', '#8a5cff', '#e6dbff', 3.4, 42)),
+              stash(coral_tree('HeroCoral2', '#ff8f2e', '#fff0b3', 3.6, 43)),
+              stash(coral_tree('HeroCoral3', '#16bfb8', '#c9fff7', 3.2, 44)),
+              stash(model_brain('#ffb347')),
+              stash(model_tubes('#a46bff', '#ffd1f0'))]
+    shell_proto = stash(model_shell('#f7c6dd'))
+    kelp_proto = stash(model_kelp())
+    accents = corals + corals + [shell_proto, kelp_proto] + rocks
+    rnd = random.Random(23)
+    centres = []
+    for k in range(6000):
+        x, z = rnd.uniform(-radius * 1.1, radius * 1.1), rnd.uniform(-radius * 1.1, radius * 1.1)
+        h = height(x, z)
+        if h < PATH_Y - 0.12 or h > 2.6 or path_dist(x, z) < 3.4:
+            continue
+        if any(math.hypot(x - cx, z - cz) < 5.6 for cx, cz in centres) or not clear(x, z, 1.4):
+            continue
+        centres.append((x, z))
+        if len(centres) >= 40:
+            break
+    for i, (cx, cz) in enumerate(centres):
+        hero = heroes[i % len(heroes)]
+        instance(hero, cx, cz, rnd.uniform(0.9, 1.3), sink=0.05)
+        occupied.append((cx, cz, 1.4))
+        for j in range(rnd.randint(3, 5)):
+            a, r = rnd.uniform(0, math.tau), rnd.uniform(1.4, 2.6)
+            x, z = cx + math.cos(a) * r, cz + math.sin(a) * r
+            if height(x, z) < PATH_Y - 0.12 or not clear(x, z, 0.45):
+                continue
+            proto = rnd.choice(accents)
+            small = proto in rocks
+            instance(proto, x, z, rnd.uniform(0.45, 0.8) if small else rnd.uniform(0.8, 1.15), sink=0.2 if small else 0.05)
+            occupied.append((x, z, 0.7))
+    for road in LAYOUT['roads']:
+        pts = road['points']
+        for k in range(2, len(pts) - 2, 4):
+            if rnd.random() > 0.35:
+                continue
+            (ax, az), (bx, bz) = pts[k], pts[k + 1]
+            dx, dz = bx - ax, bz - az
+            ln = math.hypot(dx, dz) or 1
+            side = rnd.choice((-1, 1))
+            for m_ in range(2):
+                off = 2.45 + m_ * 0.55
+                x = ax + (-dz / ln) * off * side + (dx / ln) * m_ * 0.6
+                z = az + (dx / ln) * off * side + (dz / ln) * m_ * 0.6
+                if height(x, z) > PATH_Y - 0.12 and clear(x, z, 0.3):
+                    instance(rnd.choice(corals + [shell_proto]), x, z, rnd.uniform(0.45, 0.7), sink=0.05)
+                    occupied.append((x, z, 0.5))
+    for k, (ix, iz, ir) in enumerate(ISLETS):
+        instance(heroes[k % 4], ix, iz, rnd.uniform(0.75, 1.0), sink=0.1)
+        for j in range(3):
+            a = rnd.uniform(0, math.tau)
+            x, z = ix + math.cos(a) * ir * 0.5, iz + math.sin(a) * ir * 0.5
+            instance(rnd.choice(corals + rocks), x, z, rnd.uniform(0.4, 0.7), sink=0.15)
+    flora = []
+
 # Scatter flora and rocks.
 counts = [0] * len(flora)
-boulders = 0
+boulders = 0 if TH['props'] != 'reef' else 999
 for k in range(3000):
     x = random.uniform(-radius * 1.15, radius * 1.15)
     z = random.uniform(-radius * 1.15, radius * 1.15)
@@ -965,11 +1655,12 @@ for k in range(500):
     x, z = math.cos(a) * r, math.sin(a) * r
     h = height(x, z)
     near_shore = TH['sea_level'] - 0.6 < h < TH['sea_level'] + 0.1
-    if near_shore and path_dist(x, z) > 3 and not in_lagoon(x, z) and random.random() < 0.35:
+    if near_shore and path_dist(x, z) > 3 and not in_lagoon(x, z) and random.random() < (0.12 if TH['surface'] == 'clouds' else 0.35):
         islet = instance(random.choice(rocks), x, z, random.uniform(0.35, 0.8), sink=0.35)
         if TH['surface'] == 'clouds':
-            islet.location.z = TH['sea_level'] + random.uniform(1.0, 3.5)
-            islet.scale = (random.uniform(0.6, 1.4),) * 3
+            # Sea stacks at the cliff foot (three.js draws an ocean here).
+            islet.location.z = TH['sea_level'] - 0.3
+            islet.scale = (random.uniform(0.8, 1.8),) * 3
 
 
 # Hide prototypes from export.

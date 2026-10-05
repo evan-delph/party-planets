@@ -6,9 +6,11 @@ import {
   Flag,
   Pause,
   Play,
+  Sparkles,
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { AlienPortrait } from '../art';
 import { Game, arenaFor, arenaPlayers } from '../engine';
 import { scoreLabel, arcadeInfo } from './catalog';
 import { remixInfo } from './remix-catalog';
@@ -442,6 +444,55 @@ export default function ArcadeGame(props: Props) {
         : hud.grand
           ? grandReadout(hud, props.meId)
           : null;
+  // ── HUD presentation (corner plates, timer, banner) ──────────────────────
+  const PLAYER_HUES = ['#ffbf1f', '#ff4f86', '#25a8ff', '#9a62ff'],
+    timeLeft = Math.max(0, Math.ceil(hud.duration - hud.time)),
+    timeFrac = hud.duration > 0 ? Math.min(1, Math.max(0, (hud.duration - hud.time) / hud.duration)) : 0;
+  function plateText(a: Arena['actors'][number]): string {
+    if (!a.alive) return 'OUT';
+    if (grand || hud.overhaul) return scoreLabel(props.game.mini, a.score);
+    switch (info.id) {
+      case 'race':
+        return `${Math.min(100, Math.floor((a.distance / 620) * 100))}% GEAR ${a.gear}`;
+      case 'duos':
+        return a.team === 0 ? 'TEAM SUN' : 'TEAM MOON';
+      case 'rope':
+        return '♥'.repeat(a.lives) || 'OUT';
+      case 'sky':
+        return `${a.checkpoint + 1}/16 ISLAND`;
+      case 'bomb':
+        return hud.actors[hud.extra!.holder].id === a.id ? 'HAS THE MORSEL' : 'RUN!';
+      case 'paint':
+        return `${a.score} TILES`;
+      case 'dig':
+        return `${a.score} RELICS`;
+      case 'skate':
+        return `${a.gear}/4 LAPS`;
+      case 'factory':
+        return `${hud.extra!.orders[a.team]} ORDERS`;
+      default:
+        return 'IN PLAY';
+    }
+  }
+  /** Split a plate readout into a big stat and a small label. */
+  function plateStat(a: Arena['actors'][number]): [string, string] {
+    const text = plateText(a),
+      m = /^([+-]?[\d.,:/]+%?|♥+)\s*[·-]?\s*(.*)$/.exec(text);
+    return m ? [m[1], m[2]] : ['', text];
+  }
+  /** Turn "BIG · detail" callout strings into a banner with a highlighted lead. */
+  function bannerText(text: string) {
+    const [lead, ...rest] = text.split(' · ');
+    return rest.length ? (
+      <>
+        <em>{lead}</em>
+        <span>{rest.join(' · ')}</span>
+      </>
+    ) : (
+      <span>{text}</span>
+    );
+  }
+  const corners = ['tl', 'tr', 'bl', 'br'];
   function pointerPosition(e: React.PointerEvent) {
     const point = renderRef.current?.groundPoint(e.clientX, e.clientY);
     if (point) pointer.current = point;
@@ -455,7 +506,10 @@ export default function ArcadeGame(props: Props) {
     touch.current.z = z / l;
   }
   return (
-    <section className={`arcade-full arena-${info.id}`} aria-label={info.name}>
+    <section
+      className={`arcade-full mg-hud arena-${info.id}`}
+      aria-label={info.name}
+    >
       <div
         className="arcade-world"
         ref={root}
@@ -496,121 +550,182 @@ export default function ArcadeGame(props: Props) {
           ))}
         </div>
       )}
-      <header className="arena-header">
+      <header className="mg-top">
         <button
-          className="arena-icon"
+          className="mg-round-btn"
           title={props.online ? 'Leave minigame view' : 'Pause game'}
+          aria-label={props.online ? 'Leave minigame view' : 'Pause game'}
           onClick={props.online ? leave : pause}
         >
           {props.online ? <ArrowLeft /> : <Pause />}
         </button>
-        <div>
-          <span>
-            {info.category} ·{' '}
-            {props.game.practice ? 'ARCADE' : `ROUND ${props.game.round}`}
-          </span>
-          <h1>{info.name}</h1>
-        </div>
-        <div className="arena-time">
-          <b>{Math.max(0, Math.ceil(hud.duration - hud.time))}</b>
-          <span>SEC</span>
+        <div
+          className={`mg-timer${timeLeft <= 10 ? ' is-low' : ''}`}
+          role="timer"
+          aria-label={`${timeLeft} seconds left`}
+        >
+          <i className="mg-timer-knob" aria-hidden="true" />
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <circle className="mg-timer-face" cx="50" cy="50" r="46" />
+            <circle
+              className="mg-timer-fill"
+              cx="50"
+              cy="50"
+              r="38"
+              pathLength={100}
+              strokeDasharray={`${(timeFrac * 100).toFixed(2)} 100`}
+            />
+          </svg>
+          <b key={timeLeft <= 10 ? timeLeft : 'steady'}>{timeLeft}</b>
         </div>
         <button
-          className="arena-icon"
+          className="mg-round-btn"
           title="Toggle sound"
+          aria-label="Toggle sound"
           onClick={props.onMute}
         >
           {props.muted ? <VolumeX /> : <Volume2 />}
         </button>
+        <div className="mg-title">
+          <h1>{info.name}</h1>
+          <span>
+            {props.game.practice ? 'ARCADE' : `ROUND ${props.game.round}`}
+          </span>
+        </div>
       </header>
-      <div className="arena-players">
-        {hud.actors.map((a, i) => (
-          <div
-            key={a.id}
-            className={`${!a.alive ? 'is-out' : ''} ${a.id === props.meId ? 'is-you' : ''}`}
-            style={
-              {
-                '--player-color': ['#ffce55', '#ff86a1', '#76c9f6', '#b09dff'][
-                  i
-                ],
-              } as React.CSSProperties
-            }
-          >
-            <b>
-              {seats[i]?.avatar.name}
-              {a.id === props.meId ? ' · YOU' : ''}
-            </b>
-            <span>
-              {!a.alive
-                ? 'OUT'
-                : grand || hud.overhaul
-                  ? scoreLabel(props.game.mini, a.score)
-                  : info.id === 'race'
-                    ? `${Math.min(100, Math.floor((a.distance / 620) * 100))}% · GEAR ${a.gear}`
-                    : info.id === 'duos'
-                      ? a.team === 0
-                        ? 'TEAM SUN'
-                        : 'TEAM MOON'
-                      : info.id === 'rope'
-                        ? '♥'.repeat(a.lives)
-                        : info.id === 'sky'
-                          ? `ISLAND ${a.checkpoint + 1}/16`
-                          : info.id === 'bomb'
-                            ? hud.actors[hud.extra!.holder].id === a.id
-                              ? 'HAS THE MORSEL'
-                              : 'RUN!'
-                            : info.id === 'paint'
-                              ? `${a.score} TILES`
-                              : info.id === 'dig'
-                                ? `${a.score} RELICS`
-                                : info.id === 'skate'
-                                  ? `${a.gear}/4 LAPS`
-                                  : info.id === 'factory'
-                                    ? `${hud.extra!.orders[a.team]} ORDERS`
-                                    : 'IN PLAY'}
-            </span>
-          </div>
-        ))}
+      <div className="mg-plates">
+        {hud.actors.map((a, i) => {
+          const [big, small] = plateStat(a),
+            you = a.id === props.meId;
+          return (
+            <div
+              key={a.id}
+              className={`mg-plate mg-${corners[i] ?? 'tl'}${!a.alive ? ' is-out' : ''}${you ? ' is-you' : ''}`}
+              style={{ '--pc': PLAYER_HUES[i % 4] } as React.CSSProperties}
+            >
+              <span className="mg-medal">
+                <AlienPortrait
+                  shirt={seats[i]?.avatar.shirt ?? PLAYER_HUES[i % 4]}
+                  size={60}
+                  mood={a.alive ? 'happy' : 'sad'}
+                />
+                <i>P{i + 1}</i>
+              </span>
+              <div className="mg-plate-body">
+                <b className="mg-name">
+                  {seats[i]?.avatar.name ?? `Player ${i + 1}`}
+                </b>
+                <strong className={`mg-stat${big ? '' : ' is-word'}`}>
+                  {big && <span>{big}</span>}
+                  {small && <small>{small}</small>}
+                </strong>
+              </div>
+              {you && <em className="mg-you">YOU</em>}
+            </div>
+          );
+        })}
       </div>
+      {info.id === 'sky' && (
+        <div className="mg-track" aria-hidden="true">
+          <div className="mg-track-rail">
+            <i
+              className="mg-track-done"
+              style={{ width: `${(me.checkpoint / 15) * 100}%` }}
+            />
+            {Array.from({ length: 16 }, (_, k) => (
+              <span
+                key={k}
+                className={k === 15 ? 'is-goal' : k <= me.checkpoint ? 'is-hit' : ''}
+                style={{ left: `${(k / 15) * 100}%` }}
+              />
+            ))}
+            <Flag className="mg-track-flag" />
+          </div>
+          {hud.actors.map((a, i) => {
+            const same = hud.actors.filter((b) => b.checkpoint === a.checkpoint),
+              k = same.indexOf(a);
+            return (
+              <span
+                key={a.id}
+                className={`mg-track-head${a.id === props.meId ? ' is-you' : ''}`}
+                style={
+                  {
+                    left: `${(Math.min(15, a.checkpoint) / 15) * 100}%`,
+                    '--pc': PLAYER_HUES[i % 4],
+                    '--dx': `${(k - (same.length - 1) / 2) * 15}px`,
+                    zIndex: a.id === props.meId ? 9 : 4 - k,
+                  } as React.CSSProperties
+                }
+              >
+                <AlienPortrait
+                  shirt={seats[i]?.avatar.shirt ?? PLAYER_HUES[i % 4]}
+                  size={30}
+                />
+              </span>
+            );
+          })}
+        </div>
+      )}
       {ready && countdown > 0 && (
-        <div className="arena-countdown">
-          {countdown <= 3 ? countdown : 'READY'}
+        <div className="arena-countdown mg-countdown" key={countdown}>
+          <strong>{countdown <= 3 ? countdown : 'READY?'}</strong>
           <span>{props.online ? 'Waiting for everyone…' : 'Get ready!'}</span>
         </div>
       )}
       {ready && countdown === 0 && !hud.done && (
         <div
+          key={info.id === 'sky' ? `isle-${me.checkpoint}` : 'callout'}
           className={
             grand || hud.overhaul
-              ? 'arena-callout grand-callout'
-              : 'arena-callout'
+              ? 'arena-callout mg-banner grand-callout'
+              : 'arena-callout mg-banner'
           }
           aria-live="polite"
         >
+          <span className="mg-banner-icon" aria-hidden="true">
+            {info.id === 'sky' ? <Flag /> : <Sparkles />}
+          </span>
+          <div className="mg-banner-body">
           {!me.alive ? (
-            'You’re out! Watch the final showdown.'
+            bannerText('YOU’RE OUT! · Watch the final showdown')
           ) : readout ? (
             <>
               <strong>{readout.title}</strong>
               <small>{readout.detail}</small>
             </>
           ) : info.id === 'sky' ? (
-            `ISLAND ${me.checkpoint + 1} / 16 · Jump to the next platform`
+            bannerText(
+              me.checkpoint >= 15
+                ? 'GOAL! · You made it across the sky'
+                : `ISLAND ${me.checkpoint + 1} · Leap to the next platform!`,
+            )
           ) : info.id === 'bomb' ? (
-            `${hud.actors[hud.extra!.holder].id === props.meId ? 'YOU HAVE IT!' : 'CHASE / EVADE'} · ${Math.max(0, hud.extra!.fuse - hud.time).toFixed(1)}s fuse · E to dash`
+            bannerText(
+              `${hud.actors[hud.extra!.holder].id === props.meId ? 'YOU HAVE IT!' : 'CHASE / EVADE'} · ${Math.max(0, hud.extra!.fuse - hud.time).toFixed(1)}s fuse · E to dash`,
+            )
           ) : info.id === 'paint' ? (
-            `${me.score} tiles · ${me.charge > 0.05 ? 'Release to hop — ' + Math.round((me.charge / 1.3) * 100) + '%' : 'Aim, hold Space, release to stamp'}`
+            bannerText(
+              `${me.score} tiles · ${me.charge > 0.05 ? 'Release to hop — ' + Math.round((me.charge / 1.3) * 100) + '%' : 'Aim, hold Space, release to stamp'}`,
+            )
           ) : info.id === 'dig' ? (
-            `${me.score} relic points · ${me.charge > 0.01 ? 'Digging ' + Math.round(me.charge * 100) + '%' : 'Hold Space to dig the block ahead'}`
+            bannerText(
+              `${me.score} relic points · ${me.charge > 0.01 ? 'Digging ' + Math.round(me.charge * 100) + '%' : 'Hold Space to dig the block ahead'}`,
+            )
           ) : info.id === 'skate' ? (
-            `LAP ${Math.min(4, me.gear + 1)} / 4 · ${Math.round(me.charge * 10)} speed · E brakes`
+            bannerText(
+              `LAP ${Math.min(4, me.gear + 1)} / 4 · ${Math.round(me.charge * 10)} speed · E brakes`,
+            )
           ) : info.id === 'factory' ? (
-            `SUN ${hud.extra!.orders[0]} : ${hud.extra!.orders[1]} MOON · ${me.gear === 1 ? 'Carrying BUN — find an empty tray' : me.gear === 2 ? 'Carrying FILLING — find a bun tray' : 'Space: pick up at a supply bin'}`
+            bannerText(
+              `SUN ${hud.extra!.orders[0]} : ${hud.extra!.orders[1]} MOON · ${me.gear === 1 ? 'Carrying BUN — find an empty tray' : me.gear === 2 ? 'Carrying FILLING — find a bun tray' : 'Space: pick up at a supply bin'}`,
+            )
           ) : info.id === 'canopy' ? (
             <>
-              {hud.dropAt - hud.time < 0.9
-                ? 'TAKE COVER!'
-                : `DROP ${hud.dropIndex + 1} · Find an opening`}
+              {bannerText(
+                hud.dropAt - hud.time < 0.9
+                  ? 'TAKE COVER!'
+                  : `DROP ${hud.dropIndex + 1} · Find an opening`,
+              )}
               <i
                 style={{
                   width: `${Math.max(0, (hud.dropAt - hud.time) / hud.dropPeriod) * 100}%`,
@@ -618,14 +733,18 @@ export default function ArcadeGame(props: Props) {
               />
             </>
           ) : info.id === 'bumper' ? (
-            `${alive} left · ${me.cooldown > 0 ? `Dash ready in ${me.cooldown.toFixed(1)}s` : 'DASH READY'}`
+            bannerText(
+              `${alive} left · ${me.cooldown > 0 ? `Dash ready in ${me.cooldown.toFixed(1)}s` : 'DASH READY'}`,
+            )
           ) : info.id === 'rope' ? (
-            'Watch the bar. Time your jump.'
+            bannerText('WATCH THE BAR · Time your jump')
           ) : info.id === 'coconut' ? (
             me.charge > 0.1 ? (
-              `COCONUT ${Math.round((me.charge / 1.8) * 100)}% · Release to throw`
+              bannerText(
+                `COCONUT ${Math.round((me.charge / 1.8) * 100)}% · Release to throw`,
+              )
             ) : (
-              'Move to aim · Hold Space to charge'
+              bannerText('AIM · Move to aim, hold Space to charge')
             )
           ) : info.id === 'race' ? (
             <>
@@ -671,11 +790,11 @@ export default function ArcadeGame(props: Props) {
               </small>
             </>
           )}
+          </div>
         </div>
       )}
       {hud.done && (
-        <div className="arena-finish">
-          <Flag />
+        <div className="arena-finish mg-finish">
           <strong>FINISH!</strong>
           <span>
             {[...hud.actors]
@@ -692,38 +811,41 @@ export default function ArcadeGame(props: Props) {
           </span>
         </div>
       )}
-      <footer className="arena-controls">
+      <footer className="arena-controls mg-controls">
         <span>
           {!['rope', 'race', 'mangosluggers'].includes(info.id) && (
-            <>
-              <kbd>{connectedPad ? 'STICK' : 'WASD / ↑↓←→'}</kbd> Move
-            </>
+            <span className="mg-ctl">
+              <kbd className="is-stick">{connectedPad ? 'STICK' : 'WASD'}</kbd>
+              Move
+            </span>
           )}
           {info.id !== 'canopy' && (
-            <>
-              <kbd>{connectedPad ? 'A' : 'SPACE'}</kbd> {actionLabel}
-            </>
+            <span className="mg-ctl">
+              <kbd className="is-a">{connectedPad ? 'A' : 'SPACE'}</kbd>
+              {actionLabel}
+            </span>
           )}
           {info.id === 'race' && (
-            <>
-              <kbd>{connectedPad ? 'B' : 'E / ↑'}</kbd> Shift
-            </>
+            <span className="mg-ctl">
+              <kbd className="is-b">{connectedPad ? 'B' : 'E'}</kbd>
+              Shift
+            </span>
           )}
         </span>
         <span>
           {grand && info.id !== 'mangosluggers' ? (
-            <>
-              <kbd>{connectedPad ? 'B' : 'E'}</kbd>{' '}
+            <span className="mg-ctl">
+              <kbd className="is-b">{connectedPad ? 'B' : 'E'}</kbd>
               {controls
                 .split(' · ')
                 .filter((s) => /E | E|E$/.test(s))
                 .join(' · ') || 'Secondary action'}
-            </>
+            </span>
           ) : ['duos', 'bomb', 'dig', 'sky', 'skate', 'factory'].includes(
               info.id,
             ) ? (
-            <>
-              <kbd>{connectedPad ? 'B' : 'E / SHIFT'}</kbd>{' '}
+            <span className="mg-ctl">
+              <kbd className="is-b">{connectedPad ? 'B' : 'E'}</kbd>
               {info.id === 'dig'
                 ? 'Rotate piece'
                 : info.id === 'sky'
@@ -737,17 +859,18 @@ export default function ArcadeGame(props: Props) {
                         : info.id === 'factory'
                           ? 'Discard'
                           : 'Operate'}
-            </>
+            </span>
           ) : props.online ? (
-            connectedPad ? (
-              'Start / Menu: leave view · Match keeps running'
-            ) : (
-              'Online round continues in real time'
-            )
-          ) : connectedPad ? (
-            'Start / Menu to pause'
+            <span className="mg-ctl is-note">
+              {connectedPad
+                ? 'Start / Menu: leave view · Match keeps running'
+                : 'Online round continues in real time'}
+            </span>
           ) : (
-            'Esc to pause'
+            <span className="mg-ctl">
+              <kbd>{connectedPad ? 'START' : 'ESC'}</kbd>
+              Pause
+            </span>
           )}
         </span>
       </footer>
@@ -828,7 +951,7 @@ export default function ArcadeGame(props: Props) {
       </div>
       {(!ready || paused || error) && (
         <div className="arena-overlay">
-          <div className="arcade-brief">
+          <div className={`arcade-brief mg-brief${paused ? ' is-paused' : ''}`}>
             <span className="eyebrow">
               {error
                 ? 'RENDERER ISSUE'
@@ -867,6 +990,21 @@ export default function ArcadeGame(props: Props) {
                   </span>
                 </div>
                 <p className="brief-tip">{tip}</p>
+                <div className="mg-brief-lineup" aria-hidden="true">
+                  {hud.actors.map((a, i) => (
+                    <span
+                      key={a.id}
+                      className={a.id === props.meId ? 'is-you' : ''}
+                      style={{ '--pc': PLAYER_HUES[i % 4] } as React.CSSProperties}
+                    >
+                      <AlienPortrait
+                        shirt={seats[i]?.avatar.shirt ?? PLAYER_HUES[i % 4]}
+                        size={52}
+                      />
+                      <b>{seats[i]?.avatar.name ?? `P${i + 1}`}</b>
+                    </span>
+                  ))}
+                </div>
                 <div className="brief-team">
                   {hud.mode === '1v3'
                     ? me.team === 0

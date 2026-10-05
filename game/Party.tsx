@@ -47,6 +47,7 @@ import {
   CoinIcon,
   CrownIcon,
   DiamondIcon,
+  DiceCube,
   DiceIcon,
   ItemIcon,
   KlaxonPortrait,
@@ -55,7 +56,18 @@ import {
   SpaceIcon,
   Sparkle,
 } from './art';
+import {
+  Confetti,
+  CrewCutout,
+  MinigameArt,
+  MODE_SHORT,
+  MODE_TITLE,
+  TimerRing,
+  controlChips,
+  themeStyle,
+} from './art-minigames';
 import { BOARDS, PLANETS, getBoard, getPlanet } from './boards';
+import { PartyLogo, PLANET_TINT } from './PartyLogo';
 import { buildShot, shotScene } from './shot';
 import { playSfx, setSfxMuted } from './audio';
 import { useMusic } from './useMusic';
@@ -901,14 +913,8 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
           onClick={startScreen}
           aria-label="Press any button to start Party Planets"
         >
-          <span className="title-brand">
-            <img
-              className="title-ufo"
-              src="/ufo-sticker.webp"
-              alt="A cheerful alien flying a UFO"
-            />
-            <small>PARTY</small>
-            <strong>PLANETS</strong>
+          <span className="title-brand pp-title-brand">
+            <PartyLogo ufo="/ufo-sticker.webp" />
           </span>
           <span className="start-prompt">press any button to start</span>
           <span className="start-credit">
@@ -926,15 +932,13 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
         style={isMini ? { display: 'none' } : undefined}
       >
         <button
-          className="wordmark"
+          className={
+            panel === 'menu' ? 'wordmark pp-wordmark on-menu' : 'wordmark pp-wordmark'
+          }
           aria-label="Main menu"
           onClick={() => setPanel('menu')}
         >
-          <Ufo className="logo-ufo" aria-hidden="true" />
-          <span className="logo-type">
-            <small>PARTY</small>
-            <b>PLANETS</b>
-          </span>
+          <PartyLogo variant="compact" />
         </button>
         <div className="top-actions">
           {playing && (
@@ -980,15 +984,30 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
       </header>
       {panel === 'menu' && (
         <>
-          <section className="menu-panel home-menu">
-            <span className="eyebrow">CHOOSE YOUR DESTINATION</span>
-            <h1>
-              A whole <em>universe.</em>
+          <div className="pp-menu-hero" aria-hidden="true">
+            <img className="pp-cast pp-cast-dice" src="/brand/cast-dice.webp" alt="" />
+            <PartyLogo ufo="/ufo-sticker.webp" />
+          </div>
+          <img
+            className="pp-cast pp-cast-cheer"
+            src="/brand/cast-cheer.webp"
+            alt=""
+            aria-hidden="true"
+          />
+          <section className="menu-panel home-menu pp-menu">
+            <h1 className="pp-menu-banner">
+              <span>
+                A whole <em>universe!</em>
+              </span>
             </h1>
-            <fieldset className="planet-tabs" aria-label="Planets">
+            <fieldset className="planet-tabs pp-planets" aria-label="Planets">
               {PLANETS.map((p) => (
                 <button
                   key={p.id}
+                  className="pp-planet"
+                  style={
+                    { '--pt': PLANET_TINT[p.id] ?? '#33c3f5' } as React.CSSProperties
+                  }
                   aria-pressed={getBoard(boardId).planet === p.id}
                   disabled={!!travelTo}
                   onClick={() => {
@@ -996,8 +1015,14 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                     setOrbital(true);
                   }}
                 >
-                  <Globe size={17} />
-                  {p.name}
+                  <span className="pp-orb" aria-hidden="true">
+                    <span
+                      style={{
+                        backgroundImage: `url(/textures/planets/${p.id}-color.webp)`,
+                      }}
+                    />
+                  </span>
+                  <span className="pp-planet-name">{p.name}</span>
                 </button>
               ))}
             </fieldset>
@@ -1023,14 +1048,25 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                       }
                     }}
                   >
-                    <span>
-                      {b.planet === 'selene'
-                        ? '☾'
-                        : b.planet === 'verdara'
-                          ? '✧'
-                          : b.id === 'crown'
-                            ? '☀'
-                            : '❋'}
+                    <span
+                      className="pp-board-badge"
+                      style={
+                        {
+                          '--pt': PLANET_TINT[b.planet] ?? '#33c3f5',
+                        } as React.CSSProperties
+                      }
+                    >
+                      {b.planet === 'selene' ? (
+                        <Gem strokeWidth={2.6} />
+                      ) : b.planet === 'verdara' ? (
+                        <Sparkles strokeWidth={2.6} />
+                      ) : b.planet === 'ignara' ? (
+                        <Zap strokeWidth={2.6} />
+                      ) : b.id === 'crown' ? (
+                        <Palmtree strokeWidth={2.6} />
+                      ) : (
+                        <Waves strokeWidth={2.6} />
+                      )}
                     </span>
                     <b>{b.name}</b>
                     <small>{b.ecosystem.split(' & ')[0]}</small>
@@ -1039,16 +1075,38 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               )}
             </div>
             <button
-              className="primary"
+              className="primary pp-play"
               disabled={!!travelTo}
               onClick={() => setPanel('setup')}
             >
-              <Play size={19} fill="currentColor" /> Play{' '}
-              {getBoard(boardId).name} <ArrowRight />
+              <span className="pp-play-icon" aria-hidden="true">
+                <Play size={22} fill="currentColor" strokeWidth={2.6} />
+              </span>
+              <span className="pp-play-label">
+                Play {getBoard(boardId).name}
+              </span>
+              <ArrowRight className="pp-play-arrow" strokeWidth={3} />
             </button>
-            <div className="menu-sub">1 player + 3 CPU rivals</div>
+            <div className="menu-sub pp-crew">
+              <span className="pp-crew-faces" aria-hidden="true">
+                {[
+                  avatar.shirt,
+                  ...OUTFITS.filter((c) => c !== avatar.shirt).slice(1, 4),
+                ].map((c, i) => (
+                  <AlienPortrait
+                    key={i}
+                    shirt={c}
+                    size={i === 0 ? 34 : 30}
+                    className={i === 0 ? 'is-you' : ''}
+                  />
+                ))}
+              </span>
+              <span>
+                <b>You</b> + 3 CPU rivals
+              </span>
+            </div>
             <button
-              className="menu-option"
+              className="menu-option pp-opt pp-opt-online"
               onClick={() =>
                 offline
                   ? setNotice(
@@ -1057,29 +1115,41 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   : setPanel('online')
               }
             >
-              <Globe />
+              <span className="pp-opt-badge" aria-hidden="true">
+                <Globe strokeWidth={2.75} />
+              </span>
               <span>
                 Online party<small>Up to 4 friends</small>
               </span>
-              <ChevronRight />
+              <ChevronRight strokeWidth={3.5} />
             </button>
-            <button className="menu-option" onClick={() => setPanel('creator')}>
-              <UserRound />
+            <button
+              className="menu-option pp-opt pp-opt-studio"
+              onClick={() => setPanel('creator')}
+            >
+              <span className="pp-opt-badge" aria-hidden="true">
+                <AlienPortrait shirt={avatar.shirt} size={46} />
+              </span>
               <span>
                 Character studio<small>Meet your next alter ego</small>
               </span>
-              <ChevronRight />
+              <ChevronRight strokeWidth={3.5} />
             </button>
-            <button className="menu-option" onClick={() => setPanel('arcade')}>
-              <Dices />
+            <button
+              className="menu-option pp-opt pp-opt-arcade"
+              onClick={() => setPanel('arcade')}
+            >
+              <span className="pp-opt-badge" aria-hidden="true">
+                <DiceIcon size={34} value={5} />
+              </span>
               <span>
                 Minigame arcade
                 <small>Play all {AVAILABLE_ARCADE.length} games</small>
               </span>
-              <ChevronRight />
+              <ChevronRight strokeWidth={3.5} />
             </button>
             <button
-              className="text-button"
+              className="text-button pp-back"
               onClick={() => {
                 setTravelTo(undefined);
                 setOrbital(true);
@@ -1102,21 +1172,50 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               </button>
             )}
           </section>
-          <div className="location">
-            <span>
-              {orbital
-                ? 'THREE ECOSYSTEMS · ONE PLANET'
-                : getBoard(boardId).ecosystem.toUpperCase()}
-            </span>
-            <h2>
+          <div
+            className="location pp-location"
+            style={
+              {
+                '--pt': PLANET_TINT[getBoard(boardId).planet] ?? '#33c3f5',
+              } as React.CSSProperties
+            }
+          >
+            <h2 className="pp-loc-name">
               {orbital
                 ? getPlanet(getBoard(boardId).planet).name
                 : getBoard(boardId).name}
             </h2>
-            <p>Drag to explore · Scroll to zoom</p>
-            <span className="build-label">
-              THREE PLANETS · NINE BOARDS · v0.7
-            </span>
+            <div className="pp-loc-stats">
+              {orbital ? (
+                <>
+                  <span>
+                    <b>
+                      {
+                        BOARDS.filter(
+                          (b) => b.planet === getBoard(boardId).planet,
+                        ).length
+                      }
+                    </b>{' '}
+                    {BOARDS.filter((b) => b.planet === getBoard(boardId).planet)
+                      .length === 1
+                      ? 'board'
+                      : 'boards'}
+                  </span>
+                  <span>
+                    <b>{AVAILABLE_ARCADE.length}</b> minigames
+                  </span>
+                </>
+              ) : (
+                <span>{getBoard(boardId).ecosystem}</span>
+              )}
+            </div>
+            <p className="pp-loc-hint">Drag to explore · Scroll to zoom</p>
+            <img
+              className="pp-cast pp-cast-wave"
+              src="/brand/cast-wave.webp"
+              alt=""
+              aria-hidden="true"
+            />
           </div>
         </>
       )}
@@ -1953,6 +2052,11 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               className="turn-announcement"
               key={game.announce?.id}
               role="status"
+              style={
+                active
+                  ? ({ '--player': active.avatar.shirt } as React.CSSProperties)
+                  : undefined
+              }
             >
               {active && (
                 <AlienPortrait
@@ -2228,143 +2332,228 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 </div>
               </div>
             )}
-          {game.vote && game.phase === 'vote' && game.miniMode && (
-            <div className={`mode-banner mode-${game.miniMode}`} role="status">
-              <b>{MODE_LABEL[game.miniMode]}</b>
-              {(() => {
-                const seats = arenaPlayers(game),
-                  split =
-                    game.miniMode === '1v3'
-                      ? 1
-                      : game.miniMode === '2v2'
-                        ? 2
-                        : 4;
-                const side = (list: typeof seats, team: string) => (
-                  <span className={`mode-side ${team}`}>
+          {game.phase === 'vote' &&
+            game.vote &&
+            (() => {
+              // Minigame vote stage (ui-vote-results.css): team shape up top,
+              // three themed key-art cards, live ballots as alien pips.
+              const vote = game.vote,
+                mode = game.miniMode ?? 'ffa',
+                seats = arenaPlayers(game),
+                split = mode === '1v3' ? 1 : mode === '2v2' ? 2 : 4,
+                decided = vote.winner !== undefined,
+                left = Math.max(0, (vote.endsAt - clock) / 1000),
+                counts = vote.choices.map(
+                  (c) =>
+                    game.players.filter((p) => vote.ballots[p.id] === c).length,
+                ),
+                top = Math.max(...counts),
+                leaders = counts.filter((n) => n === top).length,
+                mine = vote.ballots[me!.id];
+              const side = (list: typeof seats, team: string, tag: string) => (
+                <span className={`pv-side ${team}`}>
+                  <small>{tag}</small>
+                  <span>
                     {list.map((p) => (
-                      <AlienPortrait
+                      <span
+                        className="pv-seat"
                         key={p.id}
-                        shirt={p.avatar.shirt}
-                        size={30}
-                      />
+                        style={{ '--player': p.avatar.shirt } as React.CSSProperties}
+                      >
+                        <AlienPortrait shirt={p.avatar.shirt} size={40} />
+                        <b>{p.id === me?.id ? 'You' : p.avatar.name}</b>
+                      </span>
                     ))}
                   </span>
-                );
-                return split === 4 ? (
-                  side(seats, 'all')
-                ) : (
-                  <>
-                    {side(seats.slice(0, split), 'left')}
-                    <em>VS</em>
-                    {side(seats.slice(split), 'right')}
-                  </>
-                );
-              })()}
-            </div>
-          )}
-          {game.phase === 'vote' && game.vote && (
-            <section className="center-panel vote-panel">
-              <div className="panel-heading">
-                <div>
-                  <span className="eyebrow">THE CREW DECIDES</span>
-                  <h2>
-                    {game.vote.winner === undefined
-                      ? 'Vote for the next minigame'
-                      : 'Adventure selected!'}
-                  </h2>
-                </div>
-                <span className="vote-countdown">
-                  {game.vote.winner === undefined ? (
-                    Math.max(0, Math.ceil((game.vote.endsAt - clock) / 1000)) +
-                    's'
-                  ) : (
-                    <Check />
-                  )}
                 </span>
-              </div>
-              <p>
-                Most votes wins. Ties are randomly decided between the tied
-                choices.
-              </p>
-              <div className="vote-options">
-                {game.vote.choices.map((index) => {
-                  const m = MINIGAMES[index],
-                    voters = game.players.filter(
-                      (p) => game.vote!.ballots[p.id] === index,
-                    );
-                  return (
-                    <button
-                      key={index}
-                      disabled={busy || game.vote!.winner !== undefined}
-                      className={
-                        'vote-card ' +
-                        (game.vote!.ballots[me!.id] === index ? 'voted ' : '') +
-                        (game.vote!.winner === index ? 'vote-winner' : '')
-                      }
-                      aria-pressed={game.vote!.ballots[me!.id] === index}
-                      onClick={() =>
-                        dispatch({
-                          type: 'vote',
-                          value: index,
-                          voteId: game.vote!.id,
-                        })
-                      }
-                      style={
-                        { '--mini-color': m.accent } as React.CSSProperties
-                      }
-                    >
-                      <span className="vote-game-icon">
-                        <Sparkles />
+              );
+              return (
+                <section
+                  className={
+                    'center-panel vote-panel pv-stage' +
+                    (decided ? ' is-decided' : '')
+                  }
+                  aria-labelledby="pv-title"
+                >
+                  <span className="pv-backdrop" aria-hidden="true" />
+                  <span className="pv-rays" aria-hidden="true" />
+                  <header className="pv-head">
+                    <div className="pv-heading">
+                      <span className="pv-kicker">
+                        Round {game.round} · The crew decides
                       </span>
-                      <small>
-                        {m.category} · {m.duration}s
-                      </small>
-                      <h3>{m.name}</h3>
-                      <p>{m.brief}</p>
-                      <div className="voter-list">
-                        {voters.map((p) => (
-                          <span
-                            key={p.id}
-                            style={{ background: p.avatar.shirt }}
-                            title={p.avatar.name}
-                          >
-                            {p.avatar.name.slice(0, 1)}
+                      <h2
+                        id="pv-title"
+                        className="pv-title"
+                        key={decided ? 'go' : 'vote'}
+                        data-text={decided ? 'Let’s play!' : 'Minigame vote!'}
+                      >
+                        {decided ? 'Let’s play!' : 'Minigame vote!'}
+                      </h2>
+                      <span className="pv-sparkles" aria-hidden="true">
+                        <Sparkle size={30} />
+                        <Sparkle size={18} color="#ffffff" />
+                        <Sparkle size={22} color="#7affea" />
+                      </span>
+                    </div>
+                    <div
+                      className={`pv-teams mode-${mode}`}
+                      role="status"
+                      aria-label={MODE_LABEL[mode] + ' round'}
+                    >
+                      <span className="pv-mode">
+                        <b>{MODE_SHORT[mode]}</b>
+                        <small>{MODE_TITLE[mode]}</small>
+                      </span>
+                      {split === 4 ? (
+                        side(seats, 'team-all', 'Every alien for themselves')
+                      ) : (
+                        <>
+                          {side(
+                            seats.slice(0, split),
+                            'team-a',
+                            split === 1 ? 'Solo' : 'Blue team',
+                          )}
+                          <em className="pv-vs">VS</em>
+                          {side(
+                            seats.slice(split),
+                            'team-b',
+                            split === 1 ? 'Trio' : 'Red team',
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <TimerRing left={left} total={20} done={decided}>
+                      {decided ? <Check /> : Math.ceil(left)}
+                    </TimerRing>
+                  </header>
+                  <div className="pv-cards">
+                    {vote.choices.map((index, i) => {
+                      const m = MINIGAMES[index],
+                        voters = game.players.filter(
+                          (p) => vote.ballots[p.id] === index,
+                        ),
+                        won = vote.winner === index,
+                        leading =
+                          !decided && top > 0 && leaders === 1 && counts[i] === top,
+                        brief =
+                          (mode === '1v3' &&
+                            (m as { soloBrief?: string }).soloBrief) ||
+                          m.brief;
+                      return (
+                        <button
+                          key={index}
+                          disabled={busy || decided}
+                          className={
+                            'pv-card' +
+                            (mine === index ? ' is-mine' : '') +
+                            (leading ? ' is-leading' : '') +
+                            (won ? ' is-winner' : '') +
+                            (decided && !won ? ' is-out' : '')
+                          }
+                          aria-pressed={mine === index}
+                          aria-label={`${m.name}: ${voters.length} of ${game.players.length} votes`}
+                          onClick={() =>
+                            dispatch({
+                              type: 'vote',
+                              value: index,
+                              voteId: vote.id,
+                            })
+                          }
+                          style={themeStyle(m.id, {
+                            '--i': i,
+                            '--len': Math.max(10, m.name.length),
+                          } as React.CSSProperties)}
+                        >
+                          <MinigameArt id={m.id} className="pv-art">
+                            <span className="pv-tab">{MODE_SHORT[mode]}</span>
+                            <span className="pv-time">{m.duration}s</span>
+                          </MinigameArt>
+                          <span className="pv-plate">
+                            <span className="pv-name" data-text={m.name}>
+                              {m.name}
+                            </span>
                           </span>
-                        ))}
-                      </div>
-                      <b>
-                        {game.vote!.winner === index
-                          ? 'SELECTED'
-                          : voters.length +
-                            (voters.length === 1 ? ' vote' : ' votes')}
-                      </b>
-                    </button>
-                  );
-                })}
-              </div>
-              <small>
-                {game.vote.winner !== undefined
-                  ? game.log[0]
-                  : game.vote.ballots[me!.id] !== undefined
-                    ? 'Vote recorded. You can change it until voting ends.'
-                    : 'Pick your favorite. AI crew members vote too.'}
-              </small>
-            </section>
-          )}
+                          <small className="pv-genre">{m.category}</small>
+                          <span className="pv-brief">{brief}</span>
+                          <span className="pv-keys">
+                            {controlChips(m.controls).map((c) => (
+                              <span key={c.keys}>
+                                <kbd>{c.keys}</kbd>
+                                {c.label}
+                              </span>
+                            ))}
+                          </span>
+                          <span className="pv-ballots">
+                            {game.players.map((_, k) => {
+                              const v = voters[k];
+                              return v ? (
+                                <span
+                                  className="pv-pip is-filled"
+                                  key={v.id}
+                                  title={v.avatar.name}
+                                  style={
+                                    {
+                                      '--player': v.avatar.shirt,
+                                    } as React.CSSProperties
+                                  }
+                                >
+                                  <AlienPortrait shirt={v.avatar.shirt} size={36} />
+                                </span>
+                              ) : (
+                                <span className="pv-pip" key={'slot' + k} />
+                              );
+                            })}
+                          </span>
+                          {mine === index && (
+                            <span className="pv-you">Your pick</span>
+                          )}
+                          {won && (
+                            <>
+                              <span className="pv-stamp">Selected!</span>
+                              <Confetti seed={index + 1} />
+                            </>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="pv-hint" aria-live="polite">
+                    {decided ? (
+                      game.log[0]
+                    ) : mine !== undefined ? (
+                      'Vote locked in! You can switch until the timer runs out.'
+                    ) : (
+                      <>
+                        <kbd>A</kbd> / click a card to vote · Most votes wins,
+                        ties are a coin flip
+                      </>
+                    )}
+                  </p>
+                </section>
+              );
+            })()}
           <div
             className="scoreboard"
             style={game.finale ? { display: 'none' } : undefined}
           >
             {game.players.map((p, i) => (
               <div
-                className={`player-card ${game.active === i && game.phase !== 'results' && game.phase !== 'finished' ? 'active' : ''}`}
+                className={`player-card ${game.active === i && game.phase !== 'results' && game.phase !== 'finished' ? 'active' : ''} ${p.id === me?.id ? 'is-me' : ''}`}
                 key={p.id}
                 style={{ '--player': p.avatar.shirt } as React.CSSProperties}
               >
+                {game.active === i &&
+                  game.phase !== 'results' &&
+                  game.phase !== 'finished' && (
+                    <span className="player-turn-tag" aria-hidden="true">
+                      TURN
+                    </span>
+                  )}
                 <span className="player-portrait">
                   <AlienPortrait
                     shirt={p.avatar.shirt}
-                    size={46}
+                    size={52}
                     mood={
                       game.effect?.player === p.id &&
                       clock < (game.presentUntil ?? 0) &&
@@ -2408,11 +2597,11 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   </small>
                 </div>
                 <div className="currency">
-                  <span>
-                    <DiamondIcon size={19} /> {p.pearls}
+                  <span className="cur-gem" title="Diamonds">
+                    <DiamondIcon size={22} /> <b>{p.pearls}</b>
                   </span>
-                  <span>
-                    <CoinIcon size={19} /> {p.shells}
+                  <span className="cur-coin" title="Points">
+                    <CoinIcon size={22} /> <b>{p.shells}</b>
                   </span>
                 </div>
                 {(() => {
@@ -2453,8 +2642,8 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 <span className="eyebrow">
                   {getBoard(game.boardId).name.toUpperCase()}
                 </span>
-                <span>
-                  <DiamondIcon size={18} /> {RULES.pearlPrice} points ·{' '}
+                <span className="goal-chip">
+                  <DiamondIcon size={18} /> {RULES.pearlPrice} pts ·{' '}
                   {game.diamondGoal
                     ? `first to ${game.diamondGoal}`
                     : `round ${game.round} of ${game.rounds}`}
@@ -2470,11 +2659,11 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                     const board = getBoard(game.boardId),
                       open = game.routesOpen !== false;
                     if (board.gimmick === 'tide')
-                      return open ? '🌊 Low tide · footbridge open' : '🌊 High tide · footbridge flooded';
+                      return open ? '🌊 Low tide · bridge open' : '🌊 High tide · bridge flooded';
                     if (board.gimmick === 'ferry')
-                      return open ? '☁️ Cloud ferry docked' : '☁️ Ferry away · next round';
+                      return open ? '☁️ Ferry docked' : '☁️ Ferry away';
                     if (board.gimmick === 'eruption')
-                      return open ? '🌋 Lava bridge passable' : '🌋 Eruption · bridge closed';
+                      return open ? '🌋 Lava bridge open' : '🌋 Eruption · bridge shut';
                     return '🚀 Jump pads active';
                   })()}
                 </span>
@@ -2489,13 +2678,20 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   {getPlanet(getBoard(game.boardId).planet).name.toUpperCase()}{' '}
                   ENCOUNTERS
                 </span>
-                {game.log.slice(0, 3).map((line, i) => (
-                  <p key={i} className={i === 0 ? 'new' : ''}>
+                {game.log.slice(0, 1).map((line) => (
+                  <p key={line} className="new">
                     {line}
                   </p>
                 ))}
               </div>
-              <section className="turn-panel">
+              <section
+                className={`turn-panel ${myTurn && game.phase === 'turn' ? 'roll-ready' : ''} ${myTurn ? '' : 'waiting'}`}
+                style={
+                  active
+                    ? ({ '--player': active.avatar.shirt } as React.CSSProperties)
+                    : undefined
+                }
+              >
                 <div className="turn-title">
                   <span className="dice-face">
                     {active && (
@@ -2529,8 +2725,12 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                             })
                           }
                         >
-                          <DiceIcon size={30} value={6} /> Roll the dice{' '}
-                          <span>SPACE</span>
+                          <DiceCube size={66} />
+                          <span className="roll-copy">
+                            <b>ROLL!</b>
+                            <small>Hit the dice block</small>
+                          </span>
+                          <span className="roll-key">SPACE</span>
                         </button>
                         <div className="inventory-label">
                           YOUR BAG <small>Use one before rolling</small>
@@ -2633,7 +2833,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 >
                   <RotateCcw />
                 </button>
-                <span>Drag to explore · Scroll to zoom</span>
+                {game.round <= 1 && <span>Drag to explore · Scroll to zoom</span>}
               </div>
             </>
           )}
@@ -2733,29 +2933,47 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               (!game.finale || clock - game.finale.startedAt >= 11000))) && (
             <section
               className={
-                'center-panel results-panel ' +
+                'center-panel results-panel pr-stage ' +
                 (game.finale ? 'finale-results' : '')
               }
+              style={themeStyle(game.phase === 'finished' ? '' : mini.id)}
             >
-              <div className="result-symbol">
-                <CrownIcon size={56} />
-              </div>
-              <span className="eyebrow">
-                {game.phase === 'finished'
-                  ? 'THAT’S A WRAP'
-                  : 'MINIGAME RESULTS'}
-              </span>
-              <h2>
+              {/* Results stage (ui-vote-results.css): key-art header, podium rows. */}
+              <span className="pv-backdrop" aria-hidden="true" />
+              <span className="pv-rays" aria-hidden="true" />
+              {!game.finale && (
+                <>
+                  <CrewCutout side="left" />
+                  <CrewCutout side="right" />
+                </>
+              )}
+              <div className="pr-card">
+              {game.phase === 'finished' ? (
+                <span className="mg-art pr-hero pr-hero-champion" aria-hidden="true">
+                  <CrownIcon size={92} />
+                  <span className="pr-badge">That’s a wrap</span>
+                </span>
+              ) : (
+                <MinigameArt id={mini.id} className="pr-hero">
+                  <span className="pr-badge">Minigame results</span>
+                </MinigameArt>
+              )}
+              <h2
+                className="pr-title"
+                data-text={
+                  game.phase === 'finished' ? 'Planet champion' : mini.name
+                }
+              >
                 {game.phase === 'finished' ? 'Planet champion' : mini.name}
               </h2>
-              <div className="results-list">
+              <ol className="pr-list">
                 {[...game.players]
                   .sort((a, b) =>
                     game.phase === 'finished'
                       ? b.pearls - a.pearls || b.shells - a.shells
                       : b.score - a.score,
                   )
-                  .map((p) => {
+                  .map((p, i) => {
                     const rank =
                       game.players.filter((q) =>
                         game.phase === 'finished'
@@ -2764,36 +2982,58 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                           : q.score > p.score,
                       ).length + 1;
                     return (
-                      <div key={p.id} className={rank === 1 ? 'is-first' : ''}>
-                        <PlaceBadge place={rank} size={34} />
+                      <li
+                        key={p.id}
+                        className={'pr-row' + (rank === 1 ? ' is-first' : '')}
+                        style={
+                          {
+                            '--i': i,
+                            '--player': p.avatar.shirt,
+                          } as React.CSSProperties
+                        }
+                      >
+                        <PlaceBadge className="pr-place" place={rank} size={38} />
                         <AlienPortrait
+                          className="pr-face"
                           shirt={p.avatar.shirt}
-                          size={40}
+                          size={46}
                           mood={rank === 1 ? 'happy' : rank === 4 ? 'sad' : 'neutral'}
                         />
-                        <span>
-                          {p.avatar.name}
+                        {rank === 1 && <CrownIcon className="pr-crown" size={30} />}
+                        <span className="pr-who">
+                          <b>{p.avatar.name}</b>
                           <small>
-                            {p.cpu ? 'CPU' : p.id === me?.id ? 'YOU' : 'PLAYER'}
+                            {p.cpu ? 'CPU' : p.id === me?.id ? 'You' : 'Player'}
+                            {' · '}
+                            {game.phase === 'finished'
+                              ? `${p.shells} points`
+                              : game.arcade?.mode
+                                ? p.prize === RULES.teamTie
+                                  ? 'Tie'
+                                  : p.prize
+                                    ? 'Win'
+                                    : 'Loss'
+                                : scoreLabel(game.mini, p.score)}
                           </small>
                         </span>
-                        <b>
-                          {game.phase === 'finished'
-                            ? `${p.pearls} diamonds · ${p.shells} points`
-                            : `${
-                                game.arcade?.mode
-                                  ? p.prize === RULES.teamTie
-                                    ? 'TIE'
-                                    : p.prize
-                                      ? 'WIN'
-                                      : 'LOSS'
-                                  : scoreLabel(game.mini, p.score)
-                              } · +${p.prize ?? RULES.minigameReward[rank - 1]} points`}
-                        </b>
-                      </div>
+                        <span className="pr-prize">
+                          {game.phase === 'finished' ? (
+                            <b>
+                              <DiamondIcon size={20} /> {p.pearls}
+                            </b>
+                          ) : (
+                            <b>
+                              <CoinIcon size={20} /> +
+                              {p.prize ?? RULES.minigameReward[rank - 1]}
+                            </b>
+                          )}
+                        </span>
+                      </li>
                     );
                   })}
-              </div>
+              </ol>
+              <Confetti count={34} seed={game.round + 3} />
+              <div className="pr-actions">
               {game.practice ? (
                 <div className="practice-results-actions">
                   <button
@@ -2837,11 +3077,13 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   <ArrowRight />
                 </button>
               ) : (
-                <p>
+                <p className="pr-wait">
                   Waiting for the host · Automatically continues in{' '}
                   {Math.max(0, Math.ceil((game.due - clock) / 1000))} seconds
                 </p>
               )}
+              </div>
+              </div>
             </section>
           )}
         </>

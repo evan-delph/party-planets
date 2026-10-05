@@ -13,11 +13,35 @@ const CELLS = 4,
   CELL = 256;
 const TOP = 0.955;
 
-const PLINTH: Record<string, { color: string; metalness: number; roughness: number; glow: number }> = {
-  crown: { color: '#efe2c4', metalness: 0.05, roughness: 0.55, glow: 0.1 },
-  crater: { color: '#b7c1d6', metalness: 0.75, roughness: 0.32, glow: 0.32 },
-  fissure: { color: '#3b3036', metalness: 0.35, roughness: 0.42, glow: 0.3 },
-  coral: { color: '#f4e7f2', metalness: 0.1, roughness: 0.45, glow: 0.14 },
+/** Linear size of a space relative to the original 0.98-radius token. */
+const SIZE = 1.27;
+
+/**
+ * Board tokens use deeper, punchier versions of the HUD colours so every
+ * space type reads at a glance against the pale road.
+ */
+const TOKEN: Partial<Record<SpaceKind, string>> = {
+  blue: '#1784ff',
+  red: '#ff2f45',
+  lucky: '#ffc21a',
+  event: '#8f45ff',
+  shop: '#14d29a',
+  bank: '#ffcf2e',
+  lottery: '#ff5fd2',
+  hazard: '#ff6a1f',
+  spring: '#1fd6c4',
+  portal: '#4f7dff',
+  thief: '#b25cff',
+  villain: '#3b2560',
+  switch: '#ff8f6b',
+  start: '#ffffff',
+};
+
+const PLINTH: Record<string, { color: string; metalness: number; roughness: number; glow: number; rim: number }> = {
+  crown: { color: '#efe2c4', metalness: 0.05, roughness: 0.4, glow: 0.08, rim: 0.85 },
+  crater: { color: '#b7c1d6', metalness: 0.6, roughness: 0.32, glow: 0.28, rim: 0.6 },
+  fissure: { color: '#3b3036', metalness: 0.35, roughness: 0.42, glow: 0.3, rim: 0.5 },
+  coral: { color: '#f4e7f2', metalness: 0.05, roughness: 0.38, glow: 0.07, rim: 0.85 },
 };
 
 function glyphAtlas() {
@@ -80,12 +104,12 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
       [0.86, 0.215],
       [0.8, 0.2],
       [0, 0.2],
-    ].map(([r, y]) => new T.Vector2(r, y)),
-    40,
+    ].map(([r, y]) => new T.Vector2(r * SIZE, y)),
+    48,
   );
   plinthGeo.translate(0, TOP - 0.245, 0);
   const plinthMat = new T.MeshStandardMaterial({
-    color: style.color,
+    color: '#ffffff',
     metalness: style.metalness,
     roughness: style.roughness,
   });
@@ -101,15 +125,15 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
       [0.7, 0.028],
       [0.4, 0.04],
       [0, 0.045],
-    ].map(([r, y]) => new T.Vector2(r, y)),
-    40,
+    ].map(([r, y]) => new T.Vector2(r * SIZE, y)),
+    48,
   );
   enamelGeo.translate(0, TOP - 0.05, 0);
   const enamelMat = new T.MeshPhysicalMaterial({
-    roughness: 0.5,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.22,
-    envMapIntensity: 0.45,
+    roughness: 0.4,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.1,
+    envMapIntensity: 0.25,
   });
   enamelMat.onBeforeCompile = (shader) => {
     shader.uniforms.glow = { value: style.glow };
@@ -125,7 +149,7 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
 
   // Glyph decals from the atlas.
   const atlas = glyphAtlas();
-  const glyphGeo = new T.PlaneGeometry(1.08, 1.08);
+  const glyphGeo = new T.PlaneGeometry(1.08 * SIZE, 1.08 * SIZE);
   glyphGeo.rotateX(-Math.PI / 2);
   glyphGeo.translate(0, TOP + 0.004, 0);
   const cells = new Float32Array(count);
@@ -150,7 +174,15 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
   glyphs.renderOrder = 2;
 
   const dummy = new T.Object3D(),
-    base = nodes.map((n) => new T.Color(SPACE_INFO[n.type]?.color ?? '#cccccc'));
+    base = nodes.map((n) => new T.Color(TOKEN[n.type] ?? SPACE_INFO[n.type]?.color ?? '#cccccc')),
+    plinthBase = base.map((c, i) => {
+      // A deeper shade of the token's own hue frames it against the road.
+      const hsl = { h: 0, s: 0, l: 0 };
+      c.getHSL(hsl);
+      const rim = new T.Color().setHSL(hsl.h, Math.min(1, hsl.s * 0.95), hsl.l * 0.52);
+      if (nodes[i].type === 'start') rim.set('#c9a24a');
+      return new T.Color(style.color).lerp(rim, style.rim);
+    });
   nodes.forEach((n, i) => {
     dummy.position.set(n.x, 0, n.z);
     dummy.updateMatrix();
@@ -158,6 +190,7 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
     enamel.setMatrixAt(i, dummy.matrix);
     glyphs.setMatrixAt(i, dummy.matrix);
     enamel.setColorAt(i, base[i]);
+    plinth.setColorAt(i, plinthBase[i]);
     glyphs.setColorAt(i, new T.Color('#ffffff'));
     cells[i] = Math.max(0, KINDS.indexOf(n.type));
   });
@@ -166,8 +199,21 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
   const dim = new Float32Array(count),
     grey = new T.Color('#5d6676'),
     tmp = new T.Color();
+  let facing = 0;
   return {
     root,
+    /** Turn every glyph upright for a camera at this azimuth (radians). */
+    face(yaw: number) {
+      if (Math.abs(Math.atan2(Math.sin(yaw - facing), Math.cos(yaw - facing))) < 0.03) return;
+      facing = yaw;
+      nodes.forEach((n, i) => {
+        dummy.position.set(n.x, 0, n.z);
+        dummy.rotation.set(0, yaw, 0);
+        dummy.updateMatrix();
+        glyphs.setMatrixAt(i, dummy.matrix);
+      });
+      glyphs.instanceMatrix.needsUpdate = true;
+    },
     /** Fade spaces (0 = normal, 1 = closed and greyed out). */
     setDim(ids: number[], amount: number) {
       let changed = false;
@@ -176,10 +222,12 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
         dim[id] = amount;
         changed = true;
         enamel.setColorAt(id, tmp.copy(base[id]).lerp(grey, amount * 0.75).multiplyScalar(1 - amount * 0.35));
+        plinth.setColorAt(id, tmp.copy(plinthBase[id]).lerp(grey, amount * 0.6).multiplyScalar(1 - amount * 0.3));
         glyphs.setColorAt(id, tmp.setScalar(1 - amount * 0.55));
       }
       if (changed) {
         enamel.instanceColor!.needsUpdate = true;
+        plinth.instanceColor!.needsUpdate = true;
         glyphs.instanceColor!.needsUpdate = true;
       }
     },

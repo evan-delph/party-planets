@@ -1,1 +1,1179 @@
-/* Board HUD: player cards, turn panel, board info, prompts. Loaded after skin.css, so equal-specificity rules here win. */
+/* Board HUD: player cards, turn panel, board info, prompts. Loaded after skin.css, so equal-specificity rules here win.
+ *
+ * Direction: "candy plates over the world". Everything floats directly on the
+ * 3D board as chunky, tilted, glossy plastic pieces in each player's colour,
+ * with a single ink outline and a hard drop like a sticker. No big cream
+ * panels: the world stays the hero, the HUD reads at a glance.
+ */
+:root {
+  --hud-ink: #1b2440;
+  --hud-gold: #ffd23f;
+  --hud-gold-deep: #f29a12;
+  --hud-cream: #fffaf0;
+  --hud-skew: -8deg;
+  --hud-unskew: 8deg;
+  /* Eight-way ink outline for white display type over busy art. */
+  --hud-outline:
+    0 2px 0 var(--hud-ink), 2px 0 0 var(--hud-ink), -2px 0 0 var(--hud-ink), 0 -2px 0 var(--hud-ink),
+    1.5px 1.5px 0 var(--hud-ink), -1.5px 1.5px 0 var(--hud-ink), 1.5px -1.5px 0 var(--hud-ink),
+    -1.5px -1.5px 0 var(--hud-ink), 0 3.5px 0 var(--hud-ink);
+  --hud-outline-thick:
+    0 3px 0 var(--hud-ink), 3px 0 0 var(--hud-ink), -3px 0 0 var(--hud-ink), 0 -3px 0 var(--hud-ink),
+    2.2px 2.2px 0 var(--hud-ink), -2.2px 2.2px 0 var(--hud-ink), 2.2px -2.2px 0 var(--hud-ink),
+    -2.2px -2.2px 0 var(--hud-ink), 0 6px 0 var(--hud-ink);
+}
+
+/* ── Player plates ────────────────────────────────────────────────────────── */
+:root .game-shell.light-ui .scoreboard {
+  top: 100px;
+  left: 252px;
+  right: 28px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 236px));
+  justify-content: end;
+  gap: 20px;
+  z-index: 6;
+}
+/* Below a wide desktop the row no longer fits beside the corner logo. */
+@media (max-width: 1240px) and (min-width: 701px) {
+  :root .game-shell.light-ui .scoreboard {
+    top: 126px;
+    left: 48px;
+    justify-content: center;
+  }
+}
+:root .game-shell.light-ui .scoreboard .player-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  min-width: 0;
+  padding: 0 8px 0 0;
+  color: #fff;
+  border: 3px solid #fff;
+  border-radius: 14px 20px 20px 14px;
+  background:
+    linear-gradient(180deg, #ffffff55 0%, #ffffff22 44%, #ffffff00 46%),
+    radial-gradient(circle, #ffffff30 0 1.3px, #ffffff00 1.8px) 0 0 / 11px 11px,
+    linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--player, #2a6fd8) 78%, #ffffff) 0%,
+      var(--player, #2a6fd8) 38%,
+      color-mix(in srgb, var(--player, #2a6fd8) 62%, #1b2440) 100%
+    );
+  box-shadow:
+    0 0 0 3px var(--hud-ink),
+    0 6px 0 3px var(--hud-ink),
+    0 16px 26px #0b163550;
+  backdrop-filter: none;
+  transform: skewX(var(--hud-skew));
+  transition:
+    transform 0.35s cubic-bezier(0.2, 1.6, 0.4, 1),
+    box-shadow 0.25s;
+}
+:root .game-shell.light-ui .scoreboard .player-card > * {
+  transform: skewX(var(--hud-unskew));
+}
+/* Glassy sweep across the active plate. */
+:root .game-shell.light-ui .scoreboard .player-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, #ffffff8c 47%, transparent 58%) no-repeat;
+  background-size: 260% 100%;
+  background-position: 160% 0;
+  opacity: 0;
+}
+:root .game-shell.light-ui .scoreboard .player-card.active {
+  z-index: 2;
+  transform: skewX(var(--hud-skew)) translateY(5px) scale(1.07);
+  box-shadow:
+    0 0 0 3px var(--hud-ink),
+    0 6px 0 3px var(--hud-ink),
+    0 0 0 8px var(--hud-gold),
+    0 6px 0 8px #e59b12,
+    0 0 34px 12px #ffd23f80;
+  background:
+    linear-gradient(180deg, #ffffff55 0%, #ffffff22 44%, #ffffff00 46%),
+    radial-gradient(circle, #ffffff30 0 1.3px, #ffffff00 1.8px) 0 0 / 11px 11px,
+    linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--player, #2a6fd8) 78%, #ffffff) 0%,
+      var(--player, #2a6fd8) 38%,
+      color-mix(in srgb, var(--player, #2a6fd8) 62%, #1b2440) 100%
+    );
+  border-color: #fff;
+}
+:root .game-shell.light-ui .scoreboard .player-card.active::after {
+  opacity: 1;
+  animation: hud-sheen 2.8s ease-in-out infinite;
+}
+@keyframes hud-sheen {
+  0%,
+  55% {
+    background-position: 160% 0;
+  }
+  100% {
+    background-position: -60% 0;
+  }
+}
+:root .game-shell.light-ui .scoreboard .player-portrait {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: -6px 0 -6px -20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 0 6px var(--hud-ink),
+    0 5px 0 6px var(--hud-ink);
+}
+:root .game-shell.light-ui .scoreboard .player-portrait > .art:first-child {
+  width: 54px;
+  height: 54px;
+  display: block;
+}
+:root .game-shell.light-ui .scoreboard .player-portrait .player-place {
+  position: absolute;
+  right: -11px;
+  bottom: -9px;
+  width: 25px;
+  height: 25px;
+  filter: drop-shadow(0 2px 0 var(--hud-ink));
+}
+:root .game-shell.light-ui .scoreboard .player-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+:root .game-shell.light-ui .scoreboard .player-info strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  letter-spacing: 0.01em;
+  text-shadow: var(--hud-outline);
+  white-space: nowrap;
+  overflow: visible;
+}
+:root .game-shell.light-ui .scoreboard .player-info small {
+  display: inline-block;
+  margin: 0;
+  padding: 1px 7px 0;
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 14px;
+  letter-spacing: 0.14em;
+  color: #fff;
+  background: #1b244073;
+  border-radius: 6px;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:root .game-shell.light-ui .scoreboard .player-card.is-me .player-info small {
+  background: var(--hud-gold);
+  color: var(--hud-ink);
+  box-shadow: 0 0 0 2px var(--hud-ink);
+}
+:root .game-shell.light-ui .scoreboard .currency {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  height: 46px;
+  padding: 0 9px 0 5px;
+  font-family: var(--font-display);
+  color: #fff;
+  background: linear-gradient(180deg, #10163acc, #1b2440b3);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 2px 0 #00000040,
+    0 1px 0 #ffffff66;
+}
+:root .game-shell.light-ui .scoreboard .currency span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  line-height: 1;
+}
+:root .game-shell.light-ui .scoreboard .currency .art {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+}
+:root .game-shell.light-ui .scoreboard .currency b {
+  min-width: 24px;
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+:root .game-shell.light-ui .scoreboard .currency .cur-gem b {
+  color: #8ff1ff;
+}
+:root .game-shell.light-ui .scoreboard .currency .cur-coin b {
+  color: #ffe27a;
+}
+/* Floating TURN marker over the active plate. */
+:root .game-shell.light-ui .scoreboard .player-turn-tag {
+  position: absolute;
+  z-index: 3;
+  top: -17px;
+  right: 14px;
+  padding: 2px 9px 1px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 14px;
+  color: var(--hud-ink);
+  background: var(--hud-gold);
+  border: 2.5px solid var(--hud-ink);
+  border-radius: 8px;
+  box-shadow: 0 3px 0 var(--hud-ink);
+  animation: hud-tag-bob 1.1s ease-in-out infinite;
+}
+@keyframes hud-tag-bob {
+  0%,
+  100% {
+    transform: skewX(var(--hud-unskew)) translateY(0);
+  }
+  50% {
+    transform: skewX(var(--hud-unskew)) translateY(-4px);
+  }
+}
+:root .game-shell.light-ui .scoreboard .team-dot {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--hud-ink);
+}
+
+/* ── Board status strip: one compact sticker, top centre ─────────────────── */
+:root .game-shell.light-ui .board-label {
+  position: absolute;
+  top: 32px;
+  left: 258px;
+  right: auto;
+  transform: none;
+  z-index: 5;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  max-width: calc(100% - 728px);
+  overflow: hidden;
+  padding: 5px 7px 5px 5px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--hud-ink);
+  background: var(--hud-cream);
+  border: 2.5px solid var(--hud-ink);
+  border-radius: 999px;
+  box-shadow:
+    0 4px 0 var(--hud-ink),
+    0 12px 22px #0b163533;
+  white-space: nowrap;
+}
+:root .game-shell.light-ui .board-label > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 3px 10px 3px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--hud-ink);
+  background: #eef6ff;
+  border: 0;
+  border-radius: 999px;
+  min-width: 0;
+}
+:root .game-shell.light-ui .board-label > .eyebrow {
+  padding: 4px 13px 3px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #fff;
+  background: linear-gradient(180deg, #4b8dff, #2a5fd0);
+  box-shadow: inset 0 2px 0 #ffffff55;
+  text-shadow: 0 1.5px 0 #1b244099;
+  transform: rotate(-3deg);
+  border-radius: 999px;
+}
+:root .game-shell.light-ui .board-label .bank-pot {
+  background: #fff1c2;
+}
+:root .game-shell.light-ui .board-label .gimmick-tag {
+  padding-left: 9px;
+  background: #d6f7ff;
+  border: 0;
+}
+:root .game-shell.light-ui .board-label .gimmick-tag.closed {
+  background: #ffe1d6;
+}
+:root .game-shell.light-ui .board-label .last-turns-tag {
+  padding-left: 10px;
+  color: #fff;
+  background: #e2453f;
+  border: 0;
+  font-weight: 700;
+}
+@media (max-width: 1240px) and (min-width: 701px) {
+  :root .game-shell.light-ui .board-label {
+    top: 200px;
+    left: 28px;
+    max-width: calc(100% - 56px);
+  }
+}
+
+/* ── Encounter toast (latest log line only) + camera reset ───────────────── */
+:root .game-shell.light-ui .activity {
+  position: absolute;
+  left: 86px;
+  bottom: 26px;
+  z-index: 5;
+  width: auto;
+  max-width: min(380px, calc(100% - 470px));
+  padding: 10px 16px 10px 16px;
+  color: var(--hud-ink);
+  background: var(--hud-cream);
+  border: 3px solid var(--hud-ink);
+  border-radius: 20px 20px 20px 6px;
+  box-shadow:
+    0 4px 0 var(--hud-ink),
+    0 14px 26px #0b163538;
+}
+:root .game-shell.light-ui .activity .eyebrow {
+  position: absolute;
+  top: -13px;
+  left: 12px;
+  padding: 2px 9px 1px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  line-height: 15px;
+  color: #fff;
+  background: linear-gradient(180deg, #34c48f, #129a6c);
+  border: 2px solid var(--hud-ink);
+  border-radius: 8px;
+  transform: rotate(-3deg);
+  box-shadow: 0 2px 0 var(--hud-ink);
+}
+:root .game-shell.light-ui .activity p,
+:root .game-shell.light-ui .activity p.new {
+  margin: 3px 0 0;
+  padding: 0;
+  border: 0;
+  font-family: var(--font-display);
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--hud-ink);
+  opacity: 1;
+  animation: hud-toast-in 0.45s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+@keyframes hud-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+:root .game-shell.light-ui .map-controls {
+  position: absolute;
+  left: 24px;
+  bottom: 26px;
+  top: auto;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+:root .game-shell.light-ui .map-controls .icon-button {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: var(--hud-ink);
+  background: var(--hud-cream);
+  border: 3px solid var(--hud-ink);
+  border-radius: 50%;
+  box-shadow: 0 4px 0 var(--hud-ink);
+}
+:root .game-shell.light-ui .map-controls .icon-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--hud-ink);
+}
+:root .game-shell.light-ui .map-controls span {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 96px);
+  padding: 5px 11px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #fff;
+  background: #1b2440cc;
+  border-radius: 999px;
+}
+
+/* ── Turn panel: name plate + dice block, floating on the world ──────────── */
+:root .game-shell.light-ui .turn-panel {
+  position: absolute;
+  right: 30px;
+  bottom: 28px;
+  z-index: 6;
+  width: 316px;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  backdrop-filter: none;
+}
+:root .game-shell.light-ui .turn-panel .turn-title {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 26px 22px;
+  padding: 4px 22px 4px 0;
+  min-height: 54px;
+  color: #fff;
+  border: 3px solid #fff;
+  border-radius: 14px 20px 20px 14px;
+  background:
+    linear-gradient(180deg, #ffffff55 0%, #ffffff22 44%, #ffffff00 46%),
+    radial-gradient(circle, #ffffff30 0 1.3px, #ffffff00 1.8px) 0 0 / 11px 11px,
+    linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--player, #2a6fd8) 78%, #ffffff) 0%,
+      var(--player, #2a6fd8) 40%,
+      color-mix(in srgb, var(--player, #2a6fd8) 62%, #1b2440) 100%
+    );
+  box-shadow:
+    0 0 0 3px var(--hud-ink),
+    0 6px 0 3px var(--hud-ink),
+    0 16px 26px #0b163550;
+  transform: skewX(var(--hud-skew)) rotate(-2deg);
+}
+:root .game-shell.light-ui .turn-panel .turn-title > * {
+  transform: skewX(var(--hud-unskew));
+}
+:root .game-shell.light-ui .turn-panel .dice-face {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  margin: -12px 0 -12px -22px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 0 6px var(--hud-ink),
+    0 5px 0 6px var(--hud-ink);
+}
+:root .game-shell.light-ui .turn-panel .dice-face > .art {
+  width: 58px;
+  height: 58px;
+}
+:root .game-shell.light-ui .turn-panel .turn-title .eyebrow {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  color: var(--hud-gold);
+  text-shadow: var(--hud-outline);
+}
+:root .game-shell.light-ui .turn-panel .turn-title h2 {
+  margin: 4px 0 2px;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: #fff;
+  text-shadow: var(--hud-outline-thick);
+}
+
+/* The roll button is a glossy candy block with a real 3D die riding on it. */
+:root .game-shell.light-ui .turn-panel .roll-button {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 84px;
+  margin: 0;
+  padding: 8px 14px 10px 104px;
+  font-family: var(--font-display);
+  color: var(--hud-ink);
+  text-align: left;
+  border: 3px solid var(--hud-ink);
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, #ffffff99 0%, #ffffff33 40%, #ffffff00 42%),
+    linear-gradient(180deg, #fff27a 0%, #ffd23f 45%, #ffad1f 100%);
+  box-shadow:
+    inset 0 -6px 0 #e98a06,
+    inset 0 2px 0 #ffffff,
+    0 7px 0 var(--hud-ink),
+    0 0 0 0 #ffd23f00,
+    0 20px 30px #0b163560;
+  transform: rotate(-2deg);
+  animation: hud-roll-breathe 1.8s ease-in-out infinite;
+  transition: filter 0.15s;
+}
+@keyframes hud-roll-breathe {
+  0%,
+  100% {
+    transform: rotate(-2deg) translateY(0);
+    box-shadow:
+      inset 0 -6px 0 #e98a06,
+      inset 0 2px 0 #ffffff,
+      0 7px 0 var(--hud-ink),
+      0 0 0 0 #ffd23f00,
+      0 20px 30px #0b163560;
+  }
+  50% {
+    transform: rotate(-2deg) translateY(-3px);
+    box-shadow:
+      inset 0 -6px 0 #e98a06,
+      inset 0 2px 0 #ffffff,
+      0 10px 0 var(--hud-ink),
+      0 0 0 9px #ffd23f55,
+      0 24px 34px #0b163550;
+  }
+}
+:root .game-shell.light-ui .turn-panel .roll-button:hover:not(:disabled) {
+  filter: brightness(1.05) saturate(1.1);
+}
+:root .game-shell.light-ui .turn-panel .roll-button:active:not(:disabled) {
+  animation: none;
+  transform: rotate(-2deg) translateY(5px);
+  box-shadow:
+    inset 0 -3px 0 #e98a06,
+    inset 0 2px 0 #ffffff,
+    0 2px 0 var(--hud-ink),
+    0 8px 16px #0b163550;
+}
+:root .game-shell.light-ui .turn-panel .roll-button:disabled {
+  animation: none;
+}
+:root .game-shell.light-ui .turn-panel .roll-button > span {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+:root .game-shell.light-ui .turn-panel .roll-button > .die3d {
+  display: block;
+  position: absolute;
+  left: 14px;
+  top: -22px;
+}
+:root .game-shell.light-ui .turn-panel .roll-button > .roll-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  line-height: 1;
+}
+:root .game-shell.light-ui .turn-panel .roll-copy b {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+  text-shadow: var(--hud-outline-thick);
+  transform: rotate(-3deg);
+  transform-origin: left center;
+}
+:root .game-shell.light-ui .turn-panel .roll-copy small {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #6b3b00;
+  padding-left: 2px;
+}
+:root .game-shell.light-ui .turn-panel .roll-button > .roll-key {
+  display: inline-block;
+  margin-left: auto;
+  align-self: flex-end;
+  padding: 3px 7px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--hud-ink);
+  background: #fffbe6;
+  border: 2px solid var(--hud-ink);
+  border-radius: 7px;
+  box-shadow: 0 2px 0 var(--hud-ink);
+}
+@media (pointer: coarse) {
+  :root .game-shell.light-ui .turn-panel .roll-button > .roll-key {
+    display: none;
+  }
+}
+/* Sunburst behind the dice block. */
+:root .game-shell.light-ui .turn-panel.roll-ready::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  left: -34px;
+  top: 32px;
+  width: 190px;
+  height: 190px;
+  pointer-events: none;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, #ffe066b3 0 9deg, #ffe06600 9deg 22.5deg);
+  -webkit-mask: radial-gradient(circle, #000 0 30%, transparent 70%);
+  mask: radial-gradient(circle, #000 0 30%, transparent 70%);
+  animation: hud-burst 14s linear infinite;
+}
+@keyframes hud-burst {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Bag: little sticker chips under the dice block. */
+:root .game-shell.light-ui .turn-panel .inventory-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 8px 6px;
+  padding: 3px 10px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #fff;
+  background: var(--hud-ink);
+  border-radius: 8px;
+  transform: rotate(-2deg);
+}
+:root .game-shell.light-ui .turn-panel .inventory-label small {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: #c9d6ff;
+}
+:root .game-shell.light-ui .turn-panel .inventory {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-left: 4px;
+}
+:root .game-shell.light-ui .turn-panel .inventory button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 3px 13px 3px 3px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--hud-ink);
+  background: linear-gradient(180deg, #ffffff 0 55%, #eef4ff 56%);
+  border: 2.5px solid var(--hud-ink);
+  border-radius: 999px;
+  box-shadow:
+    0 4px 0 var(--hud-ink),
+    0 10px 18px #0b163540;
+  transition: transform 0.15s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+:root .game-shell.light-ui .turn-panel .inventory button .art {
+  width: 32px;
+  height: 32px;
+  padding: 2px;
+  background: #fff3c4;
+  border: 2px solid var(--hud-ink);
+  border-radius: 50%;
+}
+:root .game-shell.light-ui .turn-panel .inventory button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffffff 0 55%, #fff6cf 56%);
+  transform: translateY(-2px) rotate(-2deg);
+}
+:root .game-shell.light-ui .turn-panel .inventory > span {
+  padding: 5px 12px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hud-ink);
+  background: #fffaf0e6;
+  border: 2px solid var(--hud-ink);
+  border-radius: 999px;
+}
+
+/* Waiting / landed states keep the name plate and add one small sticker card. */
+:root .game-shell.light-ui .turn-panel .muted,
+:root .game-shell.light-ui .turn-panel .landing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  font-family: var(--font-display);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--hud-ink);
+  background: var(--hud-cream);
+  border: 3px solid var(--hud-ink);
+  border-radius: 18px;
+  box-shadow:
+    0 4px 0 var(--hud-ink),
+    0 12px 22px #0b163538;
+}
+:root .game-shell.light-ui .turn-panel .shop {
+  padding: 10px;
+  margin: 0 0 12px;
+  background: var(--hud-cream);
+  border: 3px solid var(--hud-ink);
+  border-radius: 20px;
+  box-shadow:
+    0 4px 0 var(--hud-ink),
+    0 12px 22px #0b163538;
+}
+:root .game-shell.light-ui .turn-panel > .primary:not(.roll-button) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 56px;
+  font-size: 22px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, #ffffff99 0%, #ffffff33 40%, #ffffff00 42%),
+    linear-gradient(180deg, #fff27a 0%, #ffd23f 45%, #ffad1f 100%);
+  box-shadow:
+    inset 0 -5px 0 #e98a06,
+    0 6px 0 var(--hud-ink),
+    0 16px 26px #0b163550;
+}
+:root .game-shell.light-ui .turn-panel .dice-face .last-roll {
+  right: -12px;
+  bottom: -10px;
+}
+
+/* ── 3D dice block ───────────────────────────────────────────────────────── */
+.die3d {
+  --die: 64px;
+  --half: calc(var(--die) / 2);
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--die);
+  height: var(--die);
+  perspective: calc(var(--die) * 6);
+}
+.die3d-body {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(-24deg) rotateY(-34deg);
+  animation: die3d-idle 3.6s ease-in-out infinite;
+}
+.die3d-side {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: calc(var(--die) * 0.13);
+  border: 3px solid var(--hud-ink);
+  border-radius: calc(var(--die) * 0.24);
+  background: radial-gradient(circle at 32% 26%, #ffffff 0 38%, #f1f5ff 62%, #d4ddf7 100%);
+  backface-visibility: hidden;
+}
+.die3d-side i {
+  place-self: center;
+  width: 74%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--hud-ink);
+  box-shadow: inset 0 calc(var(--die) * 0.03) 0 #ffffff40;
+}
+.die3d-s1 {
+  transform: translateZ(var(--half));
+}
+.die3d-s1 i {
+  width: 130%;
+  background: radial-gradient(circle at 35% 30%, #ff8aa0, #f0354f 60%);
+  box-shadow: 0 0 0 2px var(--hud-ink);
+}
+.die3d-s2 {
+  transform: rotateY(90deg) translateZ(var(--half));
+  background: radial-gradient(circle at 32% 26%, #f6f8ff 0 30%, #dfe6fb 70%, #c4d0f2 100%);
+}
+.die3d-s3 {
+  transform: rotateX(90deg) translateZ(var(--half));
+  background: radial-gradient(circle at 50% 50%, #ffffff 0 50%, #eef3ff 100%);
+}
+.die3d-s4 {
+  transform: rotateX(-90deg) translateZ(var(--half));
+}
+.die3d-s5 {
+  transform: rotateY(-90deg) translateZ(var(--half));
+  background: radial-gradient(circle at 32% 26%, #f6f8ff 0 30%, #dfe6fb 70%, #c4d0f2 100%);
+}
+.die3d-s6 {
+  transform: rotateY(180deg) translateZ(var(--half));
+}
+.die3d-shadow {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: calc(var(--die) * -0.22);
+  height: calc(var(--die) * 0.18);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #1b244070, #1b244000);
+  animation: die3d-shadow 3.6s ease-in-out infinite;
+}
+@keyframes die3d-idle {
+  0%,
+  100% {
+    transform: translateY(0) rotateX(-24deg) rotateY(-34deg) rotateZ(0deg);
+  }
+  50% {
+    transform: translateY(calc(var(--die) * -0.12)) rotateX(-30deg) rotateY(-14deg) rotateZ(6deg);
+  }
+}
+@keyframes die3d-shadow {
+  50% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+}
+
+/* ── Turn announcement: a big tilted banner in the player's colour ───────── */
+:root .game-shell.light-ui .turn-announcement {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: auto;
+  min-width: min(520px, 90%);
+  padding: 14px 40px 14px 18px;
+  color: #fff;
+  text-align: left;
+  border: 4px solid #fff;
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, #ffffff40 0%, #ffffff14 46%, #ffffff00 48%),
+    repeating-linear-gradient(
+      -55deg,
+      #ffffff00 0 22px,
+      #ffffff14 22px 44px
+    ),
+    linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--player, #2a6fd8) 78%, #ffffff) 0%,
+      var(--player, #2a6fd8) 45%,
+      color-mix(in srgb, var(--player, #2a6fd8) 60%, #1b2440) 100%
+    );
+  box-shadow:
+    0 0 0 4px var(--hud-ink),
+    0 9px 0 4px var(--hud-ink),
+    0 30px 60px #0b163566;
+}
+:root .game-shell.light-ui .turn-announcement .announce-portrait {
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 4px #fff,
+    0 0 0 8px var(--hud-ink);
+  margin: -26px 0 -26px -10px;
+}
+:root .game-shell.light-ui .turn-announcement .eyebrow {
+  color: var(--hud-gold);
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-shadow: var(--hud-outline);
+}
+:root .game-shell.light-ui .turn-announcement h2 {
+  margin: 6px 0 4px;
+  font-size: 58px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: #fff;
+  text-shadow: var(--hud-outline-thick);
+}
+:root .game-shell.light-ui .turn-announcement p {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 2px 0 #1b2440aa;
+}
+
+/* ── Fork panel: road choices as big sticker buttons ─────────────────────── */
+:root .game-shell.light-ui .fork-panel .fork-options button {
+  min-height: 58px;
+  padding: 8px 14px 8px 8px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  border: 3px solid var(--hud-ink);
+  border-radius: 18px;
+  box-shadow: 0 5px 0 var(--hud-ink);
+  transition: transform 0.15s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+:root .game-shell.light-ui .fork-panel .fork-options button:hover:not(:disabled) {
+  background: #fff6cf;
+  transform: translateY(-2px) rotate(-1deg);
+}
+:root .game-shell.light-ui .fork-panel .fork-options button small {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Phone ───────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  :root .game-shell.light-ui .scoreboard {
+    top: 110px;
+    left: 18px;
+    right: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 22px;
+    row-gap: 14px;
+  }
+  :root .game-shell.light-ui .scoreboard .player-card {
+    height: 44px;
+    gap: 6px;
+    padding: 0 5px 0 0;
+    border-width: 2.5px;
+    border-radius: 12px 16px 16px 12px;
+    box-shadow:
+      0 0 0 2.5px var(--hud-ink),
+      0 4px 0 2.5px var(--hud-ink),
+      0 10px 18px #0b163545;
+  }
+  :root .game-shell.light-ui .scoreboard .player-card.active {
+    transform: skewX(var(--hud-skew)) translateY(2px) scale(1.04);
+    box-shadow:
+      0 0 0 2.5px var(--hud-ink),
+      0 4px 0 2.5px var(--hud-ink),
+      0 0 0 6px var(--hud-gold),
+      0 4px 0 6px #e59b12,
+      0 0 22px 6px #ffd23f80;
+  }
+  :root .game-shell.light-ui .scoreboard .player-portrait {
+    margin: -4px 0 -4px -14px;
+    grid-row: auto;
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 4.5px var(--hud-ink),
+      0 3px 0 4.5px var(--hud-ink);
+  }
+  :root .game-shell.light-ui .scoreboard .player-portrait > .art:first-child {
+    width: 38px;
+    height: 38px;
+  }
+  :root .game-shell.light-ui .scoreboard .player-portrait .player-place {
+    width: 18px;
+    height: 18px;
+    right: -8px;
+    bottom: -7px;
+  }
+  :root .game-shell.light-ui .scoreboard .player-info strong {
+    display: block;
+    font-size: 13.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    padding: 2px 2px 3px;
+    text-shadow:
+      0 1.5px 0 var(--hud-ink),
+      1.5px 0 0 var(--hud-ink),
+      -1.5px 0 0 var(--hud-ink),
+      0 -1.5px 0 var(--hud-ink),
+      1px 1px 0 var(--hud-ink),
+      -1px 1px 0 var(--hud-ink),
+      0 2.5px 0 var(--hud-ink);
+  }
+  :root .game-shell.light-ui .scoreboard .player-info small {
+    display: none;
+  }
+  :root .game-shell.light-ui .scoreboard .currency {
+    height: 36px;
+    padding: 0 6px 0 4px;
+    border-radius: 9px;
+  }
+  :root .game-shell.light-ui .scoreboard .currency .art {
+    width: 14px;
+    height: 14px;
+  }
+  :root .game-shell.light-ui .scoreboard .currency b {
+    min-width: 16px;
+    font-size: 14px;
+  }
+  :root .game-shell.light-ui .scoreboard .player-turn-tag {
+    top: -13px;
+    right: 8px;
+    padding: 1px 6px 0;
+    font-size: 9px;
+    border-width: 2px;
+  }
+
+  :root .game-shell.light-ui .board-label {
+    top: 226px;
+    left: 12px;
+    right: auto;
+    transform: none;
+    max-width: calc(100% - 24px);
+    flex-wrap: nowrap;
+    gap: 3px;
+    padding: 3px;
+    background: #fffaf0f2;
+  }
+  :root .game-shell.light-ui .board-label > span {
+    padding: 2px 7px 2px 3px;
+    font-size: 11px;
+    line-height: 16px;
+    gap: 3px;
+  }
+  :root .game-shell.light-ui .board-label > span .art {
+    width: 15px;
+    height: 15px;
+  }
+  :root .game-shell.light-ui .board-label > .eyebrow {
+    display: none;
+  }
+
+  :root .game-shell.light-ui .activity {
+    left: 12px;
+    right: 12px;
+    bottom: 140px;
+    max-width: none;
+    padding: 8px 12px;
+    border-radius: 16px 16px 16px 5px;
+  }
+  :root .game-shell.light-ui .activity p,
+  :root .game-shell.light-ui .activity p.new {
+    font-size: 13px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  :root .game-shell.light-ui .map-controls {
+    top: 262px;
+    left: auto;
+    right: 12px;
+    bottom: auto;
+  }
+  :root .game-shell.light-ui:has(.turn-panel.roll-ready) .activity {
+    display: none;
+  }
+  :root .game-shell.light-ui .map-controls .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+  :root .game-shell.light-ui .map-controls span {
+    display: none;
+  }
+
+  :root .game-shell.light-ui .turn-panel {
+    left: 12px;
+    right: 12px;
+    bottom: 14px;
+    width: auto;
+  }
+  :root .game-shell.light-ui .turn-panel .turn-title {
+    margin: 0 0 22px 20px;
+    min-height: 46px;
+    padding: 3px 18px 3px 0;
+  }
+  :root .game-shell.light-ui .turn-panel .dice-face {
+    width: 48px;
+    height: 48px;
+    margin: -10px 0 -10px -20px;
+  }
+  :root .game-shell.light-ui .turn-panel .dice-face > .art {
+    width: 48px;
+    height: 48px;
+  }
+  :root .game-shell.light-ui .turn-panel .turn-title h2 {
+    font-size: 24px;
+  }
+  :root .game-shell.light-ui .turn-panel .roll-button {
+    min-height: 72px;
+    padding-left: 96px;
+  }
+  :root .game-shell.light-ui .turn-panel .roll-copy b {
+    font-size: 34px;
+  }
+  :root .game-shell.light-ui .turn-panel .roll-button > .die3d {
+    top: -18px;
+  }
+  :root .game-shell.light-ui .turn-panel .inventory-label {
+    margin-top: 14px;
+  }
+  :root .game-shell.light-ui .turn-panel .inventory-label small {
+    display: none;
+  }
+  :root .game-shell.light-ui .turn-panel .inventory {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+  :root .game-shell.light-ui .turn-panel .inventory button {
+    flex-shrink: 0;
+    font-size: 13px;
+  }
+  /* Landing/shop states need the room: hide the toast while they show. */
+  :root .game-shell.light-ui:has(.turn-panel:not(.roll-ready):not(.waiting)) .activity {
+    display: none;
+  }
+  :root .game-shell.light-ui .turn-announcement {
+    min-width: 0;
+    width: calc(100% - 40px);
+    padding: 10px 18px 10px 12px;
+    gap: 12px;
+  }
+  :root .game-shell.light-ui .turn-announcement h2 {
+    font-size: 36px;
+  }
+  :root .game-shell.light-ui .turn-announcement .announce-portrait {
+    width: 62px;
+    height: 62px;
+    margin: -14px 0 -14px -4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root .game-shell.light-ui .turn-panel .roll-button,
+  :root .game-shell.light-ui .turn-panel.roll-ready::before,
+  :root .game-shell.light-ui .scoreboard .player-turn-tag,
+  :root .game-shell.light-ui .scoreboard .player-card.active::after,
+  .die3d-body,
+  .die3d-shadow {
+    animation: none;
+  }
+}

@@ -1,1 +1,971 @@
 /* Main menu panels and the top game logo. Loaded after skin.css, so equal-specificity rules here win. */
+
+/* The menu's own handle on Fredoka: `block` so the menu never flashes (or sticks
+   on) the fallback face while the font streams in. */
+@font-face {
+  font-family: 'PP Fredoka';
+  font-style: normal;
+  font-display: block;
+  font-weight: 300 700;
+  src: url('/brand/fredoka-latin.woff2') format('woff2-variations');
+}
+
+:root {
+  --pp-ink: #1b2440;
+  --pp-grape: #4a1fc4;
+  --pp-grape-hi: #6d38f2;
+  --pp-grape-lo: #31118a;
+  --pp-sun: #ffd52e;
+  --pp-pink: #ff4fa8;
+  --pp-cyan: #2ccdf5;
+  --pp-lime: #86e842;
+  --pp-orange: #ff9a2e;
+  --pp-font: 'PP Fredoka', 'Fredoka Variable', 'Trebuchet MS', Arial, sans-serif;
+}
+
+/* -- Logo (shared by the title screen, menu hero and the corner badge) -- */
+.party-logo-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.party-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 10px 14px #1a053f8c);
+}
+.party-logo-wrap.is-hero {
+  transform-origin: 50% 100%;
+  animation: pp-logo-bob 3.4s ease-in-out infinite;
+}
+.party-logo-wrap .logo-ufo-img {
+  position: absolute;
+  left: 78%;
+  top: -9%;
+  width: 25%;
+  height: auto;
+  pointer-events: none;
+  animation: pp-logo-fly 3s ease-in-out infinite;
+}
+@keyframes pp-logo-bob {
+  0%,
+  100% {
+    transform: translateY(0) scale(1.02, 0.97);
+  }
+  45% {
+    transform: translateY(-7px) scale(0.99, 1.02);
+  }
+}
+@keyframes pp-logo-fly {
+  50% {
+    transform: translate(-6px, -10px) rotate(-5deg);
+  }
+}
+@keyframes pp-twinkle {
+  50% {
+    transform: scale(0.55) rotate(45deg);
+    opacity: 0.7;
+  }
+}
+@keyframes pp-pop-in {
+  0% {
+    transform: translateX(-50%) scale(0.4) rotate(-8deg);
+    opacity: 0;
+  }
+  60% {
+    transform: translateX(-50%) scale(1.07) rotate(2deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) scale(1) rotate(0);
+  }
+}
+
+/* Menu hero logo: top-centre over the solar system. */
+.pp-menu-hero {
+  position: absolute;
+  z-index: 4;
+  top: 6px;
+  left: calc(392px + (100% - 392px) / 2 - 26px);
+  width: clamp(340px, 39vw, 580px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: pp-pop-in 0.8s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+/* soft party glow + confetti around the logo */
+.pp-menu-hero::before {
+  content: '';
+  position: absolute;
+  inset: -8% -14% -4%;
+  z-index: -1;
+  background:
+    radial-gradient(closest-side, #ff4fa855, #8a3cff33 55%, transparent 100%);
+  filter: blur(8px);
+}
+.pp-menu-hero::after {
+  content: '';
+  position: absolute;
+  inset: -6% -10% -10%;
+  z-index: -1;
+  background:
+    radial-gradient(circle, #ffd52e 0 4px, transparent 5px) 4% 70% / 30px 30px no-repeat,
+    radial-gradient(circle, #2ccdf5 0 3.5px, transparent 4.5px) 96% 78% / 30px 30px no-repeat,
+    radial-gradient(circle, #ff4fa8 0 3.5px, transparent 4.5px) 14% 8% / 30px 30px no-repeat,
+    radial-gradient(circle, #86e842 0 3px, transparent 4px) 88% 12% / 30px 30px no-repeat,
+    radial-gradient(circle, #ffffff 0 2.5px, transparent 3.5px) 50% 100% / 30px 30px no-repeat,
+    radial-gradient(circle, #ff9a2e 0 3px, transparent 4px) 0% 30% / 30px 30px no-repeat,
+    radial-gradient(circle, #ffffff 0 2px, transparent 3px) 72% 2% / 30px 30px no-repeat;
+  animation: pp-confetti 2.6s ease-in-out infinite;
+}
+@keyframes pp-confetti {
+  50% {
+    transform: translateY(-5px);
+    opacity: 0.75;
+  }
+}
+
+/* Corner badge: the same logo, small. Hidden on the menu, where the hero shows. */
+:root .game-shell .wordmark.pp-wordmark {
+  display: block;
+  width: 168px;
+  padding: 0;
+  border: 0;
+  background: none;
+  transform: rotate(-3deg);
+  filter: none;
+  text-shadow: none;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+:root .game-shell .wordmark.pp-wordmark:hover {
+  transform: rotate(-1deg) scale(1.06);
+}
+:root .game-shell .wordmark.pp-wordmark .party-logo {
+  filter: drop-shadow(0 4px 6px #1a053f66);
+}
+:root .game-shell .wordmark.pp-wordmark.on-menu {
+  visibility: hidden;
+}
+
+/* Title screen. */
+.title-brand.pp-title-brand {
+  top: 4%;
+  width: min(700px, 82vw);
+  display: block;
+  animation: pp-pop-in 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.title-mode .title-screen .start-prompt {
+  left: 50%;
+  width: auto;
+  padding: 10px 26px 12px;
+  font-family: var(--pp-font);
+  font-size: clamp(17px, 1.9vw, 22px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--pp-ink);
+  white-space: nowrap;
+  background: linear-gradient(180deg, #fff27a 0%, #ffd52e 50%, #ffae1a 100%);
+  border: 4px solid var(--pp-ink);
+  border-radius: 999px;
+  box-shadow:
+    0 5px 0 var(--pp-ink),
+    0 0 30px 6px #ffd52e55;
+  transform: translateX(-50%);
+  animation: pp-prompt-pulse 1.6s ease-in-out infinite;
+}
+@keyframes pp-prompt-pulse {
+  0%,
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.06);
+  }
+}
+
+/* -- Destination panel -- */
+:root .game-shell .home-menu.pp-menu {
+  top: 22px !important;
+  bottom: auto !important;
+  left: 28px;
+  width: 362px;
+  max-height: calc(100dvh - 40px);
+  padding: 4px 18px 14px !important;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  color: #fff;
+  font-family: var(--pp-font);
+  background:
+    radial-gradient(120% 45% at 50% -8%, #ff7ad866, transparent 70%),
+    radial-gradient(#ffffff17 1.6px, transparent 2.2px) 0 0 / 18px 18px,
+    linear-gradient(172deg, var(--pp-grape-hi) 0%, var(--pp-grape) 52%, var(--pp-grape-lo) 100%);
+  border: 4px solid var(--pp-ink);
+  border-radius: 30px;
+  box-shadow:
+    0 7px 0 var(--pp-ink),
+    0 26px 60px #5a14c873,
+    inset 0 3px 0 #ffffff40,
+    inset 0 -4px 0 #1a064d55;
+  backdrop-filter: none;
+}
+:root .game-shell .pp-menu :is(h1, button, small, b, span) {
+  font-family: var(--pp-font);
+}
+
+/* Title ribbon */
+:root .game-shell .pp-menu h1.pp-menu-banner {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0 14px !important;
+  font-size: 29px !important;
+  line-height: 1;
+  letter-spacing: 0;
+  font-weight: 700;
+  color: var(--pp-ink);
+}
+.pp-menu-banner > span {
+  position: relative;
+  display: inline-block;
+  padding: 7px 22px 9px;
+  background: linear-gradient(180deg, #fff27a 0%, #ffd52e 46%, #ffae1a 100%);
+  border: 4px solid var(--pp-ink);
+  border-radius: 18px;
+  box-shadow:
+    0 5px 0 var(--pp-ink),
+    inset 0 3px 0 #ffffffb0,
+    inset 0 -4px 0 #d9780055;
+  transform: rotate(-3deg);
+  animation: pp-wiggle 4s ease-in-out infinite;
+}
+:root .game-shell .pp-menu-banner em {
+  font-style: normal;
+  color: #ff3d9a;
+  text-shadow: 0 2px 0 #ffffff;
+}
+.pp-menu-banner > span::before,
+.pp-menu-banner > span::after {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  animation: pp-twinkle 1.5s ease-in-out infinite;
+}
+.pp-menu-banner > span::before {
+  top: -13px;
+  right: -11px;
+  background: #fff;
+}
+.pp-menu-banner > span::after {
+  bottom: -9px;
+  left: -12px;
+  width: 16px;
+  height: 16px;
+  background: #7af0ff;
+  animation-delay: -0.7s;
+}
+@keyframes pp-wiggle {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(-1deg) translateY(-2px);
+  }
+}
+
+/* Planet tokens */
+:root .game-shell .pp-menu .planet-tabs.pp-planets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 6px 0 0;
+  border: 0;
+}
+:root .game-shell .pp-menu .planet-tabs .pp-planet {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 7px;
+  padding: 2px 0 4px;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  color: var(--pp-ink);
+  cursor: pointer;
+  position: relative;
+}
+.pp-orb {
+  position: relative;
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3.5px solid var(--pp-ink);
+  background: #10081f;
+  box-shadow:
+    0 4px 0 var(--pp-ink),
+    0 0 0 3px var(--pt);
+  transition:
+    transform 0.25s cubic-bezier(0.3, 1.8, 0.5, 1),
+    box-shadow 0.25s;
+}
+.pp-orb > span {
+  position: absolute;
+  inset: 0;
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  background-position: 0 50%;
+  animation: pp-orb-spin 26s linear infinite;
+}
+.pp-orb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 26%, #ffffffd0 0 7%, #ffffff40 15%, transparent 32%),
+    radial-gradient(circle at 50% 50%, transparent 44%, #0a00283a 62%, #0a0028b0 100%);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--pt) 70%, transparent);
+}
+@keyframes pp-orb-spin {
+  to {
+    background-position: -200% 50%;
+  }
+}
+.pp-planet-name {
+  display: inline-block;
+  padding: 1px 8px 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--pp-ink);
+  background: #ece6ff;
+  border: 2.5px solid var(--pp-ink);
+  border-radius: 999px;
+  box-shadow: 0 2px 0 var(--pp-ink);
+  white-space: nowrap;
+}
+:root .game-shell .pp-menu .pp-planet:hover:not(:disabled) .pp-orb {
+  transform: scale(1.08) rotate(-6deg);
+}
+:root .game-shell .pp-menu .pp-planet[aria-pressed='true'] .pp-orb {
+  transform: scale(1.12);
+  box-shadow:
+    0 4px 0 var(--pp-ink),
+    0 0 0 3px #ffffff,
+    0 0 0 7px var(--pt),
+    0 0 22px 8px color-mix(in srgb, var(--pt) 70%, transparent);
+}
+:root .game-shell .pp-menu .pp-planet[aria-pressed='true'] .pp-orb > span {
+  animation-duration: 9s;
+}
+:root .game-shell .pp-menu .pp-planet[aria-pressed='true'] .pp-planet-name {
+  background: var(--pp-sun);
+  transform: translateY(3px) rotate(-3deg);
+}
+:root .game-shell .pp-menu .pp-planet[aria-pressed='true']::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  animation: pp-twinkle 1.3s ease-in-out infinite;
+}
+
+/* Board ticket */
+:root .game-shell .pp-menu .home-worlds {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+:root .game-shell .pp-menu .home-world {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 0 11px;
+  min-height: 0;
+  padding: 7px 12px 7px 8px;
+  text-align: left;
+  color: var(--pp-ink);
+  background: linear-gradient(180deg, #ffffff 0%, #f1ecff 100%);
+  border: 3.5px solid var(--pp-ink);
+  border-radius: 18px;
+  box-shadow: 0 4px 0 var(--pp-ink);
+  transition: transform 0.2s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+:root .game-shell .pp-menu .home-world:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+}
+:root .game-shell .pp-menu .home-world.selected {
+  background: linear-gradient(180deg, #fffdf0 0%, #fff0b3 100%);
+  box-shadow:
+    0 4px 0 var(--pp-ink),
+    0 0 0 4px #ffffff66;
+}
+:root .game-shell .pp-menu .home-world > .pp-board-badge {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #fff;
+  background:
+    radial-gradient(circle at 34% 28%, #ffffffb0 0 10%, transparent 34%),
+    var(--pt);
+  border: 3px solid var(--pp-ink);
+  box-shadow: inset 0 -4px 0 #00000030;
+}
+.pp-board-badge svg {
+  width: 23px;
+  height: 23px;
+  filter: drop-shadow(0 2px 0 #1b244088);
+}
+:root .game-shell .pp-menu .home-world b {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--pp-ink);
+}
+:root .game-shell .pp-menu .home-world small {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6a4fc4;
+}
+
+/* Play button */
+:root .game-shell .pp-menu .primary.pp-play {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  margin: 14px 0 0;
+  padding: 9px 16px 9px 9px;
+  overflow: hidden;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--pp-ink);
+  text-align: left;
+  background: linear-gradient(180deg, #fff06a 0%, #ffd21f 45%, #ff9d1a 100%);
+  border: 4px solid var(--pp-ink);
+  border-radius: 22px;
+  box-shadow:
+    0 6px 0 var(--pp-ink),
+    0 14px 28px #ff9a2e66,
+    inset 0 -5px 0 #d2600055;
+  filter: none;
+  transition:
+    transform 0.18s cubic-bezier(0.3, 1.8, 0.5, 1),
+    box-shadow 0.12s;
+}
+:root .game-shell .pp-menu .primary.pp-play::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 4px;
+  height: 38%;
+  border-radius: 14px 14px 40px 40px;
+  background: linear-gradient(180deg, #ffffffc8, #ffffff10);
+  pointer-events: none;
+}
+:root .game-shell .pp-menu .primary.pp-play::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -40%;
+  width: 22%;
+  background: linear-gradient(90deg, transparent, #ffffffb0, transparent);
+  transform: skewX(-20deg);
+  animation: pp-shine 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes pp-shine {
+  0%,
+  55% {
+    left: -40%;
+  }
+  100% {
+    left: 130%;
+  }
+}
+:root .game-shell .pp-menu .primary.pp-play:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff58f 0%, #ffdc3d 45%, #ffa92e 100%);
+  transform: translateY(-2px) scale(1.04);
+  box-shadow:
+    0 8px 0 var(--pp-ink),
+    0 0 0 4px #ffffff,
+    0 0 30px 8px #ffd52e99,
+    inset 0 -5px 0 #d2600055;
+}
+:root .game-shell .pp-menu .primary.pp-play:active:not(:disabled) {
+  transform: translateY(5px) scale(0.99, 0.97);
+  box-shadow:
+    0 1px 0 var(--pp-ink),
+    inset 0 -3px 0 #d2600055;
+}
+.pp-play-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  padding-left: 3px;
+  border-radius: 50%;
+  color: #fff;
+  background:
+    radial-gradient(circle at 34% 26%, #ffffffa0 0 9%, transparent 32%),
+    linear-gradient(180deg, #ff6dbb, #e0268a);
+  border: 3.5px solid var(--pp-ink);
+  box-shadow: 0 3px 0 var(--pp-ink);
+}
+.pp-play-icon svg {
+  filter: drop-shadow(0 2px 0 #1b244080);
+}
+.pp-play-label {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  text-shadow: 0 2px 0 #ffffff90;
+}
+:root .game-shell .pp-menu .pp-play-arrow {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  color: var(--pp-ink);
+}
+
+/* Crew strip */
+:root .game-shell .pp-menu .menu-sub.pp-crew {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #efe9ff;
+}
+:root .game-shell .pp-menu .pp-crew b {
+  color: var(--pp-sun);
+  font-weight: 700;
+}
+.pp-crew-faces {
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+}
+.pp-crew-faces .art {
+  width: 34px;
+  height: 34px;
+  margin-left: -6px;
+  border-radius: 50%;
+  filter: drop-shadow(0 2px 0 #1b2440);
+}
+.pp-crew-faces .art.is-you {
+  width: 40px;
+  height: 40px;
+  margin-right: 4px;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 3px var(--pp-sun);
+}
+.pp-crew-faces .art:nth-child(2) {
+  transform: rotate(-6deg);
+}
+.pp-crew-faces .art:nth-child(4) {
+  transform: rotate(7deg);
+}
+
+/* Destination buttons */
+:root .game-shell .pp-menu .menu-option.pp-opt {
+  --c1: #5fe2ff;
+  --c2: #129ce0;
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px 1fr 30px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 66px;
+  margin-top: 11px;
+  padding: 7px 12px 7px 8px;
+  overflow: hidden;
+  text-align: left;
+  color: #fff;
+  background: linear-gradient(180deg, var(--c1) 0%, var(--c2) 100%);
+  border: 4px solid var(--pp-ink);
+  border-radius: 22px;
+  box-shadow:
+    0 5px 0 var(--pp-ink),
+    inset 0 -5px 0 #00000026;
+  transition:
+    transform 0.2s cubic-bezier(0.3, 1.8, 0.5, 1),
+    box-shadow 0.12s;
+}
+:root .game-shell .pp-menu .menu-option.pp-opt-studio {
+  --c1: #ff86cf;
+  --c2: #dd2c8c;
+}
+:root .game-shell .pp-menu .menu-option.pp-opt-arcade {
+  --c1: #a9f25c;
+  --c2: #3fae17;
+}
+:root .game-shell .pp-menu .menu-option.pp-opt::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 3px;
+  height: 40%;
+  border-radius: 14px 14px 40px 40px;
+  background: linear-gradient(180deg, #ffffff8c, #ffffff00);
+  pointer-events: none;
+}
+:root .game-shell .pp-menu .menu-option.pp-opt:hover:not(:disabled) {
+  color: #fff;
+  transform: translateY(-2px) scale(1.045) rotate(-0.6deg);
+  box-shadow:
+    0 7px 0 var(--pp-ink),
+    0 0 0 4px #ffffff,
+    0 0 26px 6px color-mix(in srgb, var(--c1) 75%, transparent),
+    inset 0 -5px 0 #00000026;
+}
+:root .game-shell .pp-menu .menu-option.pp-opt:active:not(:disabled) {
+  transform: translateY(5px) scale(1.01, 0.96);
+  box-shadow:
+    0 0 0 var(--pp-ink),
+    inset 0 -3px 0 #00000026;
+}
+:root .game-shell .pp-menu .pp-opt > span:nth-child(2) {
+  position: relative;
+  z-index: 1;
+  font-size: 19.5px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #fff;
+  text-shadow:
+    0 3px 0 var(--pp-ink),
+    1.5px 0 0 var(--pp-ink),
+    -1.5px 0 0 var(--pp-ink),
+    0 -1.5px 0 var(--pp-ink),
+    1.5px 1.5px 0 var(--pp-ink),
+    -1.5px 1.5px 0 var(--pp-ink),
+    1.5px -1.5px 0 var(--pp-ink),
+    -1.5px -1.5px 0 var(--pp-ink);
+}
+:root .game-shell .pp-menu .pp-opt small {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  text-shadow: 0 1.5px 0 #1b244080;
+  opacity: 0.95;
+}
+.pp-opt-badge {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 26%, #ffffff 0 20%, #f2f0ff 60%, #d9d4f5 100%);
+  border: 3.5px solid var(--pp-ink);
+  box-shadow: 0 3px 0 var(--pp-ink);
+  transition: transform 0.25s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+:root .game-shell .pp-menu .pp-opt-badge > svg {
+  width: 30px;
+  height: 30px;
+  color: var(--c2);
+}
+:root .game-shell .pp-menu .pp-opt-studio .pp-opt-badge {
+  background: none;
+  border: 0;
+  box-shadow: 0 3px 0 var(--pp-ink);
+}
+:root .game-shell .pp-menu .pp-opt-studio .pp-opt-badge > svg {
+  width: 52px;
+  height: 52px;
+}
+:root .game-shell .pp-menu .pp-opt-arcade .pp-opt-badge > svg {
+  width: 34px;
+  height: 34px;
+}
+:root .game-shell .pp-menu .menu-option.pp-opt:hover:not(:disabled) .pp-opt-badge {
+  transform: rotate(-10deg) scale(1.08);
+}
+:root .game-shell .pp-menu .menu-option.pp-opt > svg:last-child {
+  position: relative;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 5px;
+  color: #fff;
+  background: #1b244059;
+  border-radius: 50%;
+}
+
+/* Small links */
+:root .game-shell .pp-menu .text-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e7deff;
+  text-decoration: none;
+}
+:root .game-shell .pp-menu .text-button.pp-back {
+  margin-top: 12px;
+}
+:root .game-shell .pp-menu .text-button:hover {
+  color: #fff;
+}
+
+/* -- Planet title plate (bottom right) -- */
+:root .game-shell .location.pp-location {
+  right: 34px;
+  bottom: 30px;
+  max-width: none;
+  padding: 12px 26px 14px;
+  text-align: center;
+  text-shadow: none;
+  color: #fff;
+  font-family: var(--pp-font);
+  background: none;
+  border: 0;
+  border-radius: 28px;
+  box-shadow: none;
+  transform: rotate(-2deg);
+}
+/* The plate is drawn on ::before so the waving crew member can stand behind it. */
+:root .game-shell .location.pp-location::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--pt) 45%, transparent), transparent 70%),
+    radial-gradient(#ffffff17 1.6px, transparent 2.2px) 0 0 / 18px 18px,
+    linear-gradient(172deg, var(--pp-grape-hi) 0%, var(--pp-grape) 55%, var(--pp-grape-lo) 100%);
+  border: 4px solid var(--pp-ink);
+  border-radius: 28px;
+  box-shadow:
+    0 7px 0 var(--pp-ink),
+    0 22px 46px #5a14c866,
+    inset 0 3px 0 #ffffff40;
+}
+
+/* -- The crew: rendered cut-outs with a white sticker edge -- */
+.pp-cast {
+  position: absolute;
+  display: block;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(2.5px 0 0 #fff) drop-shadow(-2.5px 0 0 #fff)
+    drop-shadow(0 2.5px 0 #fff) drop-shadow(0 -2.5px 0 #fff)
+    drop-shadow(0 8px 10px #16033f99);
+}
+.pp-cast-dice {
+  left: -30%;
+  top: -4%;
+  width: 35%;
+  transform-origin: 50% 100%;
+  animation: pp-cast-hop 1.9s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.pp-cast-cheer {
+  z-index: 4;
+  left: 384px;
+  bottom: 0;
+  width: 200px;
+  transform-origin: 50% 100%;
+  animation: pp-cast-sway 2.8s ease-in-out infinite;
+}
+:root .game-shell .location.pp-location .pp-cast-wave {
+  z-index: -2;
+  top: -132px;
+  left: -22px;
+  width: 150px;
+  transform-origin: 50% 100%;
+  animation: pp-cast-sway 2.4s ease-in-out -1s infinite;
+}
+@keyframes pp-cast-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1.03, 0.97);
+  }
+  40% {
+    transform: translateY(-9px) scale(0.98, 1.03);
+  }
+}
+@keyframes pp-cast-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg) translateY(-3px);
+  }
+}
+@media (max-width: 1100px) {
+  .pp-cast-cheer {
+    display: none;
+  }
+}
+:root .game-shell .location.pp-location h2.pp-loc-name {
+  margin: 0 0 10px;
+  font-family: var(--pp-font);
+  font-size: 60px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--pt);
+  text-shadow:
+    3px 0 0 var(--pp-ink),
+    -3px 0 0 var(--pp-ink),
+    0 3px 0 var(--pp-ink),
+    0 -3px 0 var(--pp-ink),
+    2.2px 2.2px 0 var(--pp-ink),
+    -2.2px 2.2px 0 var(--pp-ink),
+    2.2px -2.2px 0 var(--pp-ink),
+    -2.2px -2.2px 0 var(--pp-ink),
+    0 6px 0 var(--pp-ink),
+    3px 6px 0 var(--pp-ink),
+    -3px 6px 0 var(--pp-ink),
+    0 9px 0 var(--pp-ink);
+}
+.pp-loc-stats {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+:root .game-shell .location.pp-location .pp-loc-stats span {
+  display: inline-block;
+  padding: 2px 12px 3px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--pp-ink);
+  background: #fff;
+  border: 3px solid var(--pp-ink);
+  border-radius: 999px;
+  box-shadow: 0 3px 0 var(--pp-ink);
+}
+:root .game-shell .location.pp-location .pp-loc-stats b {
+  font-weight: 700;
+  color: #e0268a;
+}
+:root .game-shell .location.pp-location p.pp-loc-hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e3dbff;
+}
+
+/* -- Small screens -- */
+@media (max-width: 1000px) {
+  .pp-menu-hero {
+    left: calc(392px + (100% - 392px) / 2);
+    width: clamp(240px, 40vw, 420px);
+  }
+}
+@media (max-width: 750px) {
+  .pp-menu-hero {
+    top: 6px;
+    left: 12px;
+    width: min(205px, 54vw);
+    transform: none;
+    animation: none;
+  }
+  .pp-menu-hero .pp-cast-dice,
+  .pp-menu-hero .logo-ufo-img {
+    display: none;
+  }
+  :root .game-shell .home-menu.pp-menu {
+    top: 128px !important;
+    left: 14px;
+    right: 14px;
+    width: auto !important;
+    max-height: calc(100dvh - 142px);
+  }
+  :root .game-shell .wordmark.pp-wordmark {
+    width: 120px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-menu-hero,
+  .pp-menu-hero::after,
+  .title-brand.pp-title-brand,
+  .party-logo-wrap,
+  .party-logo-wrap .logo-ufo-img,
+  .title-mode .start-prompt,
+  .pp-menu-banner > span,
+  .pp-menu-banner > span::before,
+  .pp-menu-banner > span::after,
+  .pp-orb > span,
+  .pp-cast,
+  :root .game-shell .pp-menu .primary.pp-play::after {
+    animation: none !important;
+  }
+}
+
+
+/* Top-right utility buttons, while the menu is up: round sticker buttons. */
+:root .game-shell .masthead:has(.pp-wordmark.on-menu) .icon-button {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--pp-ink);
+  background:
+    radial-gradient(circle at 34% 26%, #ffffff 0 22%, #f1edff 60%, #d8d0ff 100%);
+  border: 3.5px solid var(--pp-ink);
+  border-radius: 50%;
+  box-shadow: 0 4px 0 var(--pp-ink), 0 8px 18px #16033f80;
+  transition: transform 0.2s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+:root .game-shell .masthead:has(.pp-wordmark.on-menu) .icon-button svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.6;
+}
+:root .game-shell .masthead:has(.pp-wordmark.on-menu) .icon-button:hover {
+  transform: translateY(-2px) scale(1.08) rotate(-6deg);
+  background: radial-gradient(circle at 34% 26%, #ffffff 0 22%, #fff4b8 60%, #ffd52e 100%);
+}
+:root .game-shell .masthead:has(.pp-wordmark.on-menu) .icon-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--pp-ink);
+}

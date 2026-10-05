@@ -5,7 +5,7 @@ import { planetStyle } from './planet-style';
 import { makeAvatar, animateAvatar } from '../avatar';
 import { Arena } from './simulation';
 import { ArenaKind } from './catalog';
-import { coursePlatforms, courseBridges } from './expansion';
+import { buildSkyScene } from './look/sky-scene';
 const COLORS = ['#ffc856', '#f387a5', '#6abfed', '#ae91ef'];
 const THEMES = {
   sky: { sky: '#99c5e5', floor: '#e9e4ce', water: '#abcfe9' },
@@ -41,7 +41,12 @@ export function createExpansionRenderer(
   const camera = new T.OrthographicCamera(-17, 17, 14, -14, 0.1, 200);
   camera.position.set(0, 23, 23);
   camera.lookAt(0, 0, 0);
-  scene.add(new T.HemisphereLight('#fff9e3', theme.water, 2.7));
+  // Skybridge Sprint uses a perspective chase camera instead of the board view.
+  const skyCam =
+    kind === 'sky' ? new T.PerspectiveCamera(48, 1, 0.1, 700) : null;
+  const view: T.Camera = skyCam ?? camera;
+  const hemi = new T.HemisphereLight('#fff9e3', theme.water, 2.7);
+  scene.add(hemi);
   const sun = new T.DirectionalLight('#fff0d4', 3);
   sun.position.set(-10, 27, 12);
   sun.castShadow = true;
@@ -60,6 +65,11 @@ export function createExpansionRenderer(
   const kit = new WorldKit(scene);
   const plane = kit.mesh(new T.PlaneGeometry(180, 180), theme.water, 0, -1, 0);
   plane.rotation.x = -Math.PI / 2;
+  if (kind === 'sky') {
+    plane.removeFromParent();
+    plane.geometry.dispose();
+  }
+  let sky: ReturnType<typeof buildSkyScene> | null = null;
   const moving: T.Mesh[] = [],
     deco: T.Mesh[] = [];
   const textSprites: T.Sprite[] = [];
@@ -116,93 +126,15 @@ export function createExpansionRenderer(
     return m;
   };
   if (kind === 'sky') {
-    for (const { a, b, width } of courseBridges()) {
-      const dx = b.x - a.x,
-        dz = b.z - a.z,
-        length = Math.hypot(dx, dz);
-      const bridge = kit.box(
-        (a.x + b.x) / 2,
-        -0.12,
-        (a.z + b.z) / 2,
-        width,
-        0.24,
-        length,
-        '#c89e63',
-      );
-      bridge.rotation.y = Math.atan2(dx, dz);
-      for (let t = 0.1; t < 1; t += 0.09) {
-        const plank = kit.box(
-          a.x + dx * t,
-          0.014,
-          a.z + dz * t,
-          width,
-          0.035,
-          0.07,
-          '#f3d095',
-        );
-        plank.rotation.y = bridge.rotation.y;
-      }
-    }
-    for (const [i, p] of coursePlatforms().entries()) {
-      if ([3, 7, 11, 13].includes(i)) {
-        const m = dynamicMesh(new T.BoxGeometry(p.w, 0.6, p.d), '#e1c36e');
-        m.position.set(p.x, -0.3, p.z);
-        moving.push(m);
-      } else
-        kit.box(
-          p.x,
-          -0.3,
-          p.z,
-          p.w,
-          0.6,
-          p.d,
-          p.checkpoint ? '#ecd18a' : '#ece8d4',
-        );
-      const underside = kit.mesh(
-        new T.ConeGeometry(p.w * 0.53, 2.6, 5),
-        '#a0a9b2',
-        p.x,
-        -1.8,
-        p.z,
-      );
-      underside.rotation.x = Math.PI;
-      if ([3, 7, 11, 13].includes(i))
-        moving[moving.length - 1].userData.underside = underside;
-      if (p.checkpoint) {
-        kit.arch(p.x, p.z - 0.9, '#e1c16b');
-        label(
-          i === 15 ? 'FINISH' : 'CHECKPOINT',
-          p.x,
-          4.2,
-          p.z - 0.9,
-          '#fff5c3',
-          3.8,
-        );
-      }
-      for (const dx of [-1, 1]) {
-        if (i % 3 === 0) kit.tree(p.x + dx * 4, p.z, 'jungle', 0.6);
-      }
-    }
-    for (let i = 0; i < 20; i++) {
-      const z = 8 - i * 3.5;
-      kit
-        .mesh(
-          new T.SphereGeometry(1, 10, 6),
-          '#e5ebee',
-          Math.sin(i * 2) * 11,
-          -2,
-          z,
-        )
-        .scale.set(3, 0.5, 2);
-    }
-    for (let i = 0; i < 3; i++) {
-      const z = -8 - i * 18,
-        x = i % 2 ? 10 : -10;
-      kit.box(x, 1, z, 2, 5, 2, '#ded2b8');
-      const blades = dynamicMesh(new T.BoxGeometry(0.22, 5, 0.16), '#f6e8bd');
-      blades.position.set(x, 4, z + 1.1);
-      deco.push(blades);
-    }
+    sky = buildSkyScene({
+      scene,
+      renderer,
+      camera: skyCam!,
+      sun,
+      hemi,
+      low,
+      names: players.map((p) => p.avatar.name),
+    });
   } else if (kind === 'bomb') {
     kit.box(0, -0.4, 0, 16, 0.8, 16, '#504b62');
     for (let x = -7; x <= 7; x += 2)
@@ -471,6 +403,13 @@ export function createExpansionRenderer(
       camera.setViewOffset(width, height, 0, -height * 0.13, width, height);
     else camera.clearViewOffset();
     camera.updateProjectionMatrix();
+    if (skyCam) {
+      skyCam.aspect = a;
+      // Narrow panes need a wider lens to keep the next islands in view.
+      skyCam.fov = a < 1 ? 62 : 48;
+      skyCam.updateProjectionMatrix();
+      sky?.resize(height);
+    }
   }
   const observer = new ResizeObserver(resize);
   observer.observe(root);
@@ -479,20 +418,8 @@ export function createExpansionRenderer(
     style.draw();
     const now = performance.now(),
       extra = w.extra!;
-    if (kind === 'sky') {
-      const local = w.actors.find((p) => p.id === localId) ?? w.actors[0],
-        z = local.z;
-      camera.position.set(0, 22, z + 20);
-      camera.lookAt(0, 0, z - 8);
-      sun.position.z = z + 12;
-      sun.target.position.set(0, 0, z);
-      const pads = coursePlatforms(w.time);
-      moving.forEach((m, i) => {
-        m.position.x = pads[[3, 7, 11, 13][i]].x;
-        (m.userData.underside as T.Mesh).position.x = m.position.x;
-      });
-      deco.forEach((m) => (m.rotation.z = reduced ? 0 : w.time * 1.2));
-    } else if (kind === 'skate')
+    if (sky) sky.update(w, localId, dt, reduced);
+    else if (kind === 'skate')
       deco.forEach((m, i) => {
         m.rotation.z = Math.sin(w.time * 0.2 + i) * 0.05;
       });
@@ -545,7 +472,13 @@ export function createExpansionRenderer(
     avatars.forEach((v, i) => {
       const p = w.actors[i];
       v.g.position.lerp(new T.Vector3(p.x, p.y, p.z), Math.min(1, dt * 25));
-      if (w.time < 0.05) v.g.position.set(p.x, p.y, p.z);
+      // Snap on start, and in the sky race whenever the racer is far from its
+      // drawn spot (joining mid-race, respawns) so it never lingers off-camera.
+      if (
+        w.time < 0.05 ||
+        (sky && v.g.position.distanceToSquared(new T.Vector3(p.x, p.y, p.z)) > 36)
+      )
+        v.g.position.set(p.x, p.y, p.z);
       v.g.rotation.y = p.face;
       v.g.visible = p.alive;
       const mood = !p.alive
@@ -572,7 +505,7 @@ export function createExpansionRenderer(
       v.name.position.set(p.x, p.y + 2.6, p.z);
       v.name.visible = false;
       v.you.position.set(p.x, p.y + 3.25, p.z);
-      v.you.visible = p.alive && p.id === localId;
+      v.you.visible = p.alive && p.id === localId && !sky;
       v.carry.visible = kind === 'factory' && p.gear > 0;
       if (v.carry.visible) {
         v.carry.position.set(
@@ -648,7 +581,7 @@ export function createExpansionRenderer(
       }
     }
     const renderStart = performance.now();
-    renderer.render(scene, camera);
+    renderer.render(scene, view);
     perf.frame(now, now - lastNow, performance.now() - renderStart);
     lastNow = now;
   }
@@ -663,7 +596,7 @@ export function createExpansionRenderer(
           ((x - r.left) / r.width) * 2 - 1,
           (-(y - r.top) / r.height) * 2 + 1,
         ),
-        camera,
+        view,
       );
       return ray.ray.intersectPlane(planeY, new T.Vector3());
     },

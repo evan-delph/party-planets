@@ -1,1 +1,1274 @@
-/* Minigame vote and results screens. Loaded after skin.css, so equal-specificity rules here win. */
+/* Minigame vote and results screens. Loaded after skin.css, so equal-specificity rules here win.
+ *
+ * Vote stage (.pv-*): a full-screen theatrical overlay. The board stays visible
+ * through a blurred, colour-graded backdrop with light rays; three themed
+ * key-art cards deal in, ballots pop onto them as alien pips, and the winner
+ * gets a gold ring and confetti. Results (.pr-*): a podium-style ranking under
+ * the winning game's key art.
+ * Shared art helpers live in game/art-minigames.tsx.
+ */
+:root {
+  --pv-ink: #1a1240;
+  --pv-gold: #ffd23f;
+  --pv-gold-deep: #f59e0b;
+  --pv-font: 'PP Fredoka', 'Fredoka Variable', 'Trebuchet MS', Arial, sans-serif;
+}
+
+/* ── Stage ─────────────────────────────────────────────────────────────── */
+:root .game-shell section.center-panel.pv-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 28;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: clamp(16px, 3vh, 30px) clamp(16px, 3.4vw, 48px) clamp(14px, 2.4vh, 24px);
+  transform: none;
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(10px, 2.2vh, 22px);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: #fff;
+  font-family: var(--pv-font);
+  text-align: left;
+}
+:root .game-shell :is(.pv-stage, .pr-stage) .pv-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  backdrop-filter: blur(9px) saturate(1.5) brightness(0.92);
+  -webkit-backdrop-filter: blur(9px) saturate(1.5) brightness(0.92);
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 58%, #6b3cf033 0%, transparent 70%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 35%, #0b0628d9 100%),
+    linear-gradient(180deg, #2a1173d0 0%, #3a1a8ca8 45%, #13093fd8 100%);
+  animation: pv-fade 0.35s ease-out both;
+}
+:root .game-shell :is(.pv-stage, .pr-stage) .pv-rays {
+  position: fixed;
+  left: 50%;
+  top: 60%;
+  width: 190vmax;
+  height: 190vmax;
+  z-index: -1;
+  translate: -50% -50%;
+  pointer-events: none;
+  background: repeating-conic-gradient(
+    from 0deg,
+    #ffffff1c 0deg 7deg,
+    transparent 7deg 18deg
+  );
+  -webkit-mask-image: radial-gradient(circle, #000 0%, #0008 22%, transparent 48%);
+  mask-image: radial-gradient(circle, #000 0%, #0008 22%, transparent 48%);
+  animation: pv-spin 60s linear infinite;
+}
+:is(.pv-stage, .pr-stage:not(.finale-results))::after {
+  /* Drifting sparkles over the backdrop. */
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 12% 22%, #fff 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 84% 18%, #ffe98a 0 2px, transparent 3px),
+    radial-gradient(circle at 72% 82%, #fff 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 22% 78%, #9fe8ff 0 2px, transparent 3px),
+    radial-gradient(circle at 50% 8%, #fff 0 1px, transparent 2px),
+    radial-gradient(circle at 94% 55%, #fff 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 4% 50%, #ffd6f5 0 1.5px, transparent 2.5px);
+  opacity: 0.85;
+}
+
+/* Rendered crew aliens cheering either side of the results card. */
+:root .game-shell .pr-stage .mg-crew {
+  position: fixed;
+  z-index: -1;
+  bottom: 0;
+  height: min(62vh, 520px);
+  width: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 16px 30px #000a);
+  animation: pv-crew-in 0.8s 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+:root .game-shell .pr-stage .mg-crew-left {
+  left: calc(50% - 310px - min(62vh, 520px) * 0.8);
+  translate: 0 8%;
+  rotate: 6deg;
+}
+:root .game-shell .pr-stage .mg-crew-right {
+  right: calc(50% - 310px - min(62vh, 520px) * 0.8);
+  translate: 0 8%;
+  rotate: -6deg;
+  animation-delay: 0.65s;
+}
+@keyframes pv-crew-in {
+  from {
+    transform: translateY(80%);
+  }
+}
+@media (max-width: 1100px) {
+  :root .game-shell .pr-stage .mg-crew {
+    display: none;
+  }
+}
+
+/* ── Header: title plate · team shape · timer ──────────────────────────── */
+:root .game-shell .pv-stage .pv-head {
+  width: min(1180px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(12px, 2vw, 28px);
+}
+:root .game-shell .pv-stage .pv-heading {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+}
+:root .game-shell .pv-stage .pv-kicker {
+  display: inline-block;
+  padding: 5px 14px 4px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: #ffffff24;
+  border: 2px solid #ffffff40;
+  color: #fff;
+  font: 700 12px/1 var(--pv-font);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+:root .game-shell .pv-stage .pv-title {
+  position: relative;
+  margin: 0;
+  padding: 0 10px;
+  font: 700 clamp(38px, 5.3vw, 66px) / 1.02 var(--pv-font);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  /* The element draws the thick outline and extruded depth; ::after lays the
+     glossy gradient face on top, so only the outer half of the stroke shows. */
+  color: var(--pv-ink);
+  -webkit-text-stroke: 13px var(--pv-ink);
+  text-shadow:
+    0 3px 0 var(--pv-ink),
+    0 6px 0 var(--pv-ink),
+    0 9px 0 var(--pv-ink),
+    0 18px 26px #000a;
+  rotate: -3deg;
+  animation: pv-title-in 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+:root .game-shell .pv-stage .pv-title::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0 10px;
+  color: transparent;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  background:
+    linear-gradient(180deg, #ffffffd0 0 22%, transparent 40%),
+    linear-gradient(180deg, #fffbe0 0%, #ffe75a 38%, #ffb21a 70%, #ff7a1a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  pointer-events: none;
+}
+
+:root .game-shell .pv-stage .pv-heading {
+  position: relative;
+}
+:root .game-shell .pv-stage .pv-sparkles svg {
+  position: absolute;
+  filter: drop-shadow(0 2px 0 var(--pv-ink));
+  animation: pv-twinkle 1.8s ease-in-out infinite;
+}
+:root .game-shell .pv-stage .pv-sparkles svg:nth-child(1) {
+  right: -14px;
+  top: 2px;
+}
+:root .game-shell .pv-stage .pv-sparkles svg:nth-child(2) {
+  left: -6px;
+  bottom: -8px;
+  animation-delay: 0.6s;
+}
+:root .game-shell .pv-stage .pv-sparkles svg:nth-child(3) {
+  right: 22%;
+  bottom: -14px;
+  animation-delay: 1.1s;
+}
+@keyframes pv-twinkle {
+  50% {
+    transform: scale(0.55) rotate(45deg);
+    opacity: 0.6;
+  }
+}
+
+/* Team shape banner */
+:root .game-shell .pv-stage .pv-teams {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, #ffffff2e, #ffffff12);
+  border: 2px solid #ffffff38;
+  box-shadow: 0 10px 30px #0005, inset 0 1px 0 #ffffff55;
+  backdrop-filter: blur(6px);
+  animation: pv-drop 0.6s 0.15s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  min-width: 0;
+}
+:root .game-shell .pv-stage .pv-mode {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 8px 14px 7px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ff6a8a, #e5245a);
+  border: 3px solid var(--pv-ink);
+  box-shadow: 0 4px 0 var(--pv-ink), inset 0 2px 0 #ffffff70;
+  rotate: -4deg;
+  white-space: nowrap;
+}
+:root .game-shell .pv-stage .pv-teams.mode-2v2 .pv-mode {
+  background: linear-gradient(180deg, #6fb8ff, #2a6fe0);
+}
+:root .game-shell .pv-stage .pv-teams.mode-ffa .pv-mode {
+  background: linear-gradient(180deg, #8af07a, #23b25a);
+}
+:root .game-shell .pv-stage .pv-mode b {
+  font: 700 25px/1 var(--pv-font);
+  color: #fff;
+  -webkit-text-stroke: 1px var(--pv-ink);
+  text-shadow: 0 3px 0 var(--pv-ink);
+}
+:root .game-shell .pv-stage .pv-mode small {
+  font: 700 10px/1 var(--pv-font);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff;
+}
+:root .game-shell .pv-stage .pv-side {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 5px 10px 6px;
+  border-radius: 18px;
+  min-width: 0;
+}
+:root .game-shell .pv-stage .pv-side > small {
+  font: 700 10px/1 var(--pv-font);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ffffffd0;
+}
+:root .game-shell .pv-stage .pv-side > span {
+  display: flex;
+  gap: 6px;
+}
+:root .game-shell .pv-stage .pv-side.team-a {
+  background: linear-gradient(180deg, #ffd23f40, #ffb21a26);
+  box-shadow: inset 0 0 0 2px #ffd23f80;
+}
+:root .game-shell .pv-stage .pv-side.team-b {
+  background: linear-gradient(180deg, #58a8ff40, #2a6fe026);
+  box-shadow: inset 0 0 0 2px #7cbcff80;
+}
+:root .game-shell .pv-stage .pv-teams.mode-2v2 .pv-side.team-b {
+  background: linear-gradient(180deg, #ff5a7a40, #e5245a26);
+  box-shadow: inset 0 0 0 2px #ff8aa680;
+}
+:root .game-shell .pv-stage .pv-seat {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 52px;
+}
+:root .game-shell .pv-stage .pv-seat svg {
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--player), 0 4px 0 3px var(--pv-ink);
+  background: #fff;
+}
+:root .game-shell .pv-stage .pv-seat b {
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 700 11px/1.1 var(--pv-font);
+  color: #fff;
+  text-shadow: 0 1px 0 var(--pv-ink);
+}
+:root .game-shell .pv-stage .pv-vs {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: none;
+  font: 700 19px/1 var(--pv-font);
+  font-style: italic;
+  color: #fff;
+  -webkit-text-stroke: 1px var(--pv-ink);
+  text-shadow: 0 2px 0 var(--pv-ink);
+  background: radial-gradient(circle at 40% 35%, #ff9a4a, #ff3d3d 70%);
+  clip-path: polygon(50% 0, 61% 18%, 82% 8%, 80% 31%, 100% 40%, 84% 56%, 96% 77%, 73% 78%, 66% 100%, 50% 86%, 34% 100%, 27% 78%, 4% 77%, 16% 56%, 0 40%, 20% 31%, 18% 8%, 39% 18%);
+  animation: pv-throb 1.4s ease-in-out infinite;
+}
+
+/* Countdown ring */
+:root .game-shell .pv-stage .mg-timer {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(78px, 8.6vw, 108px);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 6px 0 var(--pv-ink)) drop-shadow(0 14px 18px #0008);
+  animation: pv-drop 0.6s 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+:root .game-shell .pv-stage .mg-timer svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.mg-timer-plate {
+  fill: #fff8e6;
+  stroke: var(--pv-ink);
+  stroke-width: 4;
+}
+.mg-timer-tick {
+  stroke: #1a124066;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.mg-timer-track {
+  fill: none;
+  stroke: #1a124018;
+  stroke-width: 11;
+}
+.mg-timer-fill {
+  fill: none;
+  stroke: #24c46b;
+  stroke-width: 11;
+  stroke-linecap: round;
+  /* No transition: the dial redraws on every clock tick already, and a
+     transition would lag (or freeze in throttled/background tabs). */
+}
+.mg-timer.is-urgent .mg-timer-fill {
+  stroke: #ff4d5e;
+}
+.mg-timer.is-done .mg-timer-fill {
+  stroke: var(--pv-gold);
+}
+:root .game-shell .pv-stage .mg-timer b {
+  position: relative;
+  font: 700 clamp(30px, 3.4vw, 42px) / 1 var(--pv-font);
+  color: var(--pv-ink);
+  animation: pv-tick 0.45s cubic-bezier(0.2, 1.8, 0.4, 1);
+}
+:root .game-shell .pv-stage .mg-timer.is-urgent b {
+  color: #e8203a;
+}
+:root .game-shell .pv-stage .mg-timer b svg {
+  width: 0.9em;
+  height: 0.9em;
+  stroke-width: 3.5;
+  color: #1f9d55;
+}
+:root .game-shell .pv-stage .mg-timer.is-urgent {
+  animation: pv-shake 0.5s ease-in-out infinite;
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
+:root .game-shell .pv-stage .pv-cards {
+  width: min(1140px, 100%);
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  align-content: center;
+  gap: clamp(14px, 2.4vw, 34px);
+  padding: 8px 6px 18px;
+}
+:root .game-shell .pv-stage .pv-card {
+  --tilt: 0deg;
+  --lift: 0px;
+  --scale: 1;
+  position: relative;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  padding: 9px 9px 12px;
+  margin: 0;
+  text-align: left;
+  color: #fff;
+  cursor: pointer;
+  border: 4px solid var(--pv-ink);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 18% 72%, #ffffff1f 0 2px, transparent 3px) 0 0 / 22px 22px,
+    radial-gradient(ellipse 120% 70% at 50% 0%, var(--mg-light) 0%, transparent 55%),
+    linear-gradient(175deg, var(--mg-main) 30%, var(--mg-deep) 100%);
+  box-shadow:
+    0 8px 0 var(--pv-ink),
+    0 26px 40px #08032a99,
+    inset 0 3px 0 #ffffff80,
+    inset 0 -6px 0 #0000002e;
+  transform: translateY(var(--lift)) rotate(var(--tilt)) scale(var(--scale));
+  transition:
+    transform 0.28s cubic-bezier(0.2, 1.4, 0.4, 1),
+    box-shadow 0.28s,
+    filter 0.3s;
+  animation: pv-deal 0.7s calc(0.12s + var(--i, 0) * 0.1s) cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+:root .game-shell .pv-stage .pv-card:nth-child(1) {
+  --tilt: -2.5deg;
+  --lift: 10px;
+}
+:root .game-shell .pv-stage .pv-card:nth-child(3) {
+  --tilt: 2.5deg;
+  --lift: 10px;
+}
+:root .game-shell .pv-stage .pv-card:not(:disabled):is(:hover, :focus-visible, [data-pad-focus]) {
+  --tilt: 0deg;
+  --lift: -12px;
+  --scale: 1.05;
+  z-index: 2;
+  outline: none;
+  box-shadow:
+    0 8px 0 var(--pv-ink),
+    0 0 0 5px #fff,
+    0 0 0 9px var(--mg-main),
+    0 34px 50px #08032ab0,
+    inset 0 3px 0 #ffffff80,
+    inset 0 -6px 0 #0000002e;
+}
+:root .game-shell .pv-stage .pv-card:not(:disabled):is(:hover, :focus-visible, [data-pad-focus]) .mg-art-shine {
+  animation: pv-shine 0.9s ease-out;
+}
+:root .game-shell .pv-stage .pv-card:not(:disabled):active {
+  --scale: 0.98;
+  --lift: 2px;
+}
+:root .game-shell .pv-stage .pv-card.is-leading {
+  --scale: 1.05;
+  --lift: -6px;
+  --tilt: 0deg;
+  z-index: 1;
+  box-shadow:
+    0 8px 0 var(--pv-ink),
+    0 0 0 4px #fff,
+    0 0 46px 10px color-mix(in srgb, var(--mg-light) 70%, transparent),
+    0 26px 40px #08032a99,
+    inset 0 3px 0 #ffffff80,
+    inset 0 -6px 0 #0000002e;
+}
+:root .game-shell .pv-stage .pv-card.is-winner {
+  --scale: 1.09;
+  --lift: -14px;
+  --tilt: 0deg;
+  z-index: 3;
+  box-shadow:
+    0 8px 0 var(--pv-ink),
+    0 0 0 5px var(--pv-gold),
+    0 0 0 10px var(--pv-ink),
+    0 0 80px 18px #ffd23fa0,
+    inset 0 3px 0 #ffffff80;
+  animation: pv-win 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+:root .game-shell .pv-stage .pv-card.is-out {
+  --scale: 0.93;
+  --lift: 18px;
+  filter: saturate(0.35) brightness(0.62);
+}
+:root .game-shell .pv-stage .pv-card:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+/* Key art window */
+.mg-art {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 70% 30%, var(--mg-light, #fff4b0), transparent 60%),
+    linear-gradient(160deg, var(--mg-main, #ffb02e), var(--mg-deep, #6e3a08));
+}
+.mg-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+.mg-art::after {
+  /* Gloss + vignette so every render sits in the same frame. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, #ffffff38 0%, transparent 22%),
+    radial-gradient(ellipse 85% 80% at 50% 45%, transparent 60%, #0000004d 100%);
+}
+.mg-art-shine {
+  position: absolute;
+  inset: -20% auto -20% -60%;
+  width: 40%;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, #ffffffb0, transparent);
+  transform: skewX(-18deg);
+  opacity: 0;
+}
+:root .game-shell .pv-stage .pv-art {
+  aspect-ratio: 4 / 3;
+  border-radius: 21px;
+  border: 3px solid var(--pv-ink);
+  box-shadow: 0 3px 0 #ffffff70;
+}
+:root .game-shell .pv-stage .pv-tab {
+  position: absolute;
+  z-index: 3;
+  left: -3px;
+  top: 12px;
+  padding: 6px 13px 5px 12px;
+  font: 700 14px/1 var(--pv-font);
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: linear-gradient(180deg, #ff6a8a, #e5245a);
+  border: 3px solid var(--pv-ink);
+  border-left: 0;
+  border-radius: 0 12px 12px 0;
+  box-shadow: 0 3px 0 var(--pv-ink);
+  text-shadow: 0 2px 0 #0005;
+}
+:root .game-shell .pv-stage .pv-time {
+  position: absolute;
+  z-index: 3;
+  right: 9px;
+  top: 10px;
+  padding: 5px 10px 4px 26px;
+  font: 700 13px/1 var(--pv-font);
+  color: var(--pv-ink);
+  background:
+    radial-gradient(circle at 13px 50%, var(--pv-ink) 0 1.5px, transparent 2px),
+    linear-gradient(var(--pv-ink), var(--pv-ink)) 12.5px 4.5px / 1.5px 6px no-repeat,
+    radial-gradient(circle at 13px 50%, #fff 0 5px, var(--pv-ink) 5.5px 7px, transparent 7.5px),
+    #fff;
+  border: 2.5px solid var(--pv-ink);
+  border-radius: 999px;
+  box-shadow: 0 2px 0 var(--pv-ink);
+}
+
+/* Title logo plate overlapping the art */
+:root .game-shell .pv-stage .pv-plate {
+  position: relative;
+  z-index: 4;
+  align-self: center;
+  max-width: 100%;
+  margin: -24px 0 2px;
+  padding: 0 6px;
+  rotate: -2.5deg;
+}
+:root .game-shell .pv-stage .pv-card:nth-child(2) .pv-plate {
+  rotate: 2deg;
+}
+:root .game-shell .pv-stage .pv-name {
+  position: relative;
+  display: block;
+  /* Long names shrink to fit the card (--len = character count). */
+  font: 700 min(32px, calc(100cqi * 1.36 / var(--len, 12))) / 1.05 var(--pv-font);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: var(--pv-ink);
+  -webkit-text-stroke: 9px var(--pv-ink);
+  text-shadow:
+    0 3px 0 var(--pv-ink),
+    0 5px 0 var(--pv-ink),
+    0 10px 14px #0008;
+}
+:root .game-shell .pv-stage .pv-name::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  background: linear-gradient(180deg, #ffffff 0 34%, var(--mg-light) 66%, color-mix(in srgb, var(--mg-main) 45%, #fff) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+:root .game-shell .pv-stage .pv-genre {
+  display: block;
+  margin: 4px 8px 0;
+  font: 700 11.5px/1.2 var(--pv-font);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  color: color-mix(in srgb, var(--mg-light) 80%, #fff);
+  text-shadow: 0 1px 0 #0005;
+}
+:root .game-shell .pv-stage .pv-brief {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 6px 10px 0;
+  min-height: 5.28em;
+  font: 500 14px/1.32 'Nunito Sans', var(--pv-font);
+  font-family: var(--pv-font);
+  font-weight: 500;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 1px 2px #0006;
+}
+:root .game-shell .pv-stage .pv-keys {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 9px 8px 0;
+}
+:root .game-shell .pv-stage .pv-keys > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 700 11.5px/1 var(--pv-font);
+  color: #fff;
+  text-transform: capitalize;
+}
+:root .game-shell .pv-stage kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  font: 700 10.5px/1 var(--pv-font);
+  letter-spacing: 0.04em;
+  color: var(--pv-ink);
+  background: linear-gradient(#fff, #e7e2f7);
+  border: 2px solid var(--pv-ink);
+  border-radius: 7px;
+  box-shadow: 0 2px 0 var(--pv-ink);
+}
+
+/* Ballot slots: one per player; filled slots pop in as alien pips. */
+:root .game-shell .pv-stage .pv-ballots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 11px 8px 0;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #00000038;
+  box-shadow: inset 0 3px 6px #0005, 0 1px 0 #ffffff40;
+}
+:root .game-shell .pv-stage .pv-pip {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2.5px dashed #ffffff6b;
+  background: #ffffff14;
+}
+:root .game-shell .pv-stage .pv-pip.is-filled {
+  border: 0;
+  background: none;
+  animation: pv-pop 0.55s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+}
+:root .game-shell .pv-stage .pv-pip.is-filled svg {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--player), 0 3px 0 3px var(--pv-ink);
+}
+
+/* Your pick flag */
+:root .game-shell .pv-stage .pv-you {
+  position: absolute;
+  z-index: 5;
+  right: -12px;
+  top: -16px;
+  padding: 7px 12px 6px;
+  font: 700 12px/1 var(--pv-font);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pv-ink);
+  background: linear-gradient(180deg, #fff6a8, var(--pv-gold));
+  border: 3px solid var(--pv-ink);
+  border-radius: 12px;
+  box-shadow: 0 3px 0 var(--pv-ink);
+  rotate: 8deg;
+  animation: pv-pop 0.45s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+}
+:root .game-shell .pv-stage .pv-stamp {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 24%;
+  padding: 8px 20px 7px;
+  font: 700 30px/1 var(--pv-font);
+  text-transform: uppercase;
+  color: var(--pv-ink);
+  background: linear-gradient(180deg, #fffbd0, var(--pv-gold) 60%, var(--pv-gold-deep));
+  border: 4px solid var(--pv-ink);
+  border-radius: 16px;
+  box-shadow: 0 5px 0 var(--pv-ink), 0 0 30px #ffd23f;
+  translate: -50% 0;
+  rotate: -8deg;
+  animation: pv-stamp 0.5s 0.15s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+}
+
+/* Hint pill */
+:root .game-shell .pv-stage .pv-hint {
+  margin: 0;
+  padding: 9px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  background: #0b062880;
+  border: 2px solid #ffffff2a;
+  font: 600 14px/1.2 var(--pv-font);
+  color: #fff;
+  text-align: center;
+  animation: pv-fade 0.5s 0.6s both;
+}
+
+:root .game-shell .pv-stage .pv-hint kbd {
+  width: 26px;
+  height: 26px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 13px;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #7dffa8, #1fb35a 70%);
+  text-shadow: 0 1px 0 #0006;
+}
+
+/* Confetti burst */
+.mg-confetti {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  z-index: 7;
+  pointer-events: none;
+}
+.mg-confetti i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 2px;
+  opacity: 0;
+  animation: pv-confetti 1.5s var(--d) cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+}
+
+/* ── Results: podium ranking under the game's key art ───────────────────── */
+:root .game-shell section.center-panel.results-panel.pr-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 28;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 18px 16px;
+  transform: none;
+  overflow: hidden auto;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: #fff;
+  font-family: var(--pv-font);
+  text-align: center;
+}
+:root .game-shell .pr-stage .pr-card {
+  position: relative;
+  width: min(620px, 100%);
+  padding: 0 0 20px;
+  border: 4px solid var(--pv-ink);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 18% 72%, #ffffff1f 0 2px, transparent 3px) 0 0 / 22px 22px,
+    radial-gradient(ellipse 120% 60% at 50% 0%, var(--mg-light, #fff4b0) 0%, transparent 60%),
+    linear-gradient(175deg, var(--mg-main, #ffb02e) 20%, var(--mg-deep, #6e3a08) 100%);
+  box-shadow:
+    0 9px 0 var(--pv-ink),
+    0 30px 70px #08032ab0,
+    inset 0 3px 0 #ffffff80;
+  animation: pv-results-in 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+/* During the finale the card sits in a corner over the 3D send-off. */
+:root .game-shell .pr-stage.finale-results {
+  inset: auto 30px 35px auto;
+  display: block;
+  padding: 0;
+  overflow: visible;
+}
+:root .game-shell .pr-stage.finale-results :is(.pv-backdrop, .pv-rays) {
+  display: none;
+}
+:root .game-shell .pr-stage.finale-results .pr-card {
+  width: min(400px, calc(100vw - 24px));
+}
+:root .game-shell .pr-stage .pr-hero-champion {
+  display: grid;
+  place-items: center;
+}
+:root .game-shell .pr-stage .pr-hero-champion svg {
+  filter: drop-shadow(0 6px 0 #0004);
+  animation: pv-throb 2.2s ease-in-out infinite;
+}
+:root .game-shell .pr-stage .pr-hero {
+  position: relative;
+  display: block;
+  margin: 10px 10px 0;
+  aspect-ratio: 16 / 7;
+  border-radius: 24px;
+  border: 3px solid var(--pv-ink);
+}
+:root .game-shell .pr-stage .pr-hero img {
+  object-position: 50% 40%;
+}
+:root .game-shell .pr-stage .pr-badge {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 12px;
+  translate: -50% 0;
+  padding: 6px 16px 5px;
+  font: 700 13px/1 var(--pv-font);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff;
+  background: #1a1240cc;
+  border: 2px solid #ffffff55;
+  border-radius: 999px;
+}
+:root .game-shell .pr-stage .pr-title {
+  position: relative;
+  z-index: 4;
+  display: inline-block;
+  margin: -34px auto 6px;
+  padding: 0 12px;
+  font: 700 clamp(30px, 5vw, 46px) / 1.05 var(--pv-font);
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--pv-ink);
+  -webkit-text-stroke: 11px var(--pv-ink);
+  text-shadow:
+    0 3px 0 var(--pv-ink),
+    0 6px 0 var(--pv-ink),
+    0 12px 18px #0009;
+  rotate: -2deg;
+}
+:root .game-shell .pr-stage .pr-title::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0 12px;
+  color: transparent;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  background:
+    linear-gradient(180deg, #ffffffd0 0 22%, transparent 40%),
+    linear-gradient(180deg, #fffbe0 0%, #ffe75a 45%, #ffb21a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+:root .game-shell .pr-stage .pr-list {
+  display: grid;
+  gap: 9px;
+  margin: 8px 18px 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+:root .game-shell .pr-stage .pr-row {
+  --row: #fff;
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #ffffff, #f1ecff);
+  border: 3px solid var(--pv-ink);
+  box-shadow: 0 4px 0 var(--pv-ink);
+  color: var(--pv-ink);
+  animation: pv-row-in 0.5s calc(0.25s + var(--i, 0) * 0.12s) cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+:root .game-shell .pr-stage .pr-row.is-first {
+  background:
+    linear-gradient(100deg, transparent 30%, #ffffff90 45%, transparent 60%) -200% 0 / 200% 100% no-repeat,
+    linear-gradient(180deg, #fff6b0, #ffd23f);
+  box-shadow: 0 4px 0 var(--pv-ink), 0 0 26px #ffd23f99;
+  scale: 1.03;
+  animation:
+    pv-row-in 0.5s 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) both,
+    pr-gleam 2.6s 1s ease-in-out infinite;
+}
+:root .game-shell .pr-stage .pr-row .pr-place {
+  justify-self: center;
+}
+:root .game-shell .pr-stage .pr-row .pr-face {
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--player), 0 3px 0 3px var(--pv-ink);
+}
+:root .game-shell .pr-stage .pr-who {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+:root .game-shell .pr-stage .pr-who b {
+  font: 700 19px/1.1 var(--pv-font);
+  color: var(--pv-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root .game-shell .pr-stage .pr-who small {
+  font: 700 11px/1.2 var(--pv-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5b4f8a;
+}
+:root .game-shell .pr-stage .pr-prize {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+:root .game-shell .pr-stage .pr-prize b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px 4px 7px;
+  font: 700 18px/1 var(--pv-font);
+  color: var(--pv-ink);
+  background: linear-gradient(180deg, #fff6b0, var(--pv-gold));
+  border: 2.5px solid var(--pv-ink);
+  border-radius: 999px;
+  box-shadow: 0 2px 0 var(--pv-ink);
+}
+:root .game-shell .pr-stage .pr-prize small {
+  font: 700 11.5px/1.1 var(--pv-font);
+  color: #5b4f8a;
+}
+:root .game-shell .pr-stage .pr-crown {
+  position: absolute;
+  left: 52px;
+  top: -16px;
+  rotate: -18deg;
+  filter: drop-shadow(0 2px 0 var(--pv-ink));
+  animation: pv-pop 0.5s 0.6s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+}
+:root .game-shell .pr-stage .pr-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 18px 0;
+}
+:root .game-shell .pr-stage .pr-actions .primary {
+  min-height: 52px;
+  padding: 0 26px;
+  font-size: 18px;
+}
+:root .game-shell .pr-stage .pr-wait {
+  margin: 14px 18px 0;
+  font: 600 14px/1.3 var(--pv-font);
+  color: #fff;
+}
+:root .game-shell .pr-stage .mg-confetti {
+  top: 18%;
+}
+
+/* ── Motion ────────────────────────────────────────────────────────────── */
+@keyframes pv-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pv-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes pv-title-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(-40px);
+  }
+  60% {
+    opacity: 1;
+  }
+}
+@keyframes pv-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.85);
+  }
+}
+@keyframes pv-deal {
+  from {
+    opacity: 0;
+    transform: translateY(140px) rotate(calc(var(--tilt) * 4)) scale(0.8);
+  }
+}
+@keyframes pv-pop {
+  0% {
+    transform: scale(0);
+  }
+  55% {
+    transform: scale(1.3, 0.8);
+  }
+  75% {
+    transform: scale(0.9, 1.12);
+  }
+}
+@keyframes pv-tick {
+  from {
+    transform: scale(1.35);
+  }
+}
+@keyframes pv-shake {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  25% {
+    rotate: -6deg;
+  }
+  75% {
+    rotate: 6deg;
+  }
+}
+@keyframes pv-throb {
+  50% {
+    transform: scale(1.12) rotate(8deg);
+  }
+}
+@keyframes pv-shine {
+  from {
+    left: -60%;
+    opacity: 1;
+  }
+  to {
+    left: 130%;
+    opacity: 1;
+  }
+}
+@keyframes pv-win {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-24px) scale(1.15);
+  }
+}
+@keyframes pv-stamp {
+  from {
+    opacity: 0;
+    scale: 2.4;
+  }
+}
+@keyframes pv-confetti {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), calc(var(--y) + 160px)) rotate(var(--r));
+  }
+}
+@keyframes pv-results-in {
+  from {
+    opacity: 0;
+    transform: translateY(60px) scale(0.8);
+  }
+}
+@keyframes pv-row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+}
+@keyframes pr-gleam {
+  0%,
+  60% {
+    background-position:
+      -200% 0,
+      0 0;
+  }
+  100% {
+    background-position:
+      300% 0,
+      0 0;
+  }
+}
+
+/* ── Smaller screens ───────────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  :root .game-shell .pv-stage .pv-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  :root .game-shell .pv-stage .pv-teams {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  :root .game-shell .pv-stage .pv-keys {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  :root .game-shell section.center-panel.pv-stage {
+    gap: 12px;
+  }
+  :root .game-shell .pv-stage .pv-title {
+    font-size: 34px;
+  }
+  :root .game-shell .pv-stage .pv-teams {
+    justify-self: stretch;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 6px;
+  }
+  :root .game-shell .pv-stage .pv-mode {
+    flex: 1 0 100%;
+    grid-auto-flow: column;
+    justify-content: center;
+    align-items: baseline;
+    gap: 8px;
+    rotate: 0deg;
+  }
+  :root .game-shell .pv-stage .pv-vs {
+    width: 38px;
+    height: 38px;
+    font-size: 15px;
+  }
+  :root .game-shell .pv-stage .pv-seat {
+    width: 40px;
+  }
+  :root .game-shell .pv-stage .pv-seat svg {
+    width: 32px;
+    height: 32px;
+  }
+  :root .game-shell .pv-stage .pv-cards {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding-bottom: 8px;
+  }
+  :root .game-shell .pv-stage .pv-card {
+    --tilt: 0deg !important;
+    --lift: 0px !important;
+    display: grid;
+    grid-template-columns: 42% minmax(0, 1fr);
+    grid-template-areas:
+      'art plate'
+      'art genre'
+      'art ballots';
+    align-items: center;
+    column-gap: 10px;
+    padding: 7px;
+    border-radius: 22px;
+  }
+  :root .game-shell .pv-stage .pv-art {
+    grid-area: art;
+    border-radius: 16px;
+  }
+  :root .game-shell .pv-stage .pv-plate {
+    grid-area: plate;
+    margin: 0;
+    rotate: 0deg !important;
+    justify-self: start;
+  }
+  :root .game-shell .pv-stage .pv-name {
+    font-size: 19px;
+    white-space: normal;
+    text-align: left;
+  }
+  :root .game-shell .pv-stage .pv-genre {
+    grid-area: genre;
+    margin: 0;
+    text-align: left;
+  }
+  :root .game-shell .pv-stage .pv-brief {
+    display: none;
+  }
+  :root .game-shell .pv-stage .pv-ballots {
+    grid-area: ballots;
+    justify-content: flex-start;
+    margin: 4px 0 0;
+    padding: 4px 6px;
+    gap: 4px;
+  }
+  :root .game-shell .pv-stage .pv-pip,
+  :root .game-shell .pv-stage .pv-pip.is-filled svg {
+    width: 28px;
+    height: 28px;
+  }
+  :root .game-shell .pv-stage .pv-tab {
+    font-size: 11px;
+    top: 6px;
+    padding: 4px 8px 3px 7px;
+  }
+  :root .game-shell .pv-stage .pv-time {
+    display: none;
+  }
+  :root .game-shell .pr-stage .pr-row {
+    grid-template-columns: 36px 44px minmax(0, 1fr) auto;
+    gap: 7px;
+  }
+  :root .game-shell .pr-stage .pr-row .pr-face {
+    width: 40px;
+    height: 40px;
+  }
+}
+@media (max-height: 700px) and (min-width: 721px) {
+  :root .game-shell .pv-stage .pv-brief {
+    -webkit-line-clamp: 2;
+    min-height: 2.6em;
+  }
+  :root .game-shell .pv-stage .pv-keys {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root .game-shell .pv-stage *,
+  :root .game-shell .pv-stage *::before,
+  :root .game-shell .pv-stage *::after,
+  :root .game-shell .pr-stage,
+  :root .game-shell .pr-stage * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

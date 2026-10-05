@@ -24,6 +24,19 @@ import { createBoardTiles } from './BoardTiles';
 import { createBoardGimmicks } from './BoardGimmicks';
 import { createFinale } from './Finale';
 import { createBoardSky } from './SpaceLife';
+import {
+  buildField,
+  createOcean,
+  createPlayerRings,
+  createRoads,
+  createSkyDome,
+  tidyInstances,
+  worldStyle,
+} from './BoardWorld';
+/** On-board pawn scale (the avatar model is ~3 units tall at 1). */
+const PAWN = 1.1;
+/** Glb materials replaced by the code-built raised roads. */
+const GLB_ROADS = new Set(['Road', 'Curb', 'Cloudway', 'Boardwalk', 'Catwalk', 'Bridge']);
 type Props = {
   avatar: Avatar;
   mode: 'board' | 'creator' | 'minigame';
@@ -73,14 +86,16 @@ export default function BoardScene(props: Props) {
       nodes = board.spaces,
       sceneryScale = board.radius / 35;
     // Each world keeps its own sky: tropical day, lunar night, ember dusk, pastel haze.
+    const style = worldStyle(board.id);
     const skyColor =
-      board.planet === 'earth'
+      style.fog?.color ??
+      (board.planet === 'earth'
         ? '#9edbf3'
         : board.planet === 'selene'
           ? '#2a3558'
           : board.planet === 'ignara'
             ? '#3a2438'
-            : '#b9c9e6';
+            : '#b9c9e6');
     renderer.setPixelRatio(Math.min(devicePixelRatio, props.low ? 1 : 1.5));
     renderer.setClearColor(skyColor);
     renderer.shadowMap.enabled = !props.low;
@@ -90,11 +105,15 @@ export default function BoardScene(props: Props) {
     root.appendChild(renderer.domElement);
     const perf = performanceMeter(renderer, root, board.name);
     const scene = new T.Scene();
+    if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV)
+      (window as unknown as { __board?: unknown }).__board = { scene, renderer, T };
     // Image-based reflections so scanned metals and painted alloys read as such.
     const pmrem = new T.PMREMGenerator(renderer);
     const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = environment;
-    const boardFog = new T.Fog(skyColor, 85 * sceneryScale, 180 * sceneryScale);
+    const boardFog = style.fog
+      ? new T.Fog(style.fog.color, board.radius * style.fog.near, board.radius * style.fog.far)
+      : new T.Fog(skyColor, 85 * sceneryScale, 180 * sceneryScale);
     scene.fog = boardFog;
     const camera = new T.PerspectiveCamera(42, 1, 0.1, 6000);
     const orbit = new OrbitControls(camera, renderer.domElement);
@@ -104,24 +123,42 @@ export default function BoardScene(props: Props) {
     orbit.minDistance = 14;
     orbit.maxDistance = 115;
     const ambient = new T.HemisphereLight('#fff8e6', board.water, 2.7);
+    if (style.sky) ambient.color.set('#dff1ff');
+    if (style.ocean) ambient.groundColor.set('#5e8a74');
     scene.add(ambient);
-    const sun = new T.DirectionalLight('#ffedcd', 3.2);
-    sun.position.set(-22 * sceneryScale, 55, 22 * sceneryScale);
+    const sun = new T.DirectionalLight('#ffe6bf', 3.2);
+    // A lower, warmer sun on styled boards throws longer shadows for depth.
+    if (style.sky) sun.position.set(-36 * sceneryScale, 44, 20 * sceneryScale);
+    else sun.position.set(-26 * sceneryScale, 58, 16 * sceneryScale);
     sun.castShadow = true;
     sun.shadow.mapSize.set(props.low ? 512 : 2048, props.low ? 512 : 2048);
+    const shadowReach = board.radius * (style.sky ? 1.35 : 1.05);
     Object.assign(sun.shadow.camera, {
-      left: -board.radius,
-      right: board.radius,
-      top: board.radius,
-      bottom: -board.radius,
+      left: -shadowReach,
+      right: shadowReach,
+      top: shadowReach,
+      bottom: -shadowReach,
       near: 1,
-      far: 110 * sceneryScale,
+      far: 140 * sceneryScale,
     });
-    sun.shadow.bias = -0.002;
+    sun.shadow.bias = -0.0015;
+    sun.shadow.normalBias = 0.03;
     scene.add(sun);
+    // Cool bounce from the sky opposite the sun keeps shadow sides blue, not grey.
+    const fill = new T.DirectionalLight('#a9d4ff', style.sky ? 0.9 : 0);
+    fill.position.set(30, 22, -24);
+    scene.add(fill);
+    const sunDir = sun.position.clone().normalize();
     const boardSky = createBoardSky(scene, board.planet === 'earth');
     const world = new T.Group();
     scene.add(world);
+    const dome = style.sky ? createSkyDome(style.sky, sunDir) : undefined;
+    if (dome) world.add(dome.mesh);
+    const roads = createRoads(board, style.path);
+    world.add(roads.root);
+    const rings = createPlayerRings();
+    world.add(rings.root);
+    let ocean: ReturnType<typeof createOcean> | undefined;
     // Procedural scenery lives in its own group so Blender-built scenery can replace it.
     const scenery = new T.Group();
     world.add(scenery);
@@ -333,15 +370,51 @@ export default function BoardScene(props: Props) {
       (gltf) => {
         if (disposed) return;
         const island = gltf.scene;
+        // Bake the terrain into a height / road / shore field for the ocean
+        // and the terrain's contact shading.
+        let terrainMesh: T.Mesh | undefined,
+          seaMesh: T.Mesh | undefined;
+        island.traverse((o) => {
+          const mesh = o as T.Mesh;
+          if (!mesh.isMesh) return;
+          if (mesh.name === 'Terrain') terrainMesh = mesh;
+          const name = (mesh.material as T.Material).name;
+          if (name === 'Water' || name === 'CloudSea') seaMesh = mesh;
+        });
+        const seaLevel = seaMesh
+          ? seaMesh.getWorldPosition(new T.Vector3()).y
+          : -0.2;
+        const field = terrainMesh ? buildField(terrainMesh, board, seaLevel) : undefined;
+        if (field && style.ocean && seaMesh) {
+          seaMesh.visible = false;
+          ocean?.dispose();
+          ocean = createOcean(style.ocean, field, sunDir, style.fog?.color ?? skyColor, board.radius);
+          world.add(ocean.mesh);
+        }
+        // Older board exports scattered props evenly; thin those into clumps.
+        // (Nimbus Reef's export is already clustered.)
+        if (field)
+          tidyInstances(island, seaLevel, field.height, (name) =>
+            board.id === 'coral' ? 1 : /^Kelp/.test(name) ? 0.22 : /^(Coral|Shell)/.test(name) ? 0.45 : 1,
+          );
         island.traverse((o) => {
           const mesh = o as T.Mesh;
           if (!mesh.isMesh) return;
           if (mesh.name === 'Terrain') {
-            mesh.material = createTerrainMaterial(board.id, mesh.geometry);
+            mesh.material = createTerrainMaterial(board.id, mesh.geometry, {
+              field,
+              turf: style.turf,
+              flats: style.flats,
+            });
             mesh.receiveShadow = true;
             return;
           }
           const material = mesh.material as T.MeshStandardMaterial;
+          // The raised code-built roads replace the baked ribbons.
+          if (GLB_ROADS.has(material.name)) {
+            mesh.visible = false;
+            return;
+          }
           mesh.receiveShadow = true;
           mesh.castShadow = material.name !== 'Water' && mesh.name !== 'Terrain';
           if (material.name === 'Water') {
@@ -375,8 +448,8 @@ export default function BoardScene(props: Props) {
         scenery.visible = false;
         // Scanned materials want softer fill and more image-based light than
         // the flat procedural colors were tuned for.
-        boardAmbient = 1.3;
-        boardEnvironment = 0.85;
+        boardAmbient = style.sky ? 1.0 : 1.1;
+        boardEnvironment = style.sky ? 0.5 : 0.6;
       },
       () => {
         // No board model (e.g. the offline file): keep procedural scenery.
@@ -604,12 +677,20 @@ export default function BoardScene(props: Props) {
     }
     function cameraSetup(p: Props) {
       const studio = p.mode === 'creator';
+      // Board overview: a high three-quarter view that fills the frame with
+      // the route (slightly turned so landmarks show a side as well as a roof).
+      // The look-at point sits a little north so the board centres in the
+      // space between the scoreboard and the action panels.
+      const elevation = 1.06,
+        azimuth = 0.1,
+        reach = board.radius * 2.62,
+        north = -board.radius * 0.2;
       transitionPosition.set(
-        studio ? 2.1 : 42 * sceneryScale,
-        studio ? 2.2 : 20 * sceneryScale,
-        studio ? 5.2 : 59 * sceneryScale,
+        studio ? 2.1 : Math.sin(azimuth) * Math.cos(elevation) * reach,
+        studio ? 2.2 : Math.sin(elevation) * reach,
+        studio ? 5.2 : Math.cos(azimuth) * Math.cos(elevation) * reach + north,
       );
-      transitionTarget.set(studio ? 0.1 : 0, studio ? 1.2 : 0, 0);
+      transitionTarget.set(studio ? 0.1 : 0, studio ? 1.2 : 0, studio ? 0 : north);
       if (p.orbital && !studio) {
         const offset =
           !p.titleScreen && !p.game && root.clientWidth > 750 ? -210 : 0;
@@ -636,7 +717,9 @@ export default function BoardScene(props: Props) {
     }
     function animate(now: number) {
       raf = requestAnimationFrame(animate);
-      const elapsed = now - last,
+      // The first frame's timestamp can predate setup's `last`; never step
+      // backwards (a negative step froze pawns mid-squash after slow loads).
+      const elapsed = Math.max(0, now - last),
         dt = Math.min(0.07, elapsed / 1000);
       last = now;
       const p = latest.current,
@@ -665,7 +748,19 @@ export default function BoardScene(props: Props) {
       // Low fill in orbit gives the planets a real night side.
       ambient.intensity = p.orbital ? 0.35 : boardAmbient;
       scene.environmentIntensity = p.orbital ? 0 : boardEnvironment;
-      sun.intensity = p.orbital ? 0.6 : 1.5 + (p.sunBrightness ?? 0.55) * 2;
+      sun.intensity = p.orbital
+        ? 0.6
+        : (1.5 + (p.sunBrightness ?? 0.55) * 2) * (style.sky ? 1.18 : 1);
+      // Styled boards use neutral tone mapping so saturated spaces stay
+      // saturated; orbit (the menu) keeps its filmic look.
+      const tone = !p.orbital && !studio ? T.NeutralToneMapping : T.ACESFilmicToneMapping;
+      if (renderer.toneMapping !== tone) {
+        renderer.toneMapping = tone;
+        renderer.toneMappingExposure = tone === T.NeutralToneMapping ? 1.0 : 1.15;
+      }
+      fill.visible = !p.orbital;
+      dome?.update(worldClock, camera);
+      ocean?.update(p.reduced ? 0 : worldClock);
       boardSky.root.visible = !p.orbital && !studio;
       boardSky.draw(camera, worldClock, p.sunBrightness ?? 0.55, !!p.reduced);
       scene.fog = p.orbital ? null : boardFog;
@@ -835,7 +930,7 @@ export default function BoardScene(props: Props) {
           );
           m.position.copy(target).lerp(end, t);
           m.rotation.y = ship.rotation.y;
-          m.scale.set(a.width * 0.72, a.height * 0.72, a.width * 0.72);
+          m.scale.set(a.width * PAWN, a.height * PAWN, a.width * PAWN);
           animateAvatar(m, worldClock, 5, 'happy', p.reduced);
           return;
         }
@@ -906,7 +1001,7 @@ export default function BoardScene(props: Props) {
           (!p.reduced && react && delta > 0
             ? Math.max(0, Math.sin(age * 8)) * 0.65
             : 0);
-        m.scale.set(a.width * 0.72, a.height * 0.72, a.width * 0.72);
+        m.scale.set(a.width * PAWN, a.height * PAWN, a.width * PAWN);
         // Stretch while airborne, squash on touchdown.
         if (hop > 0) {
           const stretch = 1 + (hop / 0.62 - 0.5) * 0.16;
@@ -916,6 +1011,14 @@ export default function BoardScene(props: Props) {
         }
         animateAvatar(m, now / 1000, d > 0.1 ? speed : 0, mood, p.reduced);
       });
+      rings.update(
+        meshes,
+        (p.players ?? []).map((q) => q.avatar.shirt),
+        game?.active ?? p.active ?? 0,
+        worldClock,
+        !!p.reduced,
+        !studio && !p.orbital && !!game && !game.finale,
+      );
       for (const nab of nabbits) {
         nab.mixer.update(p.reduced ? 0 : dt);
         // Hop and turn toward the explorer haggling at this Nabbit's stop.
@@ -1191,6 +1294,11 @@ export default function BoardScene(props: Props) {
         if (finale) camera.lookAt(orbit.target);
         else orbit.update();
       }
+      // Space glyphs stay upright for the current view direction.
+      if (!studio && !p.orbital)
+        tiles.face(
+          Math.atan2(camera.position.x - orbit.target.x, camera.position.z - orbit.target.z),
+        );
       const renderStart = performance.now();
       renderer.render(scene, camera);
       perf.frame(now, elapsed, performance.now() - renderStart);
@@ -1216,6 +1324,10 @@ export default function BoardScene(props: Props) {
       director.dispose();
       gimmicks.dispose();
       tiles.dispose();
+      roads.dispose();
+      rings.dispose();
+      ocean?.dispose();
+      dome?.dispose();
       environment.dispose();
       pmrem.dispose();
       finale?.dispose();

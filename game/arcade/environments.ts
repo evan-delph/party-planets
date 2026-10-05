@@ -23,44 +23,7 @@ export function decorateArena(scene: T.Scene, kind: ArenaKind) {
     for (let i = 0; i < 12; i++)
       k.tree(Math.sin(i * 2) * 15, Math.cos(i * 2) * 13, 'mushroom', 0.7);
   }
-  if (kind === 'bumper') {
-    k.mesh(new T.CylinderGeometry(1.2, 1.2, 0.6, 24), '#f7ab88', 0, 0.3, 0);
-    k.mesh(new T.ConeGeometry(0.9, 2.1, 8), '#e6bc56', 0, 1.6, 0);
-    for (let i = 0; i < 12; i++) {
-      const a = (i * Math.PI) / 6,
-        x = Math.sin(a) * 10,
-        z = Math.cos(a) * 10;
-      k.box(x, 0.2, z, 1.5, 0.4, 1.5, '#c89772');
-      k.box(x, 2, z, 0.12, 4, 0.12, '#e9d6a3');
-      k.mesh(
-        new T.SphereGeometry(0.55, 10, 8),
-        ['#ee92ad', '#edcf70', '#85cbd6'][i % 3],
-        x,
-        4,
-        z,
-      );
-    }
-    k.hut(-12, -7, '#ffd989');
-    k.hut(12, -7, '#e7a6ba');
-    const wheel = k.mesh(
-      new T.TorusGeometry(3, 0.18, 7, 32),
-      '#d9f0df',
-      0,
-      5,
-      -13,
-    );
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4;
-      k.mesh(
-        new T.SphereGeometry(0.5, 8, 6),
-        '#efb368',
-        Math.sin(a) * 3,
-        5 + Math.cos(a) * 3,
-        -13,
-      );
-    }
-    k.box(0, 2, -13, 0.4, 5, 0.4, '#88a9a7');
-  }
+  // Bumper Buns dresses its own sea arena in look/sea-arena.ts.
   if (kind === 'rope') {
     const lava = k.mesh(new T.PlaneGeometry(120, 120), '#d2764d', 0, -0.72, 0);
     lava.rotation.x = -Math.PI / 2;

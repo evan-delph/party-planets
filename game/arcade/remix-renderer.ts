@@ -20,6 +20,7 @@ import {
 } from './remix';
 import { remixInfo } from './remix-catalog';
 import { planetStyle } from './planet-style';
+import { createBeachLook, BEACH_SUN } from './look/beach-scene';
 
 const COLORS = ['#ffd26b', '#ff82a1', '#79ceff', '#c3a0ff'];
 export function createRemixRenderer(
@@ -46,7 +47,9 @@ export function createRemixRenderer(
   camera.position.set(0, 23, 27);
   camera.lookAt(0, 0, 0);
   scene.fog = new T.Fog(board.sky, 65, 180);
-  scene.add(new T.HemisphereLight('#edf7ff', board.water, 2.7));
+  const reef = kind === 'bubbletrouble';
+  const hemi = new T.HemisphereLight('#edf7ff', board.water, 2.7);
+  scene.add(hemi);
   const sun = new T.DirectionalLight('#fff2da', 3);
   sun.position.set(-15, 28, 16);
   sun.castShadow = !low;
@@ -59,12 +62,50 @@ export function createRemixRenderer(
     far: 90,
   });
   scene.add(sun);
+  if (reef) {
+    // Reef Ring Rally: warm key light from behind the camera, a cool rim light
+    // from the horizon, and a far plane that reaches the lagoon horizon.
+    camera.far = 900;
+    camera.fov = 40;
+    camera.position.set(0, 5.4, 19.5);
+    camera.lookAt(0, 0.9, -12);
+    hemi.color.set('#cbeaff');
+    hemi.groundColor.set('#f3d9a1');
+    hemi.intensity = 1.45;
+    sun.color.set('#fff0d4');
+    sun.intensity = 3.6;
+    sun.target.position.set(0, 0, -2);
+    sun.position.copy(BEACH_SUN).multiplyScalar(40).add(sun.target.position);
+    scene.add(sun.target);
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.03;
+    Object.assign(sun.shadow.camera, {
+      left: -30,
+      right: 30,
+      top: 26,
+      bottom: -26,
+      near: 1,
+      far: 90,
+    });
+    sun.shadow.camera.updateProjectionMatrix();
+    const rim = new T.DirectionalLight('#bff2ff', 1.6);
+    rim.position.set(6, 9, -30);
+    scene.add(rim);
+    renderer.toneMappingExposure = 1.02;
+  }
   const kit = new WorldKit(scene),
     decor = new WorldKit(scene),
     floor = kit.mesh(new T.BoxGeometry(25, 0.6, 19), board.ground, 0, -0.42, 0);
   floor.material = terrainMaterial(board.ground, board.terrain, 8);
   const style = planetStyle(scene, renderer, boardId),
     perf = performanceMeter(renderer, root, meta.name);
+  const beach = reef ? createBeachLook(scene, low, players.length) : null;
+  if (beach) {
+    floor.visible = false;
+    const genericSky = scene.getObjectByName('Sky dome');
+    if (genericSky) genericSky.visible = false;
+  }
   let last = performance.now();
   const snow = ['prickleice', 'cannoncay', 'frostyfreight'].includes(kind),
     wet = [
@@ -91,7 +132,7 @@ export function createRemixRenderer(
     const a = i * 2.39996,
       x = Math.sin(a) * 17,
       z = Math.cos(a) * 14;
-    if (kind === 'prickleice') continue;
+    if (kind === 'prickleice' || beach) continue;
     if (board.planet === 'selene') {
       const c = decor.mesh(
         new T.ConeGeometry(0.6, 2 + (i % 4) * 0.7, 5),
@@ -146,12 +187,14 @@ export function createRemixRenderer(
     group.userData.gameColor = true;
     scene.add(group);
     const avatar = makeAvatar(p.avatar);
-    avatar.scale.multiplyScalar(0.85);
+    // Reef Ring Rally heroes are framed up close, so they read a size larger.
+    avatar.scale.multiplyScalar(beach ? 1.12 : 0.85);
     group.add(avatar);
     const tag = label(p.avatar.name, 3.5, COLORS[i]);
     const gear = new T.Group();
     group.add(gear);
     const k = new WorldKit(gear);
+    if (beach) beach.dressPlayer(group, i);
     const poles: T.Group[] = [];
     let bat: T.Group | undefined,
       carriedRelic: T.Group | undefined,
@@ -898,6 +941,8 @@ export function createRemixRenderer(
     }
   decor.bake();
   function objectMesh(type: string, value: number) {
+    const styled = beach?.objectMesh(type, value);
+    if (styled) return styled;
     const g = new T.Group();
     g.userData.gameColor = true;
     const k = new WorldKit(g);
@@ -971,6 +1016,7 @@ export function createRemixRenderer(
     aimStart = new T.Vector3(),
     aimEnd = new T.Vector3(),
     upAxis = new T.Vector3(0, 1, 0);
+  let beachFramed = false;
   function draw(w: Arena, localId: string, delta: number, reduced = false) {
     const r = w.remix!,
       me = w.actors.find((p) => p.id === localId) ?? w.actors[0],
@@ -1023,6 +1069,7 @@ export function createRemixRenderer(
             ? Math.sin(time * 15) * 0.8
             : -p.vx * 0.035
           : 0;
+      if (beach) beach.poseActor(v.group, v.avatar, i, p, time);
       const rig = v.avatar.userData.rig;
       if (kind === 'prickleice') {
         const stroking =
@@ -1105,7 +1152,8 @@ export function createRemixRenderer(
     for (const [id, g] of objects)
       if (!ids.has(id)) {
         g.removeFromParent();
-        disposeObject(g);
+        // Beach props share geometry and materials across every ring/jelly.
+        if (!g.userData.beachShared) disposeObject(g);
         objects.delete(id);
       }
     for (const o of r.objects) {
@@ -1123,6 +1171,17 @@ export function createRemixRenderer(
       if (o.kind === 'ring') g.rotation.z = time * 0.7;
       if (o.kind === 'crab') g.rotation.z = Math.sin(time * 16 + o.id) * 0.07;
     }
+    if (beach)
+      beach.update(
+        r.objects,
+        objects,
+        actors.map((v) => ({
+          x: v.group.position.x,
+          z: v.group.position.z,
+          visible: v.group.visible,
+        })),
+        time,
+      );
     monster.position.set(r.beast.x, 0, r.beast.z);
     monster.scale.setScalar(critterScale(w.time, soloDriven(w)));
     monster.rotation.y = Math.atan2(r.beast.dx, r.beast.dz);
@@ -1293,7 +1352,21 @@ export function createRemixRenderer(
       cam.set(0, 26, 8);
       look.set(0, 0, 0);
     }
-    camera.position.lerp(cam, Math.min(1, delta * 5));
+    if (beach) {
+      // Low 3/4 view from the beach: heroes large up front, rings rolling in
+      // across the lagoon, horizon and cloud banks in the upper third.
+      const live = w.actors.filter((p) => p.alive),
+        cz = live.length
+          ? live.reduce((s, p) => s + p.z, 0) / live.length
+          : 0,
+        camZ = T.MathUtils.clamp(cz + 18, 15, 20);
+      cam.set(me.x * 0.12, 5.2, camZ);
+      look.set(me.x * 0.08, 0.9, camZ - 31);
+      if (!beachFramed) camera.position.copy(cam);
+      beachFramed = true;
+    }
+    // Clamp: a frame clock that steps backwards must never push the camera away.
+    camera.position.lerp(cam, T.MathUtils.clamp(delta * 5, 0, 1));
     camera.lookAt(look);
     style.draw();
     const start = performance.now();

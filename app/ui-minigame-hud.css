@@ -1,1 +1,1111 @@
 /* Minigame HUD: top bar, player chips, timer, controls bar, briefing. Loaded after skin.css, so equal-specificity rules here win. */
+
+/*
+ * "Console party" minigame HUD. Everything is scoped under
+ * `:root .mg-hud.mg-hud` so it outranks the older light-UI and sticker layers
+ * (globals.css / skin.css) without editing them. The scene gets the middle of
+ * the screen: four corner player plates, a stopwatch badge at the top, a
+ * slanted callout banner and a slim control strip at the bottom.
+ */
+:root .mg-hud.mg-hud {
+  --mg-ink: #141a3a;
+  --mg-ink-2: #232a5c;
+  --mg-plate: #262c66;
+  --mg-plate-2: #1a1f4c;
+  --mg-cream: #fffaf0;
+  --mg-sun: #ffd23f;
+  --mg-sun-2: #ffa81f;
+  --mg-go: #34d46f;
+  --mg-hot: #ff3f4f;
+  --mg-font: var(--font-display, 'Fredoka Variable', 'Trebuchet MS', sans-serif);
+  font-family: var(--mg-font);
+}
+
+/* ── Stopwatch timer + round buttons (top centre) ──────────────────────────── */
+:root .mg-hud.mg-hud .mg-top {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 4;
+  pointer-events: none;
+}
+:root .mg-hud.mg-hud .mg-round-btn {
+  pointer-events: auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 3px solid var(--mg-ink);
+  background: linear-gradient(#ffffff, #dfe8ff);
+  color: var(--mg-ink);
+  box-shadow: 0 4px 0 var(--mg-ink);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  margin-top: -14px;
+}
+:root .mg-hud.mg-hud .mg-round-btn svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2.8;
+}
+:root .mg-hud.mg-hud .mg-round-btn:hover {
+  transform: translateY(-2px) rotate(-6deg);
+}
+:root .mg-hud.mg-hud .mg-round-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--mg-ink);
+}
+:root .mg-hud.mg-hud .mg-timer {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 5px 0 var(--mg-ink)) drop-shadow(0 12px 14px #0b103066);
+}
+:root .mg-hud.mg-hud .mg-timer svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+:root .mg-hud.mg-hud .mg-timer-face {
+  fill: #fffdf6;
+  stroke: var(--mg-ink);
+  stroke-width: 6;
+}
+:root .mg-hud.mg-hud .mg-timer-fill {
+  fill: none;
+  stroke: var(--mg-go);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transform: rotate(-90deg) scaleY(-1);
+  transform-origin: 50% 50%;
+  transition: stroke-dasharray 0.25s linear, stroke 0.3s ease;
+}
+:root .mg-hud.mg-hud .mg-timer-knob {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  width: 22px;
+  height: 15px;
+  transform: translateX(-50%);
+  border: 3px solid var(--mg-ink);
+  border-radius: 6px 6px 3px 3px;
+  background: var(--mg-sun);
+}
+:root .mg-hud.mg-hud .mg-timer-knob::before,
+:root .mg-hud.mg-hud .mg-timer-knob::after {
+  content: '';
+  position: absolute;
+  top: 9px;
+  width: 11px;
+  height: 7px;
+  border: 3px solid var(--mg-ink);
+  border-radius: 3px;
+  background: var(--mg-sun);
+}
+:root .mg-hud.mg-hud .mg-timer-knob::before {
+  left: -30px;
+  transform: rotate(-38deg) translateY(10px);
+}
+:root .mg-hud.mg-hud .mg-timer-knob::after {
+  right: -30px;
+  transform: rotate(38deg) translateY(10px);
+}
+:root .mg-hud.mg-hud .mg-timer b {
+  position: relative;
+  font-family: var(--mg-font);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--mg-ink);
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+:root .mg-hud.mg-hud .mg-timer.is-low .mg-timer-face {
+  fill: var(--mg-hot);
+}
+:root .mg-hud.mg-hud .mg-timer.is-low .mg-timer-fill {
+  stroke: #fff36b;
+}
+:root .mg-hud.mg-hud .mg-timer.is-low b {
+  color: #fff;
+  -webkit-text-stroke: 7px var(--mg-ink);
+  paint-order: stroke fill;
+  animation: mg-tick 1s ease-out;
+}
+:root .mg-hud.mg-hud .mg-timer.is-low {
+  animation: mg-alarm 1s ease-in-out infinite;
+}
+@keyframes mg-tick {
+  0% {
+    transform: scale(1.55);
+  }
+  45% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes mg-alarm {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  10% {
+    transform: rotate(-7deg);
+  }
+  20% {
+    transform: rotate(6deg);
+  }
+  30% {
+    transform: rotate(0deg);
+  }
+}
+:root .mg-hud.mg-hud .mg-title {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, 4px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+:root .mg-hud.mg-hud .mg-title h1 {
+  margin: 0;
+  font-family: var(--mg-font);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  -webkit-text-stroke: 5px var(--mg-ink);
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 var(--mg-ink);
+}
+:root .mg-hud.mg-hud .mg-title span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--mg-ink);
+  background: var(--mg-sun);
+  border: 2px solid var(--mg-ink);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+/* ── Corner player plates ─────────────────────────────────────────────────── */
+:root .mg-hud.mg-hud .mg-plates {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+:root .mg-hud.mg-hud .mg-plate {
+  --pc: var(--mg-sun);
+  position: absolute;
+  display: flex;
+  align-items: center;
+  width: 262px;
+  height: 74px;
+  animation: mg-plate-in 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+:root .mg-hud.mg-hud .mg-tl {
+  top: 14px;
+  left: 16px;
+}
+:root .mg-hud.mg-hud .mg-tr {
+  top: 14px;
+  right: 16px;
+  flex-direction: row-reverse;
+  animation-delay: 0.06s;
+}
+:root .mg-hud.mg-hud .mg-bl {
+  bottom: 14px;
+  left: 16px;
+  animation-delay: 0.12s;
+}
+:root .mg-hud.mg-hud .mg-br {
+  bottom: 14px;
+  right: 16px;
+  flex-direction: row-reverse;
+  animation-delay: 0.18s;
+}
+@keyframes mg-plate-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.85);
+  }
+}
+:root .mg-hud.mg-hud .mg-medal {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--pc);
+  border: 3px solid var(--mg-ink);
+  box-shadow:
+    0 4px 0 var(--mg-ink),
+    inset 0 -6px 0 #0000002a,
+    inset 0 4px 0 #ffffff66;
+}
+:root .mg-hud.mg-hud .mg-medal .art {
+  display: block;
+}
+:root .mg-hud.mg-hud .mg-medal i {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: var(--mg-ink);
+  border: 2px solid var(--pc);
+  border-radius: 999px;
+  padding: 2px 6px 3px;
+}
+:root .mg-hud.mg-hud .mg-plate-body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 58px;
+  margin-left: -22px;
+  padding: 5px 16px 0 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background:
+    linear-gradient(180deg, #ffffff1f, #ffffff00 50%),
+    linear-gradient(90deg, var(--mg-plate), var(--mg-plate-2));
+  border: 3px solid var(--mg-ink);
+  border-radius: 0 18px 18px 0;
+  transform: skewX(-10deg);
+  transform-origin: left center;
+  box-shadow: 0 4px 0 var(--mg-ink), 0 10px 18px #0a0e2a44;
+  overflow: hidden;
+}
+:root .mg-hud.mg-hud .mg-plate-body::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  background: var(--pc);
+  border-left: 3px solid var(--mg-ink);
+}
+:root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-plate-body {
+  margin-left: 0;
+  margin-right: -22px;
+  padding: 5px 32px 0 16px;
+  border-radius: 18px 0 0 18px;
+  transform: skewX(10deg);
+  transform-origin: right center;
+  text-align: right;
+  align-items: flex-end;
+}
+:root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-plate-body::after {
+  right: auto;
+  left: 0;
+  border-left: 0;
+  border-right: 3px solid var(--mg-ink);
+}
+:root .mg-hud.mg-hud .mg-plate-body > * {
+  transform: skewX(10deg);
+}
+:root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-plate-body > * {
+  transform: skewX(-10deg);
+}
+:root .mg-hud.mg-hud .mg-name {
+  display: block;
+  max-width: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--pc) 55%, white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:root .mg-hud.mg-hud .mg-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1;
+  white-space: nowrap;
+}
+:root .mg-hud.mg-hud .mg-stat span {
+  font-size: 31px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+  -webkit-text-stroke: 6px var(--mg-ink);
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 var(--mg-ink);
+}
+:root .mg-hud.mg-hud .mg-stat small {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #c9d2ff;
+  text-transform: uppercase;
+}
+:root .mg-hud.mg-hud .mg-stat.is-word small {
+  font-size: 17px;
+  color: #fff;
+  letter-spacing: 0.03em;
+}
+:root .mg-hud.mg-hud .mg-you {
+  position: absolute;
+  z-index: 3;
+  top: -9px;
+  left: 60px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--mg-ink);
+  background: var(--mg-sun);
+  border: 2px solid var(--mg-ink);
+  border-radius: 6px;
+  padding: 1px 7px 2px;
+  transform: rotate(-6deg);
+  box-shadow: 0 2px 0 var(--mg-ink);
+  animation: mg-bob 1.6s ease-in-out infinite;
+}
+:root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-you {
+  left: auto;
+  right: 60px;
+  transform: rotate(6deg);
+}
+:root .mg-hud.mg-hud :is(.mg-bl, .mg-br) .mg-you {
+  top: auto;
+  bottom: -8px;
+}
+@keyframes mg-bob {
+  50% {
+    translate: 0 -3px;
+  }
+}
+:root .mg-hud.mg-hud .mg-plate.is-you .mg-medal {
+  box-shadow:
+    0 4px 0 var(--mg-ink),
+    0 0 0 5px #ffffffcc,
+    0 0 22px 6px color-mix(in srgb, var(--pc) 70%, transparent),
+    inset 0 -6px 0 #0000002a;
+}
+:root .mg-hud.mg-hud .mg-plate.is-out {
+  filter: grayscale(0.9) brightness(0.8);
+}
+
+/* ── Sky progress track (bottom centre) ───────────────────────────────────── */
+:root .mg-hud.mg-hud .mg-track {
+  position: absolute;
+  bottom: 74px;
+  left: 50%;
+  width: min(440px, calc(100% - 640px));
+  min-width: 260px;
+  height: 20px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 3;
+}
+:root .mg-hud.mg-hud .mg-track-rail {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 3px solid var(--mg-ink);
+  background: linear-gradient(#bfe9ff, #7fcdf6);
+  box-shadow: 0 4px 0 var(--mg-ink), inset 0 3px 0 #ffffff88;
+}
+:root .mg-hud.mg-hud .mg-track-done {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: linear-gradient(#7af08f, #2fbd5b);
+  box-shadow: inset 0 3px 0 #ffffff77;
+  transition: width 0.4s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+:root .mg-hud.mg-hud .mg-track-rail > span {
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffffcc;
+  transform: translate(-50%, -50%);
+}
+:root .mg-hud.mg-hud .mg-track-rail > span.is-hit {
+  background: #ffffff;
+}
+:root .mg-hud.mg-hud .mg-track-rail > span:first-of-type {
+  left: 6px !important;
+}
+:root .mg-hud.mg-hud .mg-track-rail > span.is-goal {
+  display: none;
+}
+:root .mg-hud.mg-hud .mg-track-flag {
+  position: absolute;
+  right: -14px;
+  top: -24px;
+  width: 30px;
+  height: 30px;
+  color: var(--mg-ink);
+  fill: var(--mg-hot);
+  stroke-width: 2.6;
+  transform: rotate(8deg);
+  filter: drop-shadow(0 2px 0 #fff);
+}
+:root .mg-hud.mg-hud .mg-track-head {
+  position: absolute;
+  bottom: 12px;
+  width: 34px;
+  height: 34px;
+  margin-left: var(--dx, 0px);
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--pc);
+  border: 3px solid var(--mg-ink);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 3px 0 var(--mg-ink);
+  transition: left 0.5s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+:root .mg-hud.mg-hud .mg-track-head .art {
+  width: 25px;
+  height: 25px;
+}
+:root .mg-hud.mg-hud .mg-track-head.is-you {
+  bottom: 16px;
+  width: 40px;
+  height: 40px;
+}
+:root .mg-hud.mg-hud .mg-track-head.is-you::after {
+  content: '';
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  border: 6px solid transparent;
+  border-top-color: var(--mg-ink);
+  transform: translateX(-50%);
+}
+:root .mg-hud.mg-hud .mg-track-head.is-you .art {
+  width: 30px;
+  height: 30px;
+}
+
+/* ── Slanted callout banner ───────────────────────────────────────────────── */
+:root .mg-hud.mg-hud .arena-callout.mg-banner {
+  position: absolute;
+  top: 152px;
+  left: 50%;
+  transform: translateX(-50%) skewX(-9deg);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  max-width: min(640px, calc(100% - 40px));
+  padding: 0;
+  border: 3px solid var(--mg-ink);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff27a 0%, var(--mg-sun) 45%, var(--mg-sun-2) 100%);
+  color: var(--mg-ink);
+  box-shadow:
+    0 5px 0 var(--mg-ink),
+    0 14px 24px #0a0e2a55;
+  overflow: visible;
+  text-align: left;
+  font-family: var(--mg-font);
+  animation: mg-banner-in 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+  z-index: 4;
+}
+@keyframes mg-banner-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateX(-90px) skewX(-9deg) scale(0.6);
+  }
+  60% {
+    opacity: 1;
+  }
+}
+:root .mg-hud.mg-hud .mg-banner-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  align-self: stretch;
+  background: var(--mg-ink);
+  color: var(--mg-sun);
+  border-radius: 8px 0 0 8px;
+}
+:root .mg-hud.mg-hud .mg-banner-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.6;
+  transform: skewX(9deg);
+  animation: mg-wiggle 2.4s ease-in-out infinite;
+}
+@keyframes mg-wiggle {
+  0%,
+  70%,
+  100% {
+    rotate: 0deg;
+  }
+  78% {
+    rotate: -14deg;
+  }
+  86% {
+    rotate: 12deg;
+  }
+}
+:root .mg-hud.mg-hud .mg-banner-body {
+  transform: skewX(9deg);
+  padding: 8px 20px 9px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-width: 0;
+}
+:root .mg-hud.mg-hud .mg-banner-body em {
+  font-style: normal;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #fff;
+  -webkit-text-stroke: 5px var(--mg-ink);
+  paint-order: stroke fill;
+  white-space: nowrap;
+}
+:root .mg-hud.mg-hud .mg-banner-body > span,
+:root .mg-hud.mg-hud .mg-banner-body > strong {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--mg-ink);
+}
+:root .mg-hud.mg-hud .mg-banner-body > strong {
+  font-weight: 700;
+  font-size: 18px;
+}
+:root .mg-hud.mg-hud .mg-banner-body small,
+:root .mg-hud.mg-hud.mg-hud .arena-callout small {
+  flex-basis: 100%;
+  display: block;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3a3218;
+}
+:root .mg-hud.mg-hud .mg-banner > i {
+  left: 44px;
+  bottom: 0;
+  height: 5px;
+  background: var(--mg-ink);
+  border-radius: 0 0 0 0;
+}
+:root .mg-hud.mg-hud .mg-banner .rpm-meter {
+  flex-basis: 100%;
+  margin: 4px 0;
+  min-width: 300px;
+  border: 2px solid var(--mg-ink);
+}
+/* Race and team-duo modes draw their own split-screen frames: tuck the banner. */
+:root .mg-hud.mg-hud.arena-race .arena-callout.mg-banner,
+:root .mg-hud.mg-hud.arena-duos .arena-callout.mg-banner {
+  top: auto;
+  bottom: 70px;
+}
+
+/* ── Countdown + finish ───────────────────────────────────────────────────── */
+:root .mg-hud.mg-hud :is(.mg-countdown, .mg-finish) {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  text-shadow: none;
+  z-index: 6;
+  font-family: var(--mg-font);
+}
+:root .mg-hud.mg-hud .mg-countdown strong,
+:root .mg-hud.mg-hud .mg-finish strong {
+  display: block;
+  font-size: 190px;
+  font-weight: 700;
+  line-height: 0.95;
+  color: var(--mg-sun);
+  -webkit-text-stroke: 16px var(--mg-ink);
+  paint-order: stroke fill;
+  text-shadow:
+    0 12px 0 var(--mg-ink),
+    0 24px 40px #0a0e2a77;
+  animation: mg-count 0.9s cubic-bezier(0.2, 1.7, 0.4, 1) both;
+}
+@keyframes mg-count {
+  0% {
+    opacity: 0;
+    transform: scale(2.4) rotate(-12deg);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(0.9) rotate(3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+:root .mg-hud.mg-hud .mg-countdown > span,
+:root .mg-hud.mg-hud .mg-finish > span {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mg-ink);
+  background: #fff;
+  border: 3px solid var(--mg-ink);
+  border-radius: 999px;
+  padding: 6px 22px;
+  box-shadow: 0 5px 0 var(--mg-ink);
+  white-space: nowrap;
+  text-shadow: none;
+}
+:root .mg-hud.mg-hud .mg-finish strong {
+  font-size: 150px;
+  color: #ffffff;
+  background: none;
+  transform-origin: center;
+}
+:root .mg-hud.mg-hud .mg-finish > span {
+  background: var(--mg-sun);
+  font-size: 26px;
+  animation: mg-plate-in 0.5s 0.35s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+/* ── Control strip (bottom centre) ────────────────────────────────────────── */
+:root .mg-hud.mg-hud .arena-controls.mg-controls {
+  position: absolute;
+  left: 50%;
+  right: auto;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: max-content;
+  max-width: calc(100% - 600px);
+  padding: 6px 14px 6px 8px;
+  background: #141a3acc;
+  border: 2px solid #ffffff2e;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px #0a0e2a44;
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-family: var(--mg-font);
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 3;
+}
+:root .mg-hud.mg-hud .mg-controls > span {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: #fff;
+}
+:root .mg-hud.mg-hud .mg-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+:root .mg-hud.mg-hud .mg-ctl.is-note {
+  color: #c9d2ff;
+  font-size: 12px;
+}
+:root .mg-hud.mg-hud .mg-controls kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 7px;
+  font-family: var(--mg-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--mg-ink);
+  background: linear-gradient(#ffffff, #dfe6ff);
+  border: 2px solid var(--mg-ink);
+  border-bottom-width: 4px;
+  border-radius: 7px;
+  box-shadow: none;
+}
+:root .mg-hud.mg-hud .mg-controls kbd.is-a {
+  background: linear-gradient(#8ff5a6, var(--mg-go));
+}
+:root .mg-hud.mg-hud .mg-controls kbd.is-b {
+  background: linear-gradient(#ff9aa3, #ff5b6a);
+  color: #fff;
+  -webkit-text-stroke: 3px var(--mg-ink);
+  paint-order: stroke fill;
+}
+
+/* ── Briefing / pause card ────────────────────────────────────────────────── */
+:root .mg-hud.mg-hud .arena-overlay {
+  background:
+    radial-gradient(ellipse at 50% 45%, #1b2a7a55 0%, #0a0e2acc 75%);
+  backdrop-filter: blur(5px) saturate(1.2);
+}
+:root .mg-hud.mg-hud .arcade-brief.mg-brief {
+  position: relative;
+  width: 580px;
+  padding: 0 32px 26px;
+  background:
+    radial-gradient(ellipse at 50% 0%, #ffffff 0%, transparent 60%),
+    var(--mg-cream);
+  color: var(--mg-ink);
+  border: 4px solid var(--mg-ink);
+  border-radius: 30px;
+  box-shadow:
+    0 9px 0 var(--mg-ink),
+    0 30px 80px #05082088;
+  text-align: center;
+  font-family: var(--mg-font);
+  overflow: auto;
+  animation: mg-card-in 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+:root .mg-hud.mg-hud .mg-brief :is(p, span, b, kbd, div, button) {
+  font-family: var(--mg-font);
+}
+@keyframes mg-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.9) rotate(-2deg);
+  }
+}
+:root .mg-hud.mg-hud .mg-brief .eyebrow {
+  display: block;
+  margin: 0 -32px 18px;
+  padding: 14px 20px 12px;
+  background:
+    repeating-linear-gradient(-45deg, #ffffff22 0 14px, transparent 14px 28px),
+    linear-gradient(90deg, #3f6dff, #8a4dff);
+  border-bottom: 4px solid var(--mg-ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  -webkit-text-stroke: 4px var(--mg-ink);
+  paint-order: stroke fill;
+}
+:root .mg-hud.mg-hud .mg-brief.is-paused .eyebrow {
+  background:
+    repeating-linear-gradient(-45deg, #ffffff22 0 14px, transparent 14px 28px),
+    linear-gradient(90deg, #ff8a3d, #ff4f86);
+}
+:root .mg-hud.mg-hud .mg-brief h2 {
+  margin: 4px 0 10px;
+  font-family: var(--mg-font);
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: 0;
+  color: var(--mg-sun);
+  -webkit-text-stroke: 10px var(--mg-ink);
+  paint-order: stroke fill;
+  text-shadow: 0 6px 0 var(--mg-ink);
+}
+:root .mg-hud.mg-hud .mg-brief > p {
+  margin: 8px auto 16px;
+  max-width: 470px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #3b4570;
+}
+:root .mg-hud.mg-hud .mg-brief .brief-controls {
+  flex-direction: row;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--mg-ink);
+  border: 0;
+  border-radius: 16px;
+  color: #e7ebff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: inset 0 -4px 0 #00000055;
+}
+:root .mg-hud.mg-hud .mg-brief .brief-controls kbd {
+  flex: none;
+  font-family: var(--mg-font);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 6px 12px;
+  color: var(--mg-ink);
+  background: linear-gradient(#ffffff, #dfe6ff);
+  border: 2px solid #000;
+  border-bottom-width: 5px;
+  border-radius: 9px;
+}
+:root .mg-hud.mg-hud .mg-brief .brief-controls span {
+  text-align: left;
+}
+:root .mg-hud.mg-hud .mg-brief p.brief-tip {
+  margin: 14px 0 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #5a6390;
+}
+:root .mg-hud.mg-hud .mg-brief-lineup {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin: 14px 0 6px;
+}
+:root .mg-hud.mg-hud .mg-brief-lineup > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+:root .mg-hud.mg-hud .mg-brief-lineup .art {
+  border-radius: 50%;
+  background: var(--pc);
+  box-shadow:
+    0 0 0 3px var(--pc),
+    0 0 0 6px var(--mg-ink),
+    0 6px 0 3px var(--mg-ink);
+  margin-top: 6px;
+}
+:root .mg-hud.mg-hud .mg-brief-lineup .is-you .art {
+  animation: mg-hop 1.2s ease-in-out infinite;
+}
+@keyframes mg-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  40% {
+    transform: translateY(-6px) scale(0.96, 1.05);
+  }
+  55% {
+    transform: translateY(0) scale(1.06, 0.94);
+  }
+}
+:root .mg-hud.mg-hud .mg-brief-lineup b {
+  margin-top: 6px;
+  max-width: 88px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mg-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:root .mg-hud.mg-hud .mg-brief .brief-team {
+  margin: 8px 0 18px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #3f6dff;
+}
+:root .mg-hud.mg-hud .mg-brief .primary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px 18px;
+  font-family: var(--mg-font);
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--mg-ink);
+  background: linear-gradient(180deg, #fff27a 0%, var(--mg-sun) 45%, var(--mg-sun-2) 100%);
+  border: 4px solid var(--mg-ink);
+  border-radius: 18px;
+  box-shadow: 0 7px 0 var(--mg-ink);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+:root .mg-hud.mg-hud .mg-brief .primary:hover {
+  background: linear-gradient(180deg, #fff59a 0%, #ffe066 45%, #ffb73f 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 9px 0 var(--mg-ink);
+}
+:root .mg-hud.mg-hud .mg-brief .primary:active {
+  transform: translateY(5px);
+  box-shadow: 0 2px 0 var(--mg-ink);
+}
+:root .mg-hud.mg-hud .mg-brief .text-button {
+  margin-top: 16px;
+  font-family: var(--mg-font);
+  font-size: 14px;
+  font-weight: 600;
+  color: #3b4570;
+}
+
+/* ── Touch layout: lift the virtual pad above the bottom plates ───────────── */
+@media (pointer: coarse) {
+  :root .mg-hud.mg-hud .touch-input {
+    bottom: 104px;
+  }
+  :root .mg-hud.mg-hud .arena-controls.mg-controls {
+    display: none;
+  }
+}
+
+/* ── Smaller screens ──────────────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  :root .mg-hud.mg-hud .mg-plate {
+    width: 210px;
+  }
+  :root .mg-hud.mg-hud .arena-controls.mg-controls {
+    max-width: calc(100% - 470px);
+    bottom: 88px;
+  }
+  :root .mg-hud.mg-hud .mg-controls > span + span {
+    display: flex;
+  }
+  :root .mg-hud.mg-hud .mg-track {
+    width: calc(100% - 500px);
+    bottom: 34px;
+  }
+}
+@media (max-width: 760px) {
+  :root .mg-hud.mg-hud .mg-plate {
+    width: 150px;
+    height: 54px;
+  }
+  :root .mg-hud.mg-hud .mg-medal {
+    width: 52px;
+    height: 52px;
+  }
+  :root .mg-hud.mg-hud .mg-medal .art {
+    width: 42px;
+    height: 42px;
+  }
+  :root .mg-hud.mg-hud .mg-plate-body {
+    height: 42px;
+    padding-left: 26px;
+  }
+  :root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-plate-body {
+    padding-right: 26px;
+    padding-left: 10px;
+  }
+  :root .mg-hud.mg-hud .mg-name {
+    font-size: 10px;
+  }
+  :root .mg-hud.mg-hud .mg-stat span {
+    font-size: 21px;
+    -webkit-text-stroke-width: 4px;
+  }
+  :root .mg-hud.mg-hud .mg-stat small {
+    font-size: 9px;
+  }
+  :root .mg-hud.mg-hud .mg-you {
+    left: 40px;
+    font-size: 9px;
+  }
+  :root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-you {
+    right: 40px;
+  }
+  :root .mg-hud.mg-hud .mg-timer {
+    width: 70px;
+    height: 70px;
+  }
+  :root .mg-hud.mg-hud .mg-timer b {
+    font-size: 30px;
+  }
+  :root .mg-hud.mg-hud .mg-round-btn {
+    display: none;
+  }
+  :root .mg-hud.mg-hud .mg-top {
+    top: 74px;
+  }
+  :root .mg-hud.mg-hud .arena-callout.mg-banner {
+    top: 182px;
+    max-width: calc(100% - 24px);
+  }
+  :root .mg-hud.mg-hud .mg-banner-body em {
+    font-size: 15px;
+  }
+  :root .mg-hud.mg-hud .mg-banner-body > span {
+    font-size: 13px;
+  }
+  :root .mg-hud.mg-hud .mg-track {
+    width: calc(100% - 60px);
+    min-width: 0;
+    bottom: 86px;
+  }
+  :root .mg-hud.mg-hud .arena-controls.mg-controls {
+    display: none;
+  }
+  :root .mg-hud.mg-hud .mg-countdown strong {
+    font-size: 120px;
+  }
+  :root .mg-hud.mg-hud .mg-finish strong {
+    font-size: 84px;
+  }
+  :root .mg-hud.mg-hud .arcade-brief.mg-brief {
+    padding: 0 20px 20px;
+  }
+  :root .mg-hud.mg-hud .mg-brief .eyebrow {
+    margin: 0 -20px 14px;
+  }
+  :root .mg-hud.mg-hud .mg-brief h2 {
+    font-size: 34px;
+  }
+  :root .mg-hud.mg-hud .mg-brief .brief-controls {
+    flex-direction: column;
+  }
+  :root .mg-hud.mg-hud .mg-brief-lineup {
+    gap: 8px;
+  }
+  :root .mg-hud.mg-hud .mg-brief-lineup .art {
+    width: 40px;
+    height: 40px;
+  }
+}
+@media (max-height: 650px) and (min-width: 750px) {
+  :root .mg-hud.mg-hud .arcade-brief.mg-brief {
+    padding-bottom: 16px;
+  }
+  :root .mg-hud.mg-hud .mg-brief h2 {
+    font-size: 34px;
+  }
+  :root .mg-hud.mg-hud .mg-brief-lineup {
+    display: none;
+  }
+  :root .mg-hud.mg-hud .mg-brief .primary {
+    padding: 10px;
+  }
+}

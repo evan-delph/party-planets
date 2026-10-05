@@ -75,6 +75,43 @@ export function DiceIcon({ size = 24, value = 5, className, style }: ArtProps & 
   );
 }
 
+/**
+ * A real 3D dice block built from six CSS faces (styled in ui-board-hud.css as
+ * `.die3d`). It idles with a slow tumble and bob, so the roll prompt feels like
+ * an object you can hit rather than a form button.
+ */
+const CUBE_PIPS: Record<number, number[]> = {
+  1: [5],
+  2: [3, 7],
+  3: [3, 5, 7],
+  4: [1, 3, 7, 9],
+  5: [1, 3, 5, 7, 9],
+  6: [1, 3, 4, 6, 7, 9],
+};
+export function DiceCube({ size = 64, className, style }: ArtProps) {
+  return (
+    <span
+      className={'die3d ' + (className ?? '')}
+      style={{ '--die': size + 'px', ...style } as CSSProperties}
+      aria-hidden="true"
+    >
+      <span className="die3d-body">
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <span key={n} className={`die3d-side die3d-s${n}`}>
+            {CUBE_PIPS[n].map((c) => (
+              <i
+                key={c}
+                style={{ gridRow: Math.ceil(c / 3), gridColumn: ((c - 1) % 3) + 1 }}
+              />
+            ))}
+          </span>
+        ))}
+      </span>
+      <span className="die3d-shadow" />
+    </span>
+  );
+}
+
 // ── Characters ──────────────────────────────────────────────────────────────
 /** Round portrait of a crew alien in their shirt color. */
 export function AlienPortrait({

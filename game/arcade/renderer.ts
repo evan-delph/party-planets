@@ -14,6 +14,7 @@ import { remixInfo } from './remix-catalog';
 import { planetStyle } from './planet-style';
 import { OVERHAUL } from './overhaul';
 import { createOverhaulRenderer } from './overhaul-renderer';
+import { createSeaBumperRenderer } from './look/sea-bumper';
 const TEAM_COLORS = ['#ffcf58', '#ff809a', '#65bdf5', '#a394ff'];
 export function createRenderer(
   root: HTMLDivElement,
@@ -30,6 +31,9 @@ export function createRenderer(
     return createGrandRenderer(root, players, kind, low);
   if (EXPANDED.includes(kind))
     return createExpansionRenderer(root, players, kind, low, boardId);
+  // Bumper Buns has its own sea-arena presentation (look/sea-*.ts).
+  if (kind === 'bumper')
+    return createSeaBumperRenderer(root, players, low, boardId);
   const renderer = new T.WebGLRenderer({
     antialias: true,
     alpha: false,
@@ -333,20 +337,6 @@ export function createRenderer(
     );
     rim.rotation.x = Math.PI / 2;
     if (kind === 'coconut') rim.visible = false;
-    if (kind === 'bumper') {
-      for (const r of [2.7, 5.3]) {
-        const ring = mesh(
-          new T.TorusGeometry(r, 0.025, 6, 70),
-          '#e9b86f',
-          0,
-          0.055,
-          0,
-          g,
-        );
-        ring.rotation.x = Math.PI / 2;
-      }
-      disc(0, 0, 0.4, '#c9a568');
-    }
     if (kind === 'rope') {
       mesh(new T.CylinderGeometry(0.85, 1.05, 0.8, 16), '#344e54', 0, 0.38, 0);
       mesh(new T.SphereGeometry(0.5, 16, 12), '#ffb952', 0, 0.85, 0);
@@ -386,31 +376,11 @@ export function createRenderer(
     const group = new T.Group();
     scene.add(group);
     const avatar = makeAvatar(p.avatar);
-    avatar.scale.multiplyScalar(
-      kind === 'bumper' ? 0.66 : kind === 'race' ? 0.64 : 0.82,
-    );
-    avatar.position.y = kind === 'bumper' ? 1.13 : kind === 'race' ? 0.62 : 0;
+    avatar.scale.multiplyScalar(kind === 'race' ? 0.64 : 0.82);
+    avatar.position.y = kind === 'race' ? 0.62 : 0;
     group.add(avatar);
-    let ball: T.Mesh | undefined;
-    if (kind === 'bumper') {
-      ball = mesh(
-        new T.SphereGeometry(0.77, 24, 18),
-        TEAM_COLORS[i],
-        0,
-        0.68,
-        0,
-        group,
-      );
-      const stripe = mesh(
-        new T.TorusGeometry(0.76, 0.07, 8, 40),
-        '#fff9d9',
-        0,
-        0,
-        0,
-        ball,
-      );
-      stripe.rotation.x = Math.PI / 2;
-    }
+    // Bumper Buns tubs live in look/sea-bumper.ts.
+    const ball = undefined as T.Mesh | undefined;
     if (kind === 'race') {
       box(0, 0.35, 0, 1.55, 0.5, 2.2, TEAM_COLORS[i], group);
       box(0, 0.64, -0.7, 1.4, 0.24, 0.6, '#fff0bf', group);
@@ -429,7 +399,7 @@ export function createRenderer(
       box(0, 0.56, 1.15, 0.6, 0.3, 0.2, '#e8dfb3', group);
     }
     const shadow = new T.Mesh(
-      new T.CircleGeometry(kind === 'bumper' ? 0.85 : 0.5, 24),
+      new T.CircleGeometry(0.5, 24),
       new T.MeshBasicMaterial({
         color: '#345b59',
         transparent: true,
