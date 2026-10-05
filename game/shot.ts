@@ -3,7 +3,7 @@
  * title screen and builds an exact game state so every capture of a scene is
  * the same. Scenes:
  *   menu · menu-panel · studio
- *   board:<boardId> · moving:<boardId> · vote · results
+ *   board:<boardId> · moving:<boardId> · vote · results · finale
  *   brief:<gameId> · mini:<gameId>   (gameId from game/arcade/catalog.ts)
  * Capture with `node scripts/shot.mjs <scene> <out.png>`.
  */
@@ -71,6 +71,13 @@ export function buildShot(scene: string, avatar: Avatar, now: number): ShotSetup
     g.path = [p.pos];
     g.movement = { from: p.pos, to, startedAt: now + 4000, arrivesAt: now + 600000 };
     return { started: true, panel: 'play', game: g, boardId };
+  }
+  if (kind === 'finale') {
+    // The winner's celebration with the whole crew (character showcase).
+    const g = boardGame(avatar, 'crown', now);
+    g.phase = 'finished';
+    g.finale = { reason: 'goal', startedAt: now - 4000, winner: g.players[0].id };
+    return { started: true, panel: 'play', game: g, boardId: 'crown' };
   }
   if (kind === 'vote' || kind === 'results') {
     let g = boardGame(avatar, 'crown', now);
