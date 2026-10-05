@@ -44,3 +44,6 @@ next-env.d.ts
 
 # CC0 source assets (re-download with node scripts/fetch-assets.mjs)
 /art/source/
+
+# Gauntlet loop screenshots and progress page (regenerated)
+progress/

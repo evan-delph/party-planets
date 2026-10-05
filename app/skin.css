@@ -744,3 +744,8 @@
     font-size: 22px;
   }
 }
+/* Screenshot capture mode (?shot=…): no diagnostics or transient notices. */
+.shot-mode .performance-chip,
+.shot-mode .toast {
+  display: none !important;
+}

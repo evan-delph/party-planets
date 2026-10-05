@@ -41,6 +41,10 @@ type Props = {
   onExit: (arena: Arena) => void;
   onMute: () => void;
 };
+/** Screenshot capture (game/shot.ts) starts mid-game without the resume pause. */
+const shotMode = () =>
+  typeof document !== 'undefined' &&
+  document.documentElement.classList.contains('shot-mode');
 export default function ArcadeGame(props: Props) {
   const info = arcadeInfo(props.game.mini),
     root = useRef<HTMLDivElement>(null),
@@ -55,12 +59,12 @@ export default function ArcadeGame(props: Props) {
   );
   const [hud, setHud] = useState(() => structuredClone(world.current)),
     [paused, setPaused] = useState(
-      !props.online && (props.game.arcade?.time ?? 0) > 0,
+      !props.online && (props.game.arcade?.time ?? 0) > 0 && !shotMode(),
     ),
     [error, setError] = useState(''),
     [connectedPad, setConnectedPad] = useState(false);
   const accepting = useRef(false),
-    pausedRef = useRef(!props.online && (props.game.arcade?.time ?? 0) > 0),
+    pausedRef = useRef(!props.online && (props.game.arcade?.time ?? 0) > 0 && !shotMode()),
     keys = useRef(new Set<string>()),
     touch = useRef({ x: 0, z: 0, a: false, b: false }),
     pointer = useRef<{ x: number; z: number } | null>(null),
@@ -246,7 +250,9 @@ export default function ArcadeGame(props: Props) {
         !waiting &&
         !pausedRef.current &&
         !completed.current &&
-        document.hasFocus();
+        // Screenshot capture (game/shot.ts) runs unfocused in headless Chrome.
+        (document.hasFocus() ||
+          document.documentElement.classList.contains('shot-mode'));
       if (!accepting.current) padArmed = false;
       else if (!padInput.a && !padInput.b) padArmed = true;
       const c: Control = {

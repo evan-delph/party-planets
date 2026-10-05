@@ -56,6 +56,7 @@ import {
   Sparkle,
 } from './art';
 import { BOARDS, PLANETS, getBoard, getPlanet } from './boards';
+import { buildShot, shotScene } from './shot';
 import { playSfx, setSfxMuted } from './audio';
 import { useMusic } from './useMusic';
 import type { Control } from './arcade/simulation';
@@ -416,6 +417,20 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
       }
     } catch {}
     setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    // Dev-only screenshot scenes (?shot=…), see game/shot.ts.
+    const scene = shotScene();
+    const setup = scene ? buildShot(scene, DEFAULT_AVATAR, Date.now()) : null;
+    if (setup) {
+      document.documentElement.classList.add('shot-mode');
+      setSession(null);
+      setStarted(setup.started);
+      setPanel(setup.panel);
+      if (setup.boardId) setBoardId(setup.boardId);
+      if (setup.game) {
+        setOrbital(false);
+        setGame(setup.game);
+      }
+    }
   }, []);
   useEffect(() => {
     try {

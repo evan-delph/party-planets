@@ -29,7 +29,14 @@ const result = await build({
 const css = await postcss([tailwind()]).process(
   (await readFile('app/globals.css', 'utf8')) +
     '\n' +
-    (await readFile('app/skin.css', 'utf8')),
+    (await readFile('app/skin.css', 'utf8')) +
+    (
+      await Promise.all(
+        ['ui-menu', 'ui-board-hud', 'ui-vote-results', 'ui-minigame-hud'].map((n) =>
+          readFile(`app/${n}.css`, 'utf8'),
+        ),
+      )
+    ).join('\n'),
   { from: resolve('app/globals.css') },
 );
 // Inline the web fonts the stylesheet points at.
