@@ -77,6 +77,7 @@ import {
 import { BOARDS, PLANETS, getBoard, getPlanet } from './boards';
 import { PartyLogo, PLANET_TINT } from './PartyLogo';
 import { buildShot, shotScene } from './shot';
+import { assetUrl } from './assets';
 import { playSfx, setSfxMuted } from './audio';
 import { useMusic } from './useMusic';
 import type { Control } from './arcade/simulation';
@@ -1030,7 +1031,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   <span className="pp-orb" aria-hidden="true">
                     <span
                       style={{
-                        backgroundImage: `url(/textures/planets/${p.id}-color.webp)`,
+                        backgroundImage: `url(${assetUrl(`/textures/planets/${p.id}-color.webp`)})`,
                       }}
                     />
                   </span>
@@ -1186,7 +1187,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
             <span className="pp-orb pp-loc-orb" aria-hidden="true">
               <span
                 style={{
-                  backgroundImage: `url(/textures/planets/${getBoard(boardId).planet}-color.webp)`,
+                  backgroundImage: `url(${assetUrl(`/textures/planets/${getBoard(boardId).planet}-color.webp`)})`,
                 }}
               />
             </span>

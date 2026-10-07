@@ -2,6 +2,7 @@ import { build } from 'vite';
 import { createRequire } from 'node:module';
 import tailwind from '@tailwindcss/postcss';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 // Use the same PostCSS instance as the declared Tailwind integration.
 const postcss = createRequire(import.meta.resolve('@tailwindcss/postcss'))(
@@ -46,7 +47,11 @@ for (const [match, path] of [
 ]) {
   try {
     // Paths are relative to app/globals.css, the stylesheet's origin.
-    const file = path.startsWith('/') ? resolve('.' + path) : resolve('app', path);
+    const file = path.startsWith('/')
+      ? existsSync(resolve('public' + path))
+        ? resolve('public' + path)
+        : resolve('.' + path)
+      : resolve('app', path);
     styles = styles.replace(
       match,
       `url(data:font/woff2;base64,${(await readFile(file)).toString('base64')})`,
@@ -54,6 +59,18 @@ for (const [match, path] of [
   } catch {
     // A missing optional subset just falls back to the system font.
   }
+}
+// Inline images the stylesheet points at under public/ (menu backdrop etc.).
+for (const [match, path] of [
+  ...styles.matchAll(/url\(["']?(\/[^"')]+\.(?:webp|png|jpe?g))["']?\)/g),
+]) {
+  const file = resolve('public' + path);
+  if (!existsSync(file)) continue;
+  const type = path.endsWith('.png') ? 'png' : path.endsWith('.webp') ? 'webp' : 'jpeg';
+  styles = styles.replaceAll(
+    match,
+    `url(data:image/${type};base64,${(await readFile(file)).toString('base64')})`,
+  );
 }
 const sticker =
   'data:image/webp;base64,' +
@@ -72,7 +89,7 @@ const MIME = {
   '.wasm': 'application/wasm',
 };
 const assets = {};
-for (const dir of ['models', 'textures', 'draco'])
+for (const dir of ['models', 'textures', 'draco', 'brand'])
   for (const entry of await readdir(resolve('public', dir), {
     recursive: true,
     withFileTypes: true,

@@ -75,7 +75,7 @@
   z-index: 4;
   top: 20px;
   left: calc(392px + (100% - 392px) / 2 - 64px);
-  width: clamp(360px, 46vw, 660px);
+  width: clamp(250px, 30vw, 430px);
   transform: translateX(-50%);
   pointer-events: none;
   animation: pp-pop-in 0.8s cubic-bezier(0.2, 1.4, 0.4, 1) both;
@@ -906,14 +906,14 @@
 @media (max-width: 1000px) {
   .pp-menu-hero {
     left: calc(392px + (100% - 392px) / 2);
-    width: clamp(240px, 40vw, 420px);
+    width: clamp(200px, 28vw, 300px);
   }
 }
 @media (max-width: 750px) {
   .pp-menu-hero {
     top: 6px;
     left: 12px;
-    width: min(205px, 54vw);
+    width: min(160px, 42vw);
     transform: none;
     animation: none;
   }
