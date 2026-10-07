@@ -1,7 +1,7 @@
 ﻿/**
  * The PARTY PLANETS logo: chunky glossy letters with a white die-cut sticker
- * border, an ink outline, an extruded side face and a little ringed planet and
- * UFO pilot. Drawn as inline SVG so it uses the page's Fredoka face and stays
+ * border, an ink outline, a chunky extruded side face, a glossy shine sweep and
+ * a little ringed planet. Drawn as inline SVG so it uses the page's Fredoka face and stays
  * crisp at any size. `variant` only changes which decorations are shown.
  */
 import { useId } from 'react';
@@ -39,15 +39,22 @@ function mix(hex: string, amount: number) {
   return '#' + ch(16) + ch(8) + ch(0);
 }
 
+/** Darken a hex colour toward black by `amount` (0..1). */
+function shade(hex: string, amount: number) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (s: number) =>
+    Math.round(((n >> s) & 255) * (1 - amount))
+      .toString(16)
+      .padStart(2, '0');
+  return '#' + ch(16) + ch(8) + ch(0);
+}
+
 export function PartyLogo({
   variant = 'hero',
   className = '',
-  ufo,
 }: {
   variant?: 'hero' | 'compact';
   className?: string;
-  /** Mascot sticker flying past the top-right corner (hero only). */
-  ufo?: string;
 }) {
   const uid = 'pl' + useId().replace(/[^a-zA-Z0-9]/g, '');
   const hero = variant === 'hero';
@@ -86,6 +93,7 @@ export function PartyLogo({
     tilt: string,
     face: (i: number) => string,
     side: (i: number) => string,
+    bevel: (i: number) => string,
   ) => {
     const plain = (fill: string, sw: number, dy: number, _id: string) =>
       text(
@@ -125,17 +133,28 @@ export function PartyLogo({
     return (
       <>
         {/* white die-cut sticker edge */}
-        {plain('#ffffff', 36, 14, 'w2')}
-        {plain('#ffffff', 36, 0, 'w1')}
+        {plain('#ffffff', 38, 21, 'w3')}
+        {plain('#ffffff', 38, 10, 'w2')}
+        {plain('#ffffff', 38, 0, 'w1')}
         {/* ink outline + hard drop lip */}
+        {plain(INK, 20, 21, 'k4')}
         {plain(INK, 20, 14, 'k3')}
         {plain(INK, 20, 7, 'k2')}
         {plain(INK, 20, 0, 'k1')}
-        {/* extruded side face */}
-        {colored(side, 7, 9, 's2')}
-        {colored(side, 7, 4, 's1')}
+        {/* chunky extruded side face */}
+        {colored(side, 7, 15, 's4')}
+        {colored(side, 7, 11, 's3')}
+        {colored(side, 7, 7, 's2')}
+        {colored(side, 7, 3, 's1')}
+        {/* bright bevel rim peeking above the top face */}
+        {colored(bevel, 5, -3, 'b')}
         {/* glossy top face */}
-        {colored(face, 5, 0, 'f')}
+        {colored(face, 3, 0, 'f')}
+        {/* inner rim light: a white crescent along each glyph's upper-left edge */}
+        <g clipPath={`url(#${uid}clip)`}>
+          <g opacity={0.65}>{plain('#ffffff', 0, 0, 'g1')}</g>
+          <g transform="translate(3 0)">{colored(face, 0, 4.5, 'g2')}</g>
+        </g>
       </>
     );
   };
@@ -160,10 +179,10 @@ export function PartyLogo({
             x2="0"
             y2={l1.y}
           >
-            <stop offset="0" stopColor={mix(top, 0.72)} />
-            <stop offset="0.4" stopColor={mix(top, 0.5)} />
-            <stop offset="0.43" stopColor={top} />
-            <stop offset="1" stopColor={mix(top, -0.0)} />
+            <stop offset="0" stopColor={mix(top, 0.6)} />
+            <stop offset="0.3" stopColor={mix(top, 0.3)} />
+            <stop offset="0.34" stopColor={top} />
+            <stop offset="1" stopColor={shade(top, 0.12)} />
           </linearGradient>
         ))}
         <linearGradient
@@ -179,6 +198,15 @@ export function PartyLogo({
           <stop offset="0.45" stopColor="#f1f2ff" />
           <stop offset="1" stopColor="#dcdcff" />
         </linearGradient>
+        <linearGradient id={`${uid}shine`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="0.5" stopColor="#ffffff" stopOpacity="0.85" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+        <clipPath id={`${uid}clip`}>
+          {text(l1, 'PARTY', {}, TILT_1)}
+          {text(l2, 'PLANETS', {}, TILT_2)}
+        </clipPath>
         <radialGradient id={`${uid}ball`} cx="0.35" cy="0.3" r="0.8">
           <stop offset="0" stopColor="#ffe9a8" />
           <stop offset="0.45" stopColor="#ffb13b" />
@@ -192,6 +220,7 @@ export function PartyLogo({
           TILT_2,
           () => g('b', 0),
           () => PLANETS_FACE[1],
+          () => '#ffffff',
         )}
       </g>
       <g className="logo-line logo-line-1">
@@ -201,8 +230,23 @@ export function PartyLogo({
           TILT_1,
           (i) => g('a', i),
           (i) => PARTY[i][1],
+          (i) => mix(PARTY[i][0], 0.78),
         )}
       </g>
+      {hero && (
+        <g clipPath={`url(#${uid}clip)`}>
+          <g transform="skewX(-18)">
+            <rect
+              className="logo-shine"
+              x="-160"
+              y="-20"
+              width="70"
+              height="360"
+              fill={`url(#${uid}shine)`}
+            />
+          </g>
+        </g>
+      )}
       {/* ringed planet tucked against the P */}
       <g className="logo-planet">
       <g transform="translate(78 78) rotate(-18)">
@@ -243,9 +287,6 @@ export function PartyLogo({
   return (
     <span className={`party-logo-wrap ${hero ? 'is-hero' : 'is-compact'}`}>
       {svg}
-      {hero && ufo && (
-        <img className="logo-ufo-img" src={ufo} alt="" aria-hidden="true" />
-      )}
     </span>
   );
 }

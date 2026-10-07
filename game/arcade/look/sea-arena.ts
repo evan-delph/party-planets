@@ -17,74 +17,111 @@ export const ISLAND_SHORE = 7.95;
 function grassTexture() {
   return canvasTexture(1024, 1024, (ctx) => {
     const c = 512;
-    // Mown rings: alternating bands that read like a sports field.
-    for (let i = 14; i >= 0; i--) {
-      const r = (i / 14) * 512;
-      ctx.beginPath();
-      ctx.arc(c, c, r, 0, Math.PI * 2);
-      ctx.fillStyle = i % 2 ? '#35b553' : '#2aa148';
-      ctx.fill();
-    }
-    // Large soft patches so the lawn is not a flat colour.
+    // Lush base: sunny centre falling off to a deeper green near the rim.
+    const base = ctx.createRadialGradient(c - 60, c - 40, 40, c, c, 520);
+    base.addColorStop(0, '#6fd043');
+    base.addColorStop(0.55, '#55bd36');
+    base.addColorStop(0.9, '#3f9f2c');
+    base.addColorStop(1, '#358a28');
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, 1024, 1024);
+    // Large soft patches so the lawn never reads as a flat colour.
     const pr = seaRandom(9);
-    for (let i = 0; i < 46; i++) {
+    for (let i = 0; i < 70; i++) {
       const x = pr() * 1024,
         y = pr() * 1024,
-        rad = 40 + pr() * 110;
+        rad = 50 + pr() * 130;
       const pg = ctx.createRadialGradient(x, y, 0, x, y, rad);
-      const col = pr() > 0.5 ? '120,220,90' : '10,90,50';
-      pg.addColorStop(0, `rgba(${col},0.22)`);
+      const col = pr() > 0.5 ? '150,230,80' : '20,95,35';
+      pg.addColorStop(0, `rgba(${col},0.2)`);
       pg.addColorStop(1, `rgba(${col},0)`);
       ctx.fillStyle = pg;
       ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
     }
-    // Soft radial light falloff toward the rim.
-    const g = ctx.createRadialGradient(c, c, 60, c, c, 512);
-    g.addColorStop(0, 'rgba(255,255,190,0.18)');
-    g.addColorStop(0.75, 'rgba(255,255,190,0)');
-    g.addColorStop(1, 'rgba(10,60,10,0.28)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 1024, 1024);
-    // Grass speckle and little flowers.
+    // Grass blades: thousands of short strokes, dark roots and sunlit tips.
     const r = seaRandom(31);
-    for (let i = 0; i < 9000; i++) {
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 24000; i++) {
       const a = r() * Math.PI * 2,
-        d = Math.sqrt(r()) * 500;
-      ctx.fillStyle = r() > 0.5 ? 'rgba(8,80,40,0.4)' : 'rgba(170,250,150,0.3)';
-      ctx.fillRect(c + Math.cos(a) * d, c + Math.sin(a) * d, 2, 6);
-    }
-    for (let i = 0; i < 160; i++) {
-      const a = r() * Math.PI * 2,
-        d = 120 + Math.sqrt(r()) * 340;
-      ctx.fillStyle = ['#ffffff', '#ffe066', '#ff8fc0'][i % 3];
+        d = Math.sqrt(r()) * 508;
+      const x = c + Math.cos(a) * d,
+        y = c + Math.sin(a) * d;
+      const ang = -Math.PI / 2 + (r() - 0.5) * 1.4,
+        len = 4 + r() * 7;
+      const light = r();
+      ctx.strokeStyle =
+        light > 0.62
+          ? `rgba(190,250,120,${0.3 + r() * 0.3})`
+          : light > 0.3
+            ? `rgba(20,100,35,${0.25 + r() * 0.25})`
+            : `rgba(95,190,55,0.45)`;
+      ctx.lineWidth = 1.5 + r() * 1.5;
       ctx.beginPath();
-      ctx.arc(c + Math.cos(a) * d, c + Math.sin(a) * d, 3.2, 0, Math.PI * 2);
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+      ctx.stroke();
+    }
+    // Clover clumps.
+    for (let i = 0; i < 90; i++) {
+      const a = r() * Math.PI * 2,
+        d = Math.sqrt(r()) * 470;
+      const x = c + Math.cos(a) * d,
+        y = c + Math.sin(a) * d;
+      for (let k = 0; k < 7; k++) {
+        ctx.fillStyle = k % 2 ? 'rgba(40,130,40,0.55)' : 'rgba(120,210,80,0.5)';
+        ctx.beginPath();
+        ctx.arc(x + (r() - 0.5) * 22, y + (r() - 0.5) * 22, 3 + r() * 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Little flowers.
+    for (let i = 0; i < 150; i++) {
+      const a = r() * Math.PI * 2,
+        d = 100 + Math.sqrt(r()) * 370;
+      const x = c + Math.cos(a) * d,
+        y = c + Math.sin(a) * d;
+      ctx.fillStyle = ['#ffffff', '#ffe066', '#ff9cc8', '#ffffff'][i % 4];
+      for (let k = 0; k < 4; k++) {
+        ctx.beginPath();
+        ctx.arc(x + Math.cos(k * 1.57) * 2.4, y + Math.sin(k * 1.57) * 2.4, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffb21a';
+      ctx.beginPath();
+      ctx.arc(x, y, 1.6, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Painted field lines: a centre circle and a warning ring near the edge.
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 9;
-    ctx.beginPath();
-    ctx.arc(c, c, 150, 0, Math.PI * 2);
-    ctx.stroke();
-    // Hazard band: chunky wedges in sunny yellow and deep navy.
-    const inner = 452,
-      outer = 506;
-    for (let i = 0; i < 64; i++) {
-      const a0 = (i / 64) * Math.PI * 2,
-        a1 = ((i + 1) / 64) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.arc(c, c, outer, a0, a1);
-      ctx.arc(c, c, inner, a1 - 0.05, a0 - 0.05, true);
-      ctx.closePath();
-      ctx.fillStyle = i % 2 ? '#ffd23f' : '#253070';
-      ctx.fill();
+    // Worn rim: sun-dried, scuffed grass and bare patches near the edge,
+    // where bumper tubs skid before going over.
+    for (let i = 0; i < 260; i++) {
+      const a = r() * Math.PI * 2,
+        d = 430 + r() * 80;
+      const x = c + Math.cos(a) * d,
+        y = c + Math.sin(a) * d,
+        rad = 10 + r() * 30;
+      const wg = ctx.createRadialGradient(x, y, 0, x, y, rad);
+      const dirt = r() > 0.72;
+      wg.addColorStop(0, dirt ? 'rgba(150,110,60,0.5)' : 'rgba(190,200,90,0.3)');
+      wg.addColorStop(1, 'rgba(160,170,80,0)');
+      ctx.fillStyle = wg;
+      ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
     }
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.arc(c, c, inner - 4, 0, Math.PI * 2);
-    ctx.stroke();
+    // Skid marks: faint curved scuffs left by the tubs.
+    ctx.strokeStyle = 'rgba(30,90,30,0.22)';
+    ctx.lineWidth = 10;
+    for (let i = 0; i < 9; i++) {
+      const a0 = r() * Math.PI * 2,
+        d = 160 + r() * 280;
+      ctx.beginPath();
+      ctx.arc(c, c, d, a0, a0 + 0.25 + r() * 0.4);
+      ctx.stroke();
+    }
+    // Rim shade: the turf rolls over the edge.
+    const rim = ctx.createRadialGradient(c, c, 430, c, c, 512);
+    rim.addColorStop(0, 'rgba(10,60,20,0)');
+    rim.addColorStop(1, 'rgba(10,60,20,0.35)');
+    ctx.fillStyle = rim;
+    ctx.fillRect(0, 0, 1024, 1024);
     // Baked light: the star bumper's cast shadow (sun from the left, so it
     // falls toward +x) and soft occlusion around its base. On the cap,
     // canvas x follows world z and canvas y follows -world x.
@@ -95,8 +132,8 @@ function grassTexture() {
     ctx.translate(sx, sy);
     ctx.scale(1, 1.7);
     const sg = ctx.createRadialGradient(0, 0, 10, 0, 0, 120);
-    sg.addColorStop(0, 'rgba(0,40,30,0.5)');
-    sg.addColorStop(0.6, 'rgba(0,40,30,0.32)');
+    sg.addColorStop(0, 'rgba(0,40,30,0.45)');
+    sg.addColorStop(0.6, 'rgba(0,40,30,0.28)');
     sg.addColorStop(1, 'rgba(0,40,30,0)');
     ctx.fillStyle = sg;
     ctx.beginPath();
@@ -109,14 +146,6 @@ function grassTexture() {
     ctx.fillStyle = ao;
     ctx.beginPath();
     ctx.arc(c, c, 150, 0, Math.PI * 2);
-    ctx.fill();
-    // Inner shade just inside the hazard band so the rim reads as raised.
-    const rim = ctx.createRadialGradient(c, c, inner - 40, c, c, inner - 6);
-    rim.addColorStop(0, 'rgba(0,40,30,0)');
-    rim.addColorStop(1, 'rgba(0,40,30,0.25)');
-    ctx.fillStyle = rim;
-    ctx.beginPath();
-    ctx.arc(c, c, inner - 6, 0, Math.PI * 2);
     ctx.fill();
   });
 }
@@ -148,7 +177,7 @@ function turfSideTexture() {
   return t;
 }
 
-/** The floating island arena: turf top, striped lip, rocky underside. */
+/** The floating island arena: turf top, rolled sod edge, rocky underside. */
 export function buildIsland() {
   const group = new T.Group();
   group.name = 'Bumper island';
@@ -161,48 +190,67 @@ export function buildIsland() {
   top.receiveShadow = true;
   top.castShadow = true;
   group.add(top);
+  // Rounded turf edge rolling over the rock, slightly lumpy so it reads as sod.
+  const lipGeo = new T.TorusGeometry(7.97, 0.17, 10, 160);
+  const lp = lipGeo.attributes.position as T.BufferAttribute;
+  for (let i = 0; i < lp.count; i++) {
+    const a = Math.atan2(lp.getY(i), lp.getX(i));
+    const k = 1 + Math.sin(a * 37) * 0.004 + Math.sin(a * 91) * 0.003;
+    lp.setXY(i, lp.getX(i) * k, lp.getY(i) * k);
+  }
+  lipGeo.computeVertexNormals();
   const lip = new T.Mesh(
-    new T.TorusGeometry(8, 0.2, 10, 160),
+    lipGeo,
     new T.MeshStandardMaterial({
-      color: '#fff6e6',
-      roughness: 0.25,
+      color: '#3f9a2b',
+      roughness: 0.95,
     }),
   );
   lip.rotation.x = Math.PI / 2;
-  lip.position.y = 0.0;
+  lip.position.y = -0.06;
   lip.castShadow = true;
   lip.receiveShadow = true;
   group.add(lip);
-  // Rocky underside: a lathe profile, lumped and flat shaded.
+  // Rocky underside: a ledged lathe profile, lumped, with a painted rock map.
   // Listed bottom to top so the lathe faces outward.
   const profile = [
     [0.3, -8.2],
-    [2.4, -7.2],
-    [4.6, -6.0],
-    [6.3, -4.7],
-    [7.3, -3.6],
-    [7.8, -2.7],
-    [8.2, -1.9],
-    [8.45, -1.2],
-    [8.35, -0.7],
+    [2.2, -7.4],
+    [3.4, -7.0],
+    [4.7, -6.1],
+    [5.2, -5.9],
+    [6.3, -4.8],
+    [6.7, -4.65],
+    [7.35, -3.7],
+    [7.75, -3.45],
+    [7.9, -2.8],
+    [8.25, -2.55],
+    [8.3, -1.95],
+    [8.55, -1.6],
+    [8.5, -1.15],
+    [8.38, -0.72],
     [7.95, -0.42],
   ].map(([r, y]) => new T.Vector2(r, y));
-  const rock = new T.LatheGeometry(profile, 44);
+  const rock = new T.LatheGeometry(profile, 72);
   const pos = rock.attributes.position as T.BufferAttribute;
+  const uv = rock.attributes.uv as T.BufferAttribute;
   const v = new T.Vector3();
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
+    // World-height V so strata stay level; U wraps 12 times around.
+    uv.setXY(i, uv.getX(i) * 12, v.y * 0.42);
     if (v.y > -0.5) continue;
     const a = Math.atan2(v.z, v.x);
     // Big boulder lobes plus finer chips; stays seamless around the circle.
     const n =
       Math.sin(a * 5 + v.y * 0.9) * 0.5 +
       Math.sin(a * 11 - v.y * 1.7) * 0.3 +
-      Math.sin(a * 23 + v.y * 3.1) * 0.2;
-    const k = 1 + n * 0.075;
+      Math.sin(a * 23 + v.y * 3.1) * 0.2 +
+      Math.sin(a * 41 - v.y * 2.3) * 0.12;
+    const k = 1 + n * 0.07;
     v.x *= k;
     v.z *= k;
-    v.y += Math.sin(a * 13 + v.y) * 0.18;
+    v.y += Math.sin(a * 13 + v.y) * 0.16;
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   const rockGeo = rock;
@@ -210,19 +258,21 @@ export function buildIsland() {
   const rp = rockGeo.attributes.position as T.BufferAttribute;
   const c = new T.Color();
   const rr = seaRandom(19);
-  const deep = new T.Color('#4a3934'),
-    warm = new T.Color('#d4a273'),
-    moss = new T.Color('#3a9a43'),
-    band = new T.Color('#9a6748');
-  // Per-vertex colour: height gradient, strata bands, mottling and a mossy
-  // fringe under the turf.
+  const deep = new T.Color('#3d2c27'),
+    warm = new T.Color('#c08a5c'),
+    moss = new T.Color('#3f8f3a'),
+    wet = new T.Color('#2a2a30'),
+    band = new T.Color('#8a5a3e');
+  // Per-vertex colour: height gradient, strata bands, mottling, a dark wet
+  // band at the waterline and a mossy fringe under the turf.
   for (let i = 0; i < rp.count; i++) {
     const y = rp.getY(i);
-    const t = T.MathUtils.clamp((y + 5.2) / 4.6, 0, 1);
+    const t = T.MathUtils.clamp((y + 4.2) / 3.6, 0, 1);
     c.copy(deep).lerp(warm, t * t * (3 - 2 * t));
     if (Math.sin(y * 4.2 + rp.getX(i) * 0.3) > 0.6) c.lerp(band, 0.4);
-    c.multiplyScalar(0.86 + rr() * 0.2);
-    if (y > -0.8) c.lerp(moss, 0.85);
+    c.multiplyScalar(0.84 + rr() * 0.22);
+    if (y < -1.9) c.lerp(wet, T.MathUtils.clamp((-1.9 - y) / 0.6, 0, 0.6));
+    if (y > -0.85) c.lerp(moss, 0.8);
     cols.set([c.r, c.g, c.b], i * 3);
   }
   rockGeo.setAttribute('color', new T.BufferAttribute(cols, 3));
@@ -231,13 +281,73 @@ export function buildIsland() {
     rockGeo,
     new T.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.92,
+      map: rockTexture(),
+      roughness: 0.9,
     }),
   );
   underside.castShadow = true;
   underside.receiveShadow = true;
   group.add(underside);
   return group;
+}
+
+/** Neutral rock detail (multiplied by the vertex colours): strata, cracks, chips. */
+function rockTexture() {
+  const t = canvasTexture(512, 512, (ctx) => {
+    ctx.fillStyle = '#d6d0ca';
+    ctx.fillRect(0, 0, 512, 512);
+    const r = seaRandom(41);
+    // Mottled light/dark blotches.
+    for (let i = 0; i < 260; i++) {
+      const x = r() * 512,
+        y = r() * 512,
+        rad = 8 + r() * 40;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+      const dark = r() > 0.45;
+      g.addColorStop(0, dark ? 'rgba(90,80,75,0.35)' : 'rgba(255,250,240,0.4)');
+      g.addColorStop(1, 'rgba(128,120,115,0)');
+      ctx.fillStyle = g;
+      for (const ox of [-512, 0, 512]) ctx.fillRect(x - rad + ox, y - rad, rad * 2, rad * 2);
+    }
+    // Horizontal strata ledges: lit top edge, shadowed underside.
+    for (let k = 0; k < 7; k++) {
+      let y = 30 + k * 72 + r() * 20;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      for (let x = 0; x <= 512; x += 16) ctx.lineTo(x, y + Math.sin(x * 0.0245 * (1 + (k % 3))) * 6 + (r() - 0.5) * 4);
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = 'rgba(60,50,48,0.55)';
+      ctx.stroke();
+      ctx.translate(0, -5);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(255,250,240,0.45)';
+      ctx.stroke();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      y += 0;
+    }
+    // Vertical cracks.
+    ctx.strokeStyle = 'rgba(50,40,38,0.6)';
+    for (let i = 0; i < 40; i++) {
+      let x = r() * 512,
+        y = r() * 512;
+      ctx.lineWidth = 1 + r() * 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let s = 0; s < 5; s++) {
+        x += (r() - 0.5) * 22;
+        y += 10 + r() * 18;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    // Pale chips and pebbles.
+    for (let i = 0; i < 500; i++) {
+      ctx.fillStyle = r() > 0.5 ? 'rgba(255,250,240,0.5)' : 'rgba(70,60,55,0.45)';
+      ctx.fillRect(r() * 512, r() * 512, 2 + r() * 3, 2 + r() * 2);
+    }
+  });
+  t.wrapS = t.wrapT = T.RepeatWrapping;
+  return t;
 }
 
 /** Centre obstacle: a chunky pinball-style star bumper with chase lights. */
@@ -485,6 +595,89 @@ export function buildShip() {
     b.put('matte', mast, '#6b4024', 0, 1 + h * 0.86, z, 0, 0, Math.PI / 2, 0.8, 4.4, 0.8);
     b.put('matte', mast, '#6b4024', 0, 1 + h * 0.45, z, 0, 0, Math.PI / 2, 0.8, 5.2, 0.8);
   }
+  // Rigging, bowsprit and jib, crow's nest, railings, portholes and party
+  // bunting: all merged into the same few batches.
+  const up = new T.Vector3(0, 1, 0);
+  const rope = (a: T.Vector3, c: T.Vector3, r: number, color: string) => {
+    const dir = c.clone().sub(a);
+    const g = new T.CylinderGeometry(r, r, dir.length(), 5);
+    const m = new T.Matrix4().compose(
+      a.clone().add(c).multiplyScalar(0.5),
+      new T.Quaternion().setFromUnitVectors(up, dir.normalize()),
+      new T.Vector3(1, 1, 1),
+    );
+    b.add('matte', g, color, m);
+    g.dispose();
+  };
+  const V = (x: number, y: number, z: number) => new T.Vector3(x, y, z);
+  const mainTop = V(0, 9.9, 1.6),
+    mizTop = V(0, 8.4, -1.8),
+    bowTip = V(0, 2.9, 9.6);
+  rope(V(0, 1.5, 6.4), bowTip, 0.11, '#6b4024');
+  for (const [top, z] of [
+    [mainTop, 1.6],
+    [mizTop, -1.8],
+  ] as const)
+    for (const side of [-1, 1])
+      for (const dz of [-0.9, 0.9]) rope(top, V(side * 2.05, 1.05, z + dz), 0.025, '#3a2a20');
+  rope(mainTop, bowTip, 0.03, '#3a2a20');
+  rope(mainTop, mizTop, 0.03, '#3a2a20');
+  rope(mizTop, V(0, 2.9, -5.8), 0.03, '#3a2a20');
+  // Jib sail.
+  const jib = new T.BufferGeometry();
+  jib.setAttribute(
+    'position',
+    new T.Float32BufferAttribute([0, 9.0, 1.9, 0, 3.0, 9.2, 0, 1.6, 4.0], 3),
+  );
+  jib.computeVertexNormals();
+  // The jib is its own softly self-lit mesh so it never reads as a grey card.
+  const jibMesh = new T.Mesh(
+    jib,
+    new T.MeshLambertMaterial({
+      color: '#fff6e4',
+      emissive: '#fff1dc',
+      emissiveIntensity: 0.55,
+      side: T.DoubleSide,
+    }),
+  );
+  ship.add(jibMesh);
+  // Crow's nest.
+  const nest = new T.CylinderGeometry(0.55, 0.45, 0.45, 12, 1, true);
+  b.put('matte', nest, '#8f4b2b', 0, 8.2, 1.6);
+  nest.dispose();
+  // Deck railing posts and portholes.
+  const post = new T.CylinderGeometry(0.05, 0.05, 0.45, 5);
+  const port = new T.CylinderGeometry(0.17, 0.17, 0.1, 10);
+  for (let k = 0; k < 28; k++) {
+    const a = (k / 28) * Math.PI * 2;
+    const z = Math.sin(a) * 6.7;
+    if (z < -3.2) continue;
+    b.put('matte', post, '#fff6e4', Math.cos(a) * 2.08, 1.28, z);
+  }
+  for (const side of [-1, 1])
+    for (let k = 0; k < 5; k++) {
+      const z = -2.6 + k * 1.5;
+      const x = side * 2.25 * Math.sqrt(1 - (z / 7.2) ** 2);
+      b.put('glow', port, '#fff3b0', x, 0.42, z, 0, 0, Math.PI / 2);
+    }
+  post.dispose();
+  port.dispose();
+  // Party bunting strung bow to stern over the mast tops.
+  const pennant = new T.ConeGeometry(0.2, 0.42, 3).rotateX(Math.PI);
+  const bunting = ['#ff3d7f', '#ffc21a', '#1fa2ff', '#8a4dff', '#2fd17a'];
+  const string = (a: T.Vector3, c: T.Vector3, n: number) => {
+    rope(a, c, 0.018, '#fff6e4');
+    for (let k = 1; k < n; k++) {
+      const t = k / n;
+      const p = a.clone().lerp(c, t);
+      p.y -= Math.sin(t * Math.PI) * 0.35 + 0.22;
+      b.put('gloss', pennant, bunting[k % bunting.length], p.x, p.y, p.z, 0, 0, 0, 1, 1, 0.25);
+    }
+  };
+  string(mainTop, bowTip, 9);
+  string(mainTop, mizTop, 5);
+  string(mizTop, V(0, 2.9, -5.8), 6);
+  pennant.dispose();
   hull.dispose();
   stripe.dispose();
   deck.dispose();

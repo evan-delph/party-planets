@@ -1,6 +1,6 @@
 import * as T from 'three';
 import { assetUrl } from './assets';
-import type { Field } from './BoardWorld';
+import { sharedNoise, type Field } from './BoardWorld';
 
 /**
  * Splat-blended terrain: three scanned layers (sand, grass, rock) mixed per
@@ -17,7 +17,8 @@ const LAYERS = ['sand', 'grass', 'rock'] as const;
 
 export type TerrainExtras = {
   field?: Field;
-  turf?: { color: string; calm: number };
+  /** tone: strength of the warm/cool meadow drift (default 1). */
+  turf?: { color: string; calm: number; tone?: number };
   /** Flat stand-in colours shown (and faded out) while the scans download. */
   flats?: { sand: string; grass: string; rock: string };
 };
@@ -76,6 +77,8 @@ export function createTerrainMaterial(boardId: string, geometry: T.BufferGeometr
       tRockArm: { value: tex.rock.arm },
       turfColor: { value: new T.Color(turf.color) },
       turfCalm: { value: turf.calm },
+      turfTone: { value: turf.tone ?? 1 },
+      tNoise: { value: sharedNoise() },
       tField: { value: field?.texture ?? null },
       fieldBox: { value: field?.box ?? new T.Vector4(0, 0, 1, -99) },
       useField: { value: field ? 1 : 0 },
@@ -99,6 +102,8 @@ varying vec3 vTerrainWorld;
 uniform sampler2D tSandColor, tRockColor, tSandNormal, tRockNormal, tSandArm, tGrassArm, tRockArm;
 uniform vec3 turfColor;
 uniform float turfCalm;
+uniform float turfTone;
+uniform sampler2D tNoise;
 uniform sampler2D tField;
 uniform vec4 fieldBox;
 uniform float useField;
@@ -128,9 +133,17 @@ if (turfCalm > 0.0) {
   // one tint with broad, soft variation.
   float fine = dot(grassTexel.rgb, vec3(0.299, 0.587, 0.114));
   float broad = mix(0.5, dot(texture2D(map, vMapUv * 0.09 + 0.31).rgb, vec3(0.299, 0.587, 0.114)), texReady);
-  vec3 painted = turfColor * (0.84 + (fine - 0.5) * 0.12 + (broad - 0.5) * 0.5);
+  // Two-tone meadow: sunny yellow-green drifts and cooler teal hollows.
+  vec4 meadow = texture2D(tNoise, vTerrainWorld.xz * 0.021 + 0.13);
+  vec3 tone = mix(turfColor * vec3(0.8, 0.95, 1.06), turfColor * vec3(1.14, 1.08, 0.74), smoothstep(0.36, 0.66, meadow.r));
+  tone = mix(turfColor, tone, turfTone);
+  vec3 painted = tone * (0.86 + (fine - 0.5) * 0.14 + (broad - 0.5) * 0.3 + (meadow.g - 0.5) * 0.22);
   grassTexel.rgb = mix(grassTexel.rgb, painted, turfCalm);
 }
+// Rock strata: wavy horizontal bands, darker and wetter toward the waterline.
+float strataY = vTerrainWorld.y + (texture2D(tNoise, vTerrainWorld.xz * 0.045).r - 0.5) * 0.7;
+rockTexel.rgb *= mix(0.74, 1.06, smoothstep(0.2, 0.8, 0.5 + 0.5 * sin(strataY * 6.5)));
+if (useField > 0.5) rockTexel.rgb *= mix(0.6, 1.0, smoothstep(fieldBox.w, fieldBox.w + 1.8, vTerrainWorld.y));
 vec3 splatW = splatWeights(sandTexel, grassTexel, rockTexel);
 vec4 terrainTexel = sandTexel * splatW.r + grassTexel * splatW.g + rockTexel * splatW.b;
 vec3 terrainArm = texture2D(tSandArm, vMapUv).rgb * splatW.r + texture2D(tGrassArm, vMapUv).rgb * splatW.g + texture2D(tRockArm, rockUv).rgb * splatW.b;

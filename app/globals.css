@@ -3554,6 +3554,122 @@ button {
   transform: none !important;
   padding: 24px !important;
 }
+/* Finale card: a compact side panel so the 3D podium carries the moment. */
+:root .game-shell .pr-stage.finale-results {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  /* Let the card's soft shadow fall freely (clipping drew a hard box). */
+  overflow: visible !important;
+  contain: none !important;
+}
+:root .game-shell .pr-stage.finale-results .pr-card {
+  width: min(360px, calc(100vw - 24px));
+}
+:root .game-shell .pr-stage.finale-results .pr-hero-champion {
+  aspect-ratio: auto;
+  height: 168px;
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(
+    circle at 50% 64%,
+    #fffbe2 0%,
+    #ffd75e 26%,
+    #ff9d42 58%,
+    #c4462a 100%
+  );
+}
+:root .game-shell .pr-stage .pr-champ-rays {
+  position: absolute;
+  inset: -70%;
+  z-index: -1;
+  background: repeating-conic-gradient(
+    from 0deg,
+    #ffffff70 0deg 8deg,
+    transparent 8deg 22.5deg
+  );
+  -webkit-mask-image: radial-gradient(circle, #000 12%, transparent 58%);
+  mask-image: radial-gradient(circle, #000 12%, transparent 58%);
+  animation: pr-champ-spin 20s linear infinite;
+}
+:root .game-shell .pr-stage .pr-hero-champion .pr-champ-face {
+  position: relative;
+  margin-top: 18px;
+  animation: pr-champ-pop 0.8s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  filter: drop-shadow(0 8px 0 #0003);
+}
+:root .game-shell .pr-stage .pr-hero-champion .pr-badge {
+  white-space: nowrap;
+  top: 10px;
+  font-size: 11px;
+}
+:root .game-shell .pr-stage .pr-hero-champion .pr-champ-crown {
+  position: absolute;
+  left: calc(50% - 30px);
+  top: 30px;
+  translate: -50% 0;
+  rotate: -18deg;
+  z-index: 2;
+  animation: pr-champ-crown 0.9s cubic-bezier(0.3, 1.6, 0.5, 1) 0.35s both;
+}
+:root .game-shell .pr-stage.finale-results .pr-title-champion {
+  display: block;
+  max-width: calc(100% - 16px);
+  margin: -30px auto 8px;
+  font-size: clamp(28px, 3.3vw, 42px);
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+  animation: pr-champ-pop 0.7s cubic-bezier(0.2, 1.5, 0.4, 1) 0.15s both;
+}
+@media (max-width: 700px) {
+  /* Phones: a short card along the bottom; the podium shows above it. */
+  :root .game-shell .pr-stage.finale-results {
+    padding: 0 !important;
+    max-height: 58vh;
+    overflow: auto !important;
+  }
+  :root .game-shell .pr-stage.finale-results .pr-card {
+    width: 100%;
+  }
+  :root .game-shell .pr-stage.finale-results .pr-hero-champion {
+    height: 104px;
+  }
+  :root .game-shell .pr-stage .pr-hero-champion .pr-champ-face {
+    width: 84px;
+    height: 84px;
+    margin-top: 16px;
+  }
+  :root .game-shell .pr-stage .pr-hero-champion .pr-champ-crown {
+    top: 22px;
+    left: calc(50% - 22px);
+    width: 34px;
+  }
+}
+@keyframes pr-champ-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes pr-champ-pop {
+  from {
+    scale: 0.4;
+    opacity: 0;
+  }
+}
+@keyframes pr-champ-crown {
+  from {
+    translate: -50% -90px;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root .game-shell .pr-stage :is(.pr-champ-rays, .pr-champ-face, .pr-champ-crown, .pr-title-champion) {
+    animation: none;
+  }
+}
 .game-shell :focus-visible {
   outline: 2px solid #d1ffa1;
   outline-offset: 3px;

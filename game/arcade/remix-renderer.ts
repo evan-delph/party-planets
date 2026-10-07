@@ -66,9 +66,10 @@ export function createRemixRenderer(
     // Reef Ring Rally: warm key light from behind the camera, a cool rim light
     // from the horizon, and a far plane that reaches the lagoon horizon.
     camera.far = 900;
+    // Elevated 3/4 lineup view: the ring stream reads above the riders.
     camera.fov = 40;
-    camera.position.set(0, 5.4, 19.5);
-    camera.lookAt(0, 0.9, -12);
+    camera.position.set(0, 3.8, 8);
+    camera.lookAt(0, 0.4, -24);
     hemi.color.set('#cbeaff');
     hemi.groundColor.set('#f3d9a1');
     hemi.intensity = 1.45;
@@ -1017,6 +1018,7 @@ export function createRemixRenderer(
     aimEnd = new T.Vector3(),
     upAxis = new T.Vector3(0, 1, 0);
   let beachFramed = false;
+  const beachCam = new T.Vector3();
   function draw(w: Arena, localId: string, delta: number, reduced = false) {
     const r = w.remix!,
       me = w.actors.find((p) => p.id === localId) ?? w.actors[0],
@@ -1037,6 +1039,9 @@ export function createRemixRenderer(
       }
       k.bake();
     }
+    const beachSpread = beach
+      ? beach.layout(w.actors, w.actors.indexOf(me), delta)
+      : null;
     actors.forEach((v, i) => {
       const p = w.actors[i],
         seat = r.seats[i];
@@ -1047,6 +1052,7 @@ export function createRemixRenderer(
         x += skiCenter(p.distance);
         y += skiHeight(p.distance) + 0.15;
       }
+      if (beachSpread) x += beachSpread[i];
       v.group.position.set(x, y, z);
       v.group.rotation.y =
         kind === 'frostyfreight'
@@ -1069,7 +1075,7 @@ export function createRemixRenderer(
             ? Math.sin(time * 15) * 0.8
             : -p.vx * 0.035
           : 0;
-      if (beach) beach.poseActor(v.group, v.avatar, i, p, time);
+      if (beach) beach.poseActor(v.group, v.avatar, i, p, time, delta);
       const rig = v.avatar.userData.rig;
       if (kind === 'prickleice') {
         const stroking =
@@ -1171,6 +1177,15 @@ export function createRemixRenderer(
       if (o.kind === 'ring') g.rotation.z = time * 0.7;
       if (o.kind === 'crab') g.rotation.z = Math.sin(time * 16 + o.id) * 0.07;
     }
+    if (beach)
+      beach.forecast(
+        w.seed,
+        r.serial,
+        r.spawn,
+        w.time,
+        w.done ? -1 : w.duration,
+        time,
+      );
     if (beach)
       beach.update(
         r.objects,
@@ -1353,20 +1368,42 @@ export function createRemixRenderer(
       look.set(0, 0, 0);
     }
     if (beach) {
-      // Low 3/4 view from the beach: heroes large up front, rings rolling in
-      // across the lagoon, horizon and cloud banks in the upper third.
-      const live = w.actors.filter((p) => p.alive),
-        cz = live.length
-          ? live.reduce((s, p) => s + p.z, 0) / live.length
-          : 0,
-        camZ = T.MathUtils.clamp(cz + 18, 15, 20);
-      cam.set(me.x * 0.12, 5.2, camZ);
-      look.set(me.x * 0.08, 0.9, camZ - 31);
-      if (!beachFramed) camera.position.copy(cam);
+      // Lineup shot from just behind the riders: all four heroes across the
+      // lower middle, the ring stream and lagoon stacked up to the horizon in
+      // the upper third. Dolly back (and up, keeping the same angles) only as
+      // far as needed to keep every rider inside the frame.
+      let minX = Infinity,
+        maxX = -Infinity,
+        sz = 0,
+        n = 0;
+      for (const v of actors)
+        if (v.group.visible) {
+          minX = Math.min(minX, v.group.position.x);
+          maxX = Math.max(maxX, v.group.position.x);
+          sz += v.group.position.z;
+          n++;
+        }
+      if (!n) {
+        minX = maxX = 0;
+        n = 1;
+      }
+      const camX = T.MathUtils.clamp(((minX + maxX) / 2) * 0.5, -5, 5),
+        half = Math.max(maxX - camX, camX - minX) + 1.5,
+        tanH =
+          Math.tan(T.MathUtils.degToRad(camera.fov / 2)) * camera.aspect,
+        base = 17,
+        dist = Math.max(base, half / (tanH * 0.86)),
+        pitch = T.MathUtils.degToRad(13.8);
+      cam.set(camX, 7.2 * (dist / base), sz / n + dist);
+      if (!beachFramed) beachCam.copy(cam);
       beachFramed = true;
+      beachCam.lerp(cam, 1 - Math.exp(-T.MathUtils.clamp(delta, 0, 0.25) * 4));
+      cam.copy(beachCam);
+      look.set(cam.x, cam.y - Math.sin(pitch) * 40, cam.z - Math.cos(pitch) * 40);
     }
     // Clamp: a frame clock that steps backwards must never push the camera away.
-    camera.position.lerp(cam, T.MathUtils.clamp(delta * 5, 0, 1));
+    if (beach) camera.position.copy(cam);
+    else camera.position.lerp(cam, T.MathUtils.clamp(delta * 5, 0, 1));
     camera.lookAt(look);
     style.draw();
     const start = performance.now();

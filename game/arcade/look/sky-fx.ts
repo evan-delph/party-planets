@@ -19,8 +19,97 @@ export const SKY = {
   mid: '#3d95ee',
   horizon: '#c4e7ff',
   below: '#e9f4ff',
-  sunDir: new T.Vector3(0.55, 0.16, -0.82).normalize(),
+  // Low in the upper-right of the chase view, so the bloom and rays frame
+  // the course instead of hiding behind the HUD.
+  sunDir: new T.Vector3(0.36, 0.13, -0.92).normalize(),
+  haze: '#d3e8fb',
 };
+
+/**
+ * Soft cumulus shading for the instanced cloud puffs: warm sunlit tops,
+ * lavender-blue undersides, a bright silver lining at the silhouette and
+ * aerial haze with distance.
+ */
+export function cloudMaterial() {
+  return new T.ShaderMaterial({
+    fog: false,
+    uniforms: {
+      sunDir: { value: SKY.sunDir },
+      lit: { value: new T.Color('#ffffff') },
+      warm: { value: new T.Color('#fbf8ff') },
+      shade: { value: new T.Color('#9aaee2') },
+      haze: { value: new T.Color(SKY.haze) },
+      camPos: { value: new T.Vector3() },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vN;
+      varying vec3 vW;
+      varying float vH;
+      void main() {
+        mat4 m = modelMatrix;
+        #ifdef USE_INSTANCING
+          m = m * instanceMatrix;
+        #endif
+        vec4 w = m * vec4(position, 1.0);
+        vW = w.xyz;
+        vN = normalize(mat3(m) * normal);
+        vH = position.y;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 sunDir, lit, warm, shade, haze, camPos;
+      varying vec3 vN;
+      varying vec3 vW;
+      varying float vH;
+      void main() {
+        vec3 n = normalize(vN);
+        vec3 v = normalize(camPos - vW);
+        float sun = dot(n, normalize(vec3(0.5, 0.75, 0.2))) * 0.5 + 0.5;
+        float up = n.y * 0.5 + 0.5;
+        float l = smoothstep(0.2, 0.95, sun * 0.55 + up * 0.35 + clamp(vH, -0.2, 0.9) * 0.35);
+        vec3 col = mix(shade, mix(warm, lit, up), l);
+        float rim = pow(1.0 - max(dot(n, v), 0.0), 2.5);
+        col += vec3(1.0, 0.97, 0.9) * rim * 0.4 * smoothstep(-0.1, 0.6, n.y + 0.3);
+        float d = length(vW - camPos);
+        col = mix(col, haze, smoothstep(30.0, 190.0, d) * 0.85);
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+}
+
+/** Radial god-ray fan for the sun corner (additive, slowly turning). */
+export function raysTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const x = c.getContext('2d')!;
+  x.translate(256, 256);
+  let seed = 7;
+  const rnd = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * Math.PI * 2 + rnd() * 0.2,
+      w = 0.025 + rnd() * 0.06,
+      len = 160 + rnd() * 96;
+    const g = x.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
+    const s = 0.18 + rnd() * 0.3;
+    g.addColorStop(0, `rgba(255,246,220,${s})`);
+    g.addColorStop(0.5, `rgba(255,236,200,${s * 0.35})`);
+    g.addColorStop(1, 'rgba(255,236,200,0)');
+    x.fillStyle = g;
+    x.beginPath();
+    x.moveTo(0, 0);
+    x.arc(0, 0, len, a - w, a + w);
+    x.closePath();
+    x.fill();
+  }
+  const tex = new T.CanvasTexture(c);
+  tex.colorSpace = T.SRGBColorSpace;
+  return tex;
+}
 
 /** Saturated gradient sky with a warm sun glow and high wispy clouds. */
 export function skyDome() {
@@ -106,7 +195,7 @@ export function cloudSea(y: number) {
         float shade = clamp(0.62 + (c - l) * 5.0, 0.0, 1.0);
         vec3 col = mix(shadow, lit, dens * (0.55 + 0.45 * shade));
         float dist = length(vWorld.xz - camPos.xz);
-        col = mix(col, horizon, smoothstep(50.0, 260.0, dist));
+        col = mix(col, horizon, smoothstep(30.0, 220.0, dist));
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
       }`,

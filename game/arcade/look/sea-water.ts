@@ -5,12 +5,12 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 export const SEA_LEVEL = -2.3;
 
 export const SEA_PALETTE = {
-  deep: '#0b3f9c',
-  mid: '#0a6ccb',
-  shallow: '#2fe0d6',
-  sky: '#2f8ff0',
-  zenith: '#1a6fe0',
-  horizon: '#cdeeff',
+  deep: '#05286a',
+  mid: '#0a57c2',
+  shallow: '#1fd3c4',
+  sky: '#4a9cf0',
+  zenith: '#1663d4',
+  horizon: '#d6ecff',
 };
 
 /**
@@ -125,7 +125,8 @@ export function createOcean(sun: T.Vector3) {
         return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x),
                    mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
       }
-      void wave(inout vec3 r, vec2 p, vec2 d, float f, float a, float s) {
+      // Long, slow swell: height in x, slope in yz.
+      void swell(inout vec3 r, vec2 p, vec2 d, float f, float a, float s) {
         float ph = dot(normalize(d), p) * f + uTime * s;
         r.x += a * sin(ph);
         r.yz += a * f * cos(ph) * normalize(d);
@@ -138,58 +139,72 @@ export function createOcean(sun: T.Vector3) {
       void main() {
         vec2 p = vWorld.xz;
         float camDist = length(vWorld - cameraPosition);
-        float far = smoothstep(25.0, 160.0, camDist);
+        float far = smoothstep(18.0, 180.0, camDist);
+        float nearK = 1.0 - far;
         vec3 w = vec3(0.0);
-        wave(w, p, vec2(1.0, 0.35), 0.42, 0.20, 1.25);
-        wave(w, p, vec2(-0.6, 1.0), 0.61, 0.13, 1.55);
-        wave(w, p, vec2(0.25, -1.0), 0.93, 0.08, 2.0);
-        vec3 wa = wv(p * 0.035 + uTime * vec2(0.010, 0.005));
-        vec3 wb = wv(p * 0.09 + uTime * vec2(-0.012, 0.016));
-        vec3 wc = wv(p * 0.23 + uTime * vec2(0.022, -0.02));
-        vec2 grad = w.yz * 1.1 * (1.0 - far * 0.75)
-                  + (wa.xy * 0.42 + wb.xy * 0.3 + wc.xy * 0.18) * (1.0 - far * 0.55);
+        swell(w, p, vec2(1.0, 0.3), 0.15, 0.62, 0.7);
+        swell(w, p, vec2(-0.5, 1.0), 0.22, 0.38, 0.9);
+        swell(w, p, vec2(0.3, -1.0), 0.36, 0.2, 1.25);
+        swell(w, p, vec2(-1.0, -0.25), 0.58, 0.08, 1.7);
+        vec3 wa = wv(p * 0.021 + uTime * vec2(0.006, 0.003));
+        vec3 wb = wv(p * 0.058 + uTime * vec2(-0.008, 0.011));
+        vec3 wc = wv(p * 0.15 + uTime * vec2(0.014, -0.012));
+        vec2 grad = w.yz * (1.0 - far * 0.5)
+                  + wa.xy * 0.2 + wb.xy * 0.11 * (1.0 - far * 0.6) + wc.xy * 0.05 * nearK;
         vec3 N = normalize(vec3(-grad.x, 1.0, -grad.y));
         vec3 V = normalize(cameraPosition - vWorld);
+        vec3 L = normalize(uSun);
 
         // Distance to the nearest island shoreline.
         float d = 1e4;
         for (int i = 0; i < 8; i++) {
           if (uIslands[i].z > 0.0) d = min(d, length(p - uIslands[i].xy) - uIslands[i].z);
         }
-        float shallow = exp(-max(d, 0.0) * 0.32);
-        // Broad patches of darker and lighter water (depth, cloud shadow).
-        float patchy = noise(p * 0.045 + uTime * 0.01) * 0.65 + wa.z * 0.35;
-        vec3 water = mix(uMid, uDeep, clamp(far * 0.9 + 0.1 + (patchy - 0.5) * 0.7, 0.0, 1.0));
-        water = mix(water, uShallow, shallow * 0.9);
-        // Light through the wave crests.
-        water += uShallow * 0.22 * clamp(w.x * 2.2 + 0.2, 0.0, 1.0) * (1.0 - far);
+        float dd = max(d, 0.0);
+        float shallow = exp(-dd * 0.42);
+        // Depth falloff: teal shallows, saturated mid blue, navy toward the horizon.
+        float patchy = noise(p * 0.028 + uTime * 0.007) * 0.6 + wa.z * 0.4;
+        vec3 water = mix(uMid, uDeep, clamp(far * 1.15 + (patchy - 0.5) * 0.55 + 0.08, 0.0, 1.0));
+        water = mix(water, uShallow, shallow * 0.88);
+        // Sun shining through the swell crests.
+        float crest = clamp(w.x * 0.9 + (wb.z - 0.5) * 0.7 + 0.15, 0.0, 1.0);
+        water += vec3(0.02, 0.26, 0.3) * crest * crest * nearK;
+        // Troughs and the far sides of waves are darker.
+        water *= 0.82 + 0.3 * clamp(dot(N, normalize(vec3(L.x, 1.4, L.z))), 0.0, 1.0);
         // Shallow-water caustics.
         float c = wb.z + wc.z;
         float caustic = pow(1.0 - abs(c - 1.0), 8.0);
-        water += vec3(0.75, 1.0, 0.95) * caustic * shallow * 0.45;
+        water += vec3(0.7, 1.0, 0.92) * caustic * shallow * 0.4;
 
-        float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+        float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
         vec3 R = reflect(-V, N);
-        vec3 sky = mix(uHorizon, uSky, smoothstep(0.0, 0.45, R.y));
-        vec3 col = mix(water, sky, clamp(fres * 0.85, 0.0, 1.0));
-        float sd = max(dot(R, normalize(uSun)), 0.0);
-        col += vec3(1.0, 0.94, 0.8) * (pow(sd, 380.0) * 7.0 + pow(sd, 40.0) * 0.35);
-        // Sun-glint sparkles.
-        float sp = wc.z * wb.z;
-        col += vec3(1.0) * smoothstep(0.6, 0.8, sp) * (0.7 - far * 0.6) * (0.15 + sd * 2.0);
+        R.y = abs(R.y);
+        vec3 sky = mix(uHorizon, uSky, smoothstep(0.0, 0.32, R.y));
+        vec3 col = mix(water, sky, clamp(fres * 0.75, 0.0, 1.0));
+        // Sun glint: a hot core, a broad sheen and a glitter path toward the viewer.
+        float sd = max(dot(R, L), 0.0);
+        vec3 sunCol = vec3(1.0, 0.95, 0.82);
+        col += sunCol * (pow(sd, 900.0) * 10.0 + pow(sd, 90.0) * 0.7 + pow(sd, 10.0) * 0.07);
+        float glit = noise(p * 3.1 + uTime * vec2(0.7, -0.45)) * noise(p * 4.7 - uTime * vec2(0.35, 0.6));
+        col += sunCol * smoothstep(0.42, 0.56, glit) * pow(sd, 60.0) * 3.0;
 
-        // Foam: a broken band hugging each shore plus rings pulsing outward.
-        float fn = noise(p * 2.4 + vec2(uTime * 0.45, -uTime * 0.3));
-        float fn2 = wv(p * 0.6 - uTime * 0.05).z;
-        float edge = 1.0 - smoothstep(0.05, 0.5 + fn * 0.8, d);
-        float rings = smoothstep(0.55, 0.95, sin(d * 2.6 - uTime * 2.1 + fn * 2.5))
-                    * exp(-max(d, 0.0) * 0.55) * smoothstep(0.35, 0.65, fn2);
-        float caps = smoothstep(0.82, 0.95, wb.z * 0.7 + w.x * 1.1)
-                   * (1.0 - far) * 0.7;
-        float foam = clamp(edge + rings * 0.8 + caps * smoothstep(0.4, 0.7, fn2), 0.0, 1.0);
-        col = mix(col, vec3(0.97, 1.0, 1.0), foam);
+        // Whitecaps scattered over open water.
+        float capN = noise(p * 0.8 + vec2(uTime * 0.18, uTime * 0.09));
+        float caps = smoothstep(0.9, 0.98, wb.z * 0.5 + capN * 0.45 + w.x * 0.18)
+                   * (1.0 - far * 0.6) * (1.0 - shallow * 0.5);
+        // Foam: a broken band hugging each shore, rings pulsing outward, lace behind.
+        float fn = noise(p * 2.2 + vec2(uTime * 0.4, -uTime * 0.3));
+        float fn2 = wv(p * 0.5 - uTime * 0.04).z;
+        float edge = 1.0 - smoothstep(0.0, 0.4 + fn * 0.75, d);
+        float rings = smoothstep(0.6, 0.95, sin(d * 2.2 - uTime * 1.8 + fn * 2.2))
+                    * exp(-dd * 0.5) * smoothstep(0.3, 0.7, fn2);
+        float lace = smoothstep(0.55, 0.8, noise(p * 1.3 + uTime * 0.08) * 0.6 + fn2 * 0.4)
+                   * exp(-dd * 0.6);
+        float foam = clamp(edge + rings * 0.55 + lace * 0.2 + caps * 0.6, 0.0, 1.0);
+        vec3 foamCol = mix(vec3(0.78, 0.9, 0.96), vec3(1.0), clamp(N.y * 2.0 - 1.0 + crest * 0.5, 0.0, 1.0));
+        col = mix(col, foamCol, foam);
 
-        col = mix(col, uHorizon, smoothstep(uFogNear, uFogFar, camDist));
+        col = mix(col, uHorizon, smoothstep(uFogNear, uFogFar, camDist) * 0.85);
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -235,9 +250,11 @@ export function createSky(sun: T.Vector3) {
         varying vec3 vDir;
         void main() {
           float h = clamp(vDir.y, 0.0, 1.0);
-          vec3 c = mix(uHorizon, uZenith, pow(h, 0.45));
+          vec3 c = mix(uHorizon, uZenith, pow(h, 0.5));
+          // Late-morning warmth: a creamy band on the horizon toward the sun.
           float s = max(dot(vDir, normalize(uSun)), 0.0);
-          c += vec3(1.0, 0.9, 0.7) * (pow(s, 12.0) * 0.25 + pow(s, 300.0) * 1.5);
+          c = mix(c, vec3(1.0, 0.94, 0.82), pow(s, 4.0) * 0.45 * (1.0 - smoothstep(0.0, 0.35, h)));
+          c += vec3(1.0, 0.9, 0.7) * (pow(s, 24.0) * 0.3 + pow(s, 400.0) * 1.6);
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -261,44 +278,61 @@ function rand(seed: number) {
   };
 }
 
-/** Big fluffy cumulus banks sitting on the horizon, merged into one mesh. */
-export function createClouds(seed = 7) {
+/** Big towering cumulus banks on the horizon, merged into one shaded mesh. */
+export function createClouds(seed = 7, sun = new T.Vector3(-0.5, 0.5, -0.7)) {
   const r = rand(seed);
   const parts: T.BufferGeometry[] = [];
-  const puff = new T.SphereGeometry(1, 20, 14);
+  const puff = new T.SphereGeometry(1, 18, 12);
+  // Flatten the bottom of each puff so banks sit on a level base.
+  const fp = puff.attributes.position as T.BufferAttribute;
+  for (let k = 0; k < fp.count; k++)
+    if (fp.getY(k) < -0.3) fp.setY(k, -0.3 - (fp.getY(k) + 0.3) * 0.3);
+  puff.computeVertexNormals();
   const banks: [number, number, number, number][] = [
     // angle (radians from -z), distance, scale, height
     [-0.95, 360, 34, 6],
-    [-0.62, 420, 28, 4],
-    [-0.28, 380, 24, 10],
-    [0.05, 460, 30, 2],
-    [0.36, 400, 36, 6],
-    [0.7, 370, 26, 8],
+    [-0.62, 430, 30, 4],
+    [-0.3, 390, 26, 8],
+    [0.05, 470, 32, 2],
+    [0.36, 400, 38, 6],
+    [0.7, 370, 28, 8],
     [1.05, 340, 30, 4],
     [-1.3, 320, 26, 2],
     [1.4, 330, 24, 3],
   ];
+  const add = (x: number, y: number, z: number, sx: number, sy: number, sz: number) => {
+    const g = puff.clone();
+    g.scale(sx, sy, sz);
+    g.translate(x, y, z);
+    parts.push(g);
+  };
   for (const [a, dist, s, h] of banks) {
     const cx = Math.sin(a) * dist,
       cz = -Math.cos(a) * dist;
-    const count = 9 + Math.floor(r() * 5);
+    const count = 8 + Math.floor(r() * 4);
     for (let i = 0; i < count; i++) {
-      const g = puff.clone();
       const t = i / (count - 1) - 0.5;
-      const size = s * (0.42 + (1 - Math.abs(t) * 1.6) * 0.5 + r() * 0.2);
-      // Flatten the bottom of each puff so banks sit on a level base.
-      const pos = g.attributes.position as T.BufferAttribute;
-      for (let k = 0; k < pos.count; k++)
-        if (pos.getY(k) < -0.35) pos.setY(k, -0.35 - (pos.getY(k) + 0.35) * 0.35);
-      g.computeVertexNormals();
-      g.scale(size * (1.1 + r() * 0.3), size * (0.85 + r() * 0.25), size * 0.8);
-      const along = t * s * 4.2;
-      g.translate(
-        cx + Math.cos(a) * along + (r() - 0.5) * s,
-        h + size * (0.25 + r() * 0.35) + (1 - Math.abs(t) * 2) * s * 0.55,
-        cz + Math.sin(a) * along + (r() - 0.5) * s * 0.6,
-      );
-      parts.push(g);
+      const tall = 1 - Math.abs(t) * 1.7;
+      const size = s * (0.4 + tall * 0.5 + r() * 0.18);
+      const along = t * s * 4.4;
+      const x = cx + Math.cos(a) * along + (r() - 0.5) * s,
+        z = cz + Math.sin(a) * along + (r() - 0.5) * s * 0.6;
+      const y = h + size * 0.3 + tall * s * 0.6;
+      add(x, y, z, size * (1.1 + r() * 0.3), size * (0.8 + r() * 0.2), size * 0.8);
+      // Cauliflower billows on the upper surface.
+      const billows = 2 + Math.floor(r() * 3);
+      for (let k = 0; k < billows; k++) {
+        const bs = size * (0.35 + r() * 0.25);
+        const ba = r() * Math.PI - Math.PI / 2;
+        add(
+          x + Math.cos(a) * Math.sin(ba) * size * 0.7,
+          y + size * (0.35 + r() * 0.35),
+          z + Math.sin(a) * Math.sin(ba) * size * 0.7 + size * 0.15,
+          bs * 1.1,
+          bs,
+          bs,
+        );
+      }
     }
   }
   const merged = mergeGeometries(parts)!;
@@ -306,11 +340,42 @@ export function createClouds(seed = 7) {
   puff.dispose();
   const mesh = new T.Mesh(
     merged,
-    new T.MeshLambertMaterial({
-      color: '#ffffff',
-      emissive: '#8ec4f2',
-      emissiveIntensity: 0.55,
+    new T.ShaderMaterial({
       fog: false,
+      uniforms: {
+        uSun: { value: sun.clone().normalize() },
+        uHorizon: { value: new T.Color(SEA_PALETTE.horizon) },
+        uBase: { value: SEA_LEVEL },
+      },
+      vertexShader: /* glsl */ `
+        varying vec3 vN;
+        varying vec3 vP;
+        void main() {
+          vN = normalize(mat3(modelMatrix) * normal);
+          vec4 w = modelMatrix * vec4(position, 1.0);
+          vP = w.xyz;
+          gl_Position = projectionMatrix * viewMatrix * w;
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uSun, uHorizon;
+        uniform float uBase;
+        varying vec3 vN;
+        varying vec3 vP;
+        void main() {
+          vec3 N = normalize(vN);
+          vec3 V = normalize(cameraPosition - vP);
+          float up = N.y * 0.5 + 0.5;
+          // Sunlit tops, cool blue-grey bellies, warm light on the sun side.
+          vec3 c = mix(vec3(0.6, 0.7, 0.86), vec3(1.0, 0.995, 0.98), smoothstep(0.2, 0.85, up));
+          c += vec3(1.0, 0.9, 0.74) * pow(max(dot(N, normalize(uSun)), 0.0), 1.5) * 0.18;
+          // Silver lining on the silhouettes.
+          c += vec3(1.0) * pow(1.0 - abs(dot(N, V)), 3.0) * 0.22;
+          // Haze: the base of each bank melts into the horizon.
+          c = mix(uHorizon, c, smoothstep(0.0, 34.0, vP.y - uBase) * 0.75 + 0.25);
+          gl_FragColor = vec4(c, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
     }),
   );
   mesh.name = 'Sea clouds';

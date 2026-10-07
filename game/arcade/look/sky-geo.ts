@@ -420,7 +420,7 @@ export function cloudPuff() {
     [-0.35, 0.5, 0.25, 0.58],
   ];
   for (const [x, y, z, r] of blobs) {
-    const g = new T.SphereGeometry(r, 10, 6);
+    const g = new T.SphereGeometry(r, 16, 10);
     g.translate(x, y, z);
     parts.push(g);
   }
@@ -468,10 +468,10 @@ export function grassTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 512;
   const x = c.getContext('2d')!;
-  x.fillStyle = '#4caa33';
+  x.fillStyle = '#3d9a2b';
   x.fillRect(0, 0, 512, 512);
   // Diagonal stripes: period 256 along (u + v) so the tile wraps cleanly.
-  x.fillStyle = '#74cf48';
+  x.fillStyle = '#69c23e';
   for (let k = -4; k <= 4; k++) {
     const o = k * 256;
     x.beginPath();
@@ -482,7 +482,7 @@ export function grassTexture() {
     x.closePath();
     x.fill();
   }
-  const blades = ['#7fd655', '#4aa52f', '#93e266', '#3e9629', '#68c043'];
+  const blades = ['#79cf4c', '#3f9628', '#8fdc5c', '#337f22', '#5fb83a'];
   let seed = 1;
   const rnd = () => {
     seed = (seed * 16807) % 2147483647;
@@ -654,6 +654,34 @@ export function blobTexture() {
   g.addColorStop(1, '#000000');
   x.fillStyle = g;
   x.fillRect(0, 0, 128, 128);
+  return new T.CanvasTexture(c);
+}
+
+/**
+ * Baked ambient occlusion for an island top: clear in the middle, darkening
+ * towards the lip, so every lawn reads as a lit dome instead of a flat card.
+ * Rounded rectangles use a box falloff, round islands an elliptical one.
+ */
+export function edgeAoTexture(round: boolean) {
+  const n = 128,
+    c = document.createElement('canvas');
+  c.width = c.height = n;
+  const x = c.getContext('2d')!,
+    img = x.createImageData(n, n);
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++) {
+      const u = (i + 0.5) / n - 0.5,
+        v = (j + 0.5) / n - 0.5;
+      const d = round
+        ? Math.hypot(u, v) * 2
+        : Math.pow(Math.pow(Math.abs(u) * 2, 5) + Math.pow(Math.abs(v) * 2, 5), 0.2);
+      const t = Math.max(0, Math.min(1, (d - 0.4) / 0.55)),
+        a = Math.pow(t, 1.8) * Math.max(0, Math.min(1, (1 - d) / 0.04)) * 255;
+      const k = (j * n + i) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = a;
+      img.data[k + 3] = 255;
+    }
+  x.putImageData(img, 0, 0);
   return new T.CanvasTexture(c);
 }
 

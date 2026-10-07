@@ -14,7 +14,7 @@ const CELLS = 4,
 const TOP = 0.955;
 
 /** Linear size of a space relative to the original 0.98-radius token. */
-const SIZE = 1.27;
+const SIZE = 1.34;
 
 /**
  * Board tokens use deeper, punchier versions of the HUD colours so every
@@ -37,11 +37,11 @@ const TOKEN: Partial<Record<SpaceKind, string>> = {
   start: '#ffffff',
 };
 
-const PLINTH: Record<string, { color: string; metalness: number; roughness: number; glow: number; rim: number }> = {
-  crown: { color: '#efe2c4', metalness: 0.05, roughness: 0.4, glow: 0.08, rim: 0.85 },
-  crater: { color: '#b7c1d6', metalness: 0.6, roughness: 0.32, glow: 0.28, rim: 0.6 },
-  fissure: { color: '#3b3036', metalness: 0.35, roughness: 0.42, glow: 0.3, rim: 0.5 },
-  coral: { color: '#f4e7f2', metalness: 0.05, roughness: 0.38, glow: 0.07, rim: 0.85 },
+const PLINTH: Record<string, { color: string; metalness: number; roughness: number; glow: number; rim: number; bead: string }> = {
+  crown: { color: '#efe2c4', metalness: 0.05, roughness: 0.4, glow: 0.08, rim: 0.85, bead: '#fff8ea' },
+  crater: { color: '#b7c1d6', metalness: 0.6, roughness: 0.32, glow: 0.28, rim: 0.6, bead: '#eef3ff' },
+  fissure: { color: '#3b3036', metalness: 0.35, roughness: 0.42, glow: 0.3, rim: 0.5, bead: '#ffd9a8' },
+  coral: { color: '#f4e7f2', metalness: 0.05, roughness: 0.38, glow: 0.07, rim: 0.85, bead: '#ffffff' },
 };
 
 function glyphAtlas() {
@@ -121,14 +121,21 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
     // Rim to centre, so the lathe's faces point up.
     [
       [0.8, 0],
-      [0.79, 0.012],
-      [0.7, 0.028],
-      [0.4, 0.04],
-      [0, 0.045],
+      [0.79, 0.016],
+      [0.7, 0.04],
+      [0.4, 0.062],
+      [0, 0.07],
     ].map(([r, y]) => new T.Vector2(r * SIZE, y)),
     48,
   );
-  enamelGeo.translate(0, TOP - 0.05, 0);
+  enamelGeo.translate(0, TOP - 0.055, 0);
+  // A bright bead between plinth and enamel, like the rim of a candy button.
+  const beadGeo = new T.TorusGeometry(0.805 * SIZE, 0.05, 6, 48);
+  beadGeo.rotateX(Math.PI / 2);
+  beadGeo.translate(0, TOP - 0.045, 0);
+  const beadMat = new T.MeshStandardMaterial({ color: style.bead, roughness: 0.3, metalness: style.metalness * 0.5 });
+  const bead = new T.InstancedMesh(beadGeo, beadMat, count);
+  bead.receiveShadow = true;
   const enamelMat = new T.MeshPhysicalMaterial({
     roughness: 0.4,
     clearcoat: 0.55,
@@ -151,7 +158,7 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
   const atlas = glyphAtlas();
   const glyphGeo = new T.PlaneGeometry(1.08 * SIZE, 1.08 * SIZE);
   glyphGeo.rotateX(-Math.PI / 2);
-  glyphGeo.translate(0, TOP + 0.004, 0);
+  glyphGeo.translate(0, TOP + 0.02, 0);
   const cells = new Float32Array(count);
   glyphGeo.setAttribute('cell', new T.InstancedBufferAttribute(cells, 1));
   const glyphMat = new T.MeshBasicMaterial({
@@ -188,13 +195,15 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
     dummy.updateMatrix();
     plinth.setMatrixAt(i, dummy.matrix);
     enamel.setMatrixAt(i, dummy.matrix);
+    bead.setMatrixAt(i, dummy.matrix);
+    bead.setColorAt(i, new T.Color('#ffffff'));
     glyphs.setMatrixAt(i, dummy.matrix);
     enamel.setColorAt(i, base[i]);
     plinth.setColorAt(i, plinthBase[i]);
     glyphs.setColorAt(i, new T.Color('#ffffff'));
     cells[i] = Math.max(0, KINDS.indexOf(n.type));
   });
-  root.add(plinth, enamel, glyphs);
+  root.add(plinth, bead, enamel, glyphs);
 
   const dim = new Float32Array(count),
     grey = new T.Color('#5d6676'),
@@ -224,16 +233,18 @@ export function createBoardTiles(world: T.Object3D, boardId: string, nodes: Spac
         enamel.setColorAt(id, tmp.copy(base[id]).lerp(grey, amount * 0.75).multiplyScalar(1 - amount * 0.35));
         plinth.setColorAt(id, tmp.copy(plinthBase[id]).lerp(grey, amount * 0.6).multiplyScalar(1 - amount * 0.3));
         glyphs.setColorAt(id, tmp.setScalar(1 - amount * 0.55));
+        bead.setColorAt(id, tmp.setScalar(1 - amount * 0.45));
       }
       if (changed) {
         enamel.instanceColor!.needsUpdate = true;
         plinth.instanceColor!.needsUpdate = true;
         glyphs.instanceColor!.needsUpdate = true;
+        bead.instanceColor!.needsUpdate = true;
       }
     },
     dispose() {
       root.removeFromParent();
-      [plinthGeo, enamelGeo, glyphGeo, plinthMat, enamelMat, glyphMat, atlas].forEach((d) => d.dispose());
+      [plinthGeo, enamelGeo, beadGeo, glyphGeo, plinthMat, enamelMat, beadMat, glyphMat, atlas].forEach((d) => d.dispose());
     },
   };
 }

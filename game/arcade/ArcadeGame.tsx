@@ -448,8 +448,30 @@ export default function ArcadeGame(props: Props) {
   const PLAYER_HUES = ['#ffbf1f', '#ff4f86', '#25a8ff', '#9a62ff'],
     timeLeft = Math.max(0, Math.ceil(hud.duration - hud.time)),
     timeFrac = hud.duration > 0 ? Math.min(1, Math.max(0, (hud.duration - hud.time) / hud.duration)) : 0;
+  const detailSeen = useRef({ text: '', at: 0 });
+  // Skybridge ranks racers by island, then by how far along the course
+  // (the course runs toward -z) so the corner chips show a live placing.
+  const skyOrder =
+    info.id === 'sky'
+      ? [...hud.actors]
+          .sort(
+            (a, b) =>
+              (b.finish ? 1e6 - b.finish : b.checkpoint * 100 - b.z) -
+              (a.finish ? 1e6 - a.finish : a.checkpoint * 100 - a.z),
+          )
+          .map((a) => a.id)
+      : [];
+  const ORDINAL = ['1st', '2nd', '3rd', '4th'];
+  /** Hide the key hints once play is underway; the pause card still lists them. */
+  const hintsTucked = ready && countdown === 0 && !paused && hud.time > 5;
+  // A readout's second line shows for a few seconds whenever it changes, then
+  // folds away so long rule text does not sit over the scene all game.
+  if (readout && readout.detail !== detailSeen.current.text)
+    detailSeen.current = { text: readout.detail, at: hud.time };
+  const detailFolded = hintsTucked && hud.time - detailSeen.current.at > 6;
   function plateText(a: Arena['actors'][number]): string {
     if (!a.alive) return 'OUT';
+    if (info.id === 'sky') return ORDINAL[skyOrder.indexOf(a.id)] ?? '';
     if (grand || hud.overhaul) return scoreLabel(props.game.mini, a.score);
     switch (info.id) {
       case 'race':
@@ -458,8 +480,6 @@ export default function ArcadeGame(props: Props) {
         return a.team === 0 ? 'TEAM SUN' : 'TEAM MOON';
       case 'rope':
         return '♥'.repeat(a.lives) || 'OUT';
-      case 'sky':
-        return `${a.checkpoint + 1}/16 ISLAND`;
       case 'bomb':
         return hud.actors[hud.extra!.holder].id === a.id ? 'HAS THE MORSEL' : 'RUN!';
       case 'paint':
@@ -471,7 +491,7 @@ export default function ArcadeGame(props: Props) {
       case 'factory':
         return `${hud.extra!.orders[a.team]} ORDERS`;
       default:
-        return 'IN PLAY';
+        return '';
     }
   }
   /** Split a plate readout into a big stat and a small label. */
@@ -551,62 +571,114 @@ export default function ArcadeGame(props: Props) {
         </div>
       )}
       <header className="mg-top">
-        <button
-          className="mg-round-btn"
-          title={props.online ? 'Leave minigame view' : 'Pause game'}
-          aria-label={props.online ? 'Leave minigame view' : 'Pause game'}
-          onClick={props.online ? leave : pause}
-        >
-          {props.online ? <ArrowLeft /> : <Pause />}
-        </button>
-        <div
-          className={`mg-timer${timeLeft <= 10 ? ' is-low' : ''}`}
-          role="timer"
-          aria-label={`${timeLeft} seconds left`}
-        >
-          <i className="mg-timer-knob" aria-hidden="true" />
-          <svg viewBox="0 0 100 100" aria-hidden="true">
-            <circle className="mg-timer-face" cx="50" cy="50" r="46" />
-            <circle
-              className="mg-timer-fill"
-              cx="50"
-              cy="50"
-              r="38"
-              pathLength={100}
-              strokeDasharray={`${(timeFrac * 100).toFixed(2)} 100`}
-            />
-          </svg>
-          <b key={timeLeft <= 10 ? timeLeft : 'steady'}>{timeLeft}</b>
+        <div className="mg-top-row">
+          <button
+            className="mg-round-btn"
+            title={props.online ? 'Leave minigame view' : 'Pause game'}
+            aria-label={props.online ? 'Leave minigame view' : 'Pause game'}
+            onClick={props.online ? leave : pause}
+          >
+            {props.online ? <ArrowLeft /> : <Pause />}
+          </button>
+          <div
+            className={`mg-timer${timeLeft <= 10 ? ' is-low' : ''}`}
+            role="timer"
+            aria-label={`${timeLeft} seconds left`}
+          >
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <circle className="mg-timer-face" cx="50" cy="50" r="44" />
+              <circle
+                className="mg-timer-fill"
+                cx="50"
+                cy="50"
+                r="17"
+                pathLength={100}
+                strokeDasharray={`${(timeFrac * 100).toFixed(2)} 100`}
+              />
+              <path
+                className="mg-timer-ticks"
+                d="M50 6v9M94 50h-9M50 94v-9M6 50h9"
+              />
+              <line
+                className="mg-timer-hand"
+                x1="50"
+                y1="50"
+                x2="50"
+                y2="15"
+                transform={`rotate(${((1 - timeFrac) * 360).toFixed(1)} 50 50)`}
+              />
+              <circle className="mg-timer-hub" cx="50" cy="50" r="7" />
+            </svg>
+            <b key={timeLeft <= 10 ? timeLeft : 'steady'}>{timeLeft}</b>
+          </div>
+          <button
+            className="mg-round-btn"
+            title="Toggle sound"
+            aria-label="Toggle sound"
+            onClick={props.onMute}
+          >
+            {props.muted ? <VolumeX /> : <Volume2 />}
+          </button>
         </div>
-        <button
-          className="mg-round-btn"
-          title="Toggle sound"
-          aria-label="Toggle sound"
-          onClick={props.onMute}
-        >
-          {props.muted ? <VolumeX /> : <Volume2 />}
-        </button>
-        <div className="mg-title">
-          <h1>{info.name}</h1>
-          <span>
-            {props.game.practice ? 'ARCADE' : `ROUND ${props.game.round}`}
-          </span>
-        </div>
+        {info.id === 'sky' && (
+          <div className="mg-track" aria-hidden="true">
+            <div className="mg-track-rail">
+              <i
+                className="mg-track-done"
+                style={{ width: `${(Math.min(15, me.checkpoint) / 15) * 100}%` }}
+              />
+              {[5, 10].map((k) => (
+                <span key={k} style={{ left: `${(k / 15) * 100}%` }} />
+              ))}
+            </div>
+            <Flag className="mg-track-flag" />
+            {hud.actors.map((a, i) => {
+              const along = a.finish
+                ? 15
+                : Math.min(
+                    15,
+                    Math.max(
+                      a.checkpoint,
+                      Math.min(a.checkpoint + 0.9, (6 - a.z) / 4.1),
+                    ),
+                  );
+              return (
+                <span
+                  key={a.id}
+                  className={`mg-track-head${a.id === props.meId ? ' is-you' : ''}`}
+                  style={
+                    {
+                      left: `${(along / 15) * 100}%`,
+                      '--pc': PLAYER_HUES[i % 4],
+                      zIndex: a.id === props.meId ? 9 : 4 - skyOrder.indexOf(a.id),
+                    } as React.CSSProperties
+                  }
+                >
+                  <AlienPortrait
+                    shirt={seats[i]?.avatar.shirt ?? PLAYER_HUES[i % 4]}
+                    size={26}
+                  />
+                </span>
+              );
+            })}
+          </div>
+        )}
       </header>
       <div className="mg-plates">
         {hud.actors.map((a, i) => {
           const [big, small] = plateStat(a),
-            you = a.id === props.meId;
+            you = a.id === props.meId,
+            rank = info.id === 'sky' && a.alive ? skyOrder.indexOf(a.id) + 1 : 0;
           return (
             <div
               key={a.id}
-              className={`mg-plate mg-${corners[i] ?? 'tl'}${!a.alive ? ' is-out' : ''}${you ? ' is-you' : ''}`}
+              className={`mg-plate mg-${corners[i] ?? 'tl'}${!a.alive ? ' is-out' : ''}${you ? ' is-you' : ''}${rank ? ` is-rank rank-${rank}` : ''}${!big && !small ? ' is-bare' : ''}`}
               style={{ '--pc': PLAYER_HUES[i % 4] } as React.CSSProperties}
             >
               <span className="mg-medal">
                 <AlienPortrait
                   shirt={seats[i]?.avatar.shirt ?? PLAYER_HUES[i % 4]}
-                  size={60}
+                  size={52}
                   mood={a.alive ? 'happy' : 'sad'}
                 />
                 <i>P{i + 1}</i>
@@ -615,71 +687,33 @@ export default function ArcadeGame(props: Props) {
                 <b className="mg-name">
                   {seats[i]?.avatar.name ?? `Player ${i + 1}`}
                 </b>
-                <strong className={`mg-stat${big ? '' : ' is-word'}`}>
-                  {big && <span>{big}</span>}
-                  {small && <small>{small}</small>}
-                </strong>
+                {(big || small) && (
+                  <strong className={`mg-stat${big ? '' : ' is-word'}`}>
+                    {big && <span>{big}</span>}
+                    {small && <small>{small}</small>}
+                  </strong>
+                )}
               </div>
               {you && <em className="mg-you">YOU</em>}
             </div>
           );
         })}
       </div>
-      {info.id === 'sky' && (
-        <div className="mg-track" aria-hidden="true">
-          <div className="mg-track-rail">
-            <i
-              className="mg-track-done"
-              style={{ width: `${(me.checkpoint / 15) * 100}%` }}
-            />
-            {Array.from({ length: 16 }, (_, k) => (
-              <span
-                key={k}
-                className={k === 15 ? 'is-goal' : k <= me.checkpoint ? 'is-hit' : ''}
-                style={{ left: `${(k / 15) * 100}%` }}
-              />
-            ))}
-            <Flag className="mg-track-flag" />
-          </div>
-          {hud.actors.map((a, i) => {
-            const same = hud.actors.filter((b) => b.checkpoint === a.checkpoint),
-              k = same.indexOf(a);
-            return (
-              <span
-                key={a.id}
-                className={`mg-track-head${a.id === props.meId ? ' is-you' : ''}`}
-                style={
-                  {
-                    left: `${(Math.min(15, a.checkpoint) / 15) * 100}%`,
-                    '--pc': PLAYER_HUES[i % 4],
-                    '--dx': `${(k - (same.length - 1) / 2) * 15}px`,
-                    zIndex: a.id === props.meId ? 9 : 4 - k,
-                  } as React.CSSProperties
-                }
-              >
-                <AlienPortrait
-                  shirt={seats[i]?.avatar.shirt ?? PLAYER_HUES[i % 4]}
-                  size={30}
-                />
-              </span>
-            );
-          })}
-        </div>
-      )}
       {ready && countdown > 0 && (
         <div className="arena-countdown mg-countdown" key={countdown}>
           <strong>{countdown <= 3 ? countdown : 'READY?'}</strong>
-          <span>{props.online ? 'Waiting for everyone…' : 'Get ready!'}</span>
+          <span>{props.online ? 'Waiting for everyone…' : info.name}</span>
         </div>
       )}
       {ready && countdown === 0 && !hud.done && (
         <div
           key={info.id === 'sky' ? `isle-${me.checkpoint}` : 'callout'}
-          className={
-            grand || hud.overhaul
-              ? 'arena-callout mg-banner grand-callout'
-              : 'arena-callout mg-banner'
-          }
+          className={`arena-callout mg-banner${grand || hud.overhaul ? ' grand-callout' : ''}${
+            // Static objective lines pop in, then get out of the scene's way.
+            !readout && me.alive && ['sky', 'rope'].includes(info.id)
+              ? ' is-transient'
+              : ''
+          }`}
           aria-live="polite"
         >
           <span className="mg-banner-icon" aria-hidden="true">
@@ -691,7 +725,7 @@ export default function ArcadeGame(props: Props) {
           ) : readout ? (
             <>
               <strong>{readout.title}</strong>
-              <small>{readout.detail}</small>
+              {!detailFolded && <small>{readout.detail}</small>}
             </>
           ) : info.id === 'sky' ? (
             bannerText(
@@ -811,7 +845,9 @@ export default function ArcadeGame(props: Props) {
           </span>
         </div>
       )}
-      <footer className="arena-controls mg-controls">
+      <footer
+        className={`arena-controls mg-controls${hintsTucked ? ' is-tucked' : ''}`}
+      >
         <span>
           {!['rope', 'race', 'mangosluggers'].includes(info.id) && (
             <span className="mg-ctl">

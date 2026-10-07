@@ -49,6 +49,7 @@ import {
   DiamondIcon,
   DiceCube,
   DiceIcon,
+  GimmickIcon,
   ItemIcon,
   KlaxonPortrait,
   NabbitPortrait,
@@ -56,14 +57,21 @@ import {
   SpaceIcon,
   Sparkle,
 } from './art';
+import { FinaleStandings, championOf } from './Finale';
 import {
+  CardCrest,
+  CastCutout,
   Confetti,
-  CrewCutout,
+  MechanicIcon,
   MinigameArt,
   MODE_SHORT,
   MODE_TITLE,
+  PointerGlove,
+  StageBackdrop,
   TimerRing,
   controlChips,
+  mechanicOf,
+  punchy,
   themeStyle,
 } from './art-minigames';
 import { BOARDS, PLANETS, getBoard, getPlanet } from './boards';
@@ -914,7 +922,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
           aria-label="Press any button to start Party Planets"
         >
           <span className="title-brand pp-title-brand">
-            <PartyLogo ufo="/ufo-sticker.webp" />
+            <PartyLogo />
           </span>
           <span className="start-prompt">press any button to start</span>
           <span className="start-credit">
@@ -984,16 +992,20 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
       </header>
       {panel === 'menu' && (
         <>
-          <div className="pp-menu-hero" aria-hidden="true">
-            <img className="pp-cast pp-cast-dice" src="/brand/cast-dice.webp" alt="" />
-            <PartyLogo ufo="/ufo-sticker.webp" />
+          <div className="pp-menu-sky" aria-hidden="true">
+            <span className="pp-sky-nebula" />
+            <span className="pp-sky-rays" />
+            <span className="pp-sky-dust" />
+            <span className="pp-sky-vignette" />
+            <span className="pp-sky-confetti">
+              <i />
+              <i />
+            </span>
           </div>
-          <img
-            className="pp-cast pp-cast-cheer"
-            src="/brand/cast-cheer.webp"
-            alt=""
-            aria-hidden="true"
-          />
+          <div className="pp-menu-hero" aria-hidden="true">
+            <span className="pp-logo-burst" />
+            <PartyLogo />
+          </div>
           <section className="menu-panel home-menu pp-menu">
             <h1 className="pp-menu-banner">
               <span>
@@ -1088,18 +1100,8 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               <ArrowRight className="pp-play-arrow" strokeWidth={3} />
             </button>
             <div className="menu-sub pp-crew">
-              <span className="pp-crew-faces" aria-hidden="true">
-                {[
-                  avatar.shirt,
-                  ...OUTFITS.filter((c) => c !== avatar.shirt).slice(1, 4),
-                ].map((c, i) => (
-                  <AlienPortrait
-                    key={i}
-                    shirt={c}
-                    size={i === 0 ? 34 : 30}
-                    className={i === 0 ? 'is-you' : ''}
-                  />
-                ))}
+              <span className="pp-crew-chip" aria-hidden="true">
+                <Users size={16} strokeWidth={2.8} />
               </span>
               <span>
                 <b>You</b> + 3 CPU rivals
@@ -1128,7 +1130,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               onClick={() => setPanel('creator')}
             >
               <span className="pp-opt-badge" aria-hidden="true">
-                <AlienPortrait shirt={avatar.shirt} size={46} />
+                <UserRound strokeWidth={2.75} />
               </span>
               <span>
                 Character studio<small>Meet your next alter ego</small>
@@ -1180,6 +1182,14 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               } as React.CSSProperties
             }
           >
+            <span className="pp-loc-tag">{orbital ? 'Now orbiting' : 'Now landing'}</span>
+            <span className="pp-orb pp-loc-orb" aria-hidden="true">
+              <span
+                style={{
+                  backgroundImage: `url(/textures/planets/${getBoard(boardId).planet}-color.webp)`,
+                }}
+              />
+            </span>
             <h2 className="pp-loc-name">
               {orbital
                 ? getPlanet(getBoard(boardId).planet).name
@@ -1210,12 +1220,6 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               )}
             </div>
             <p className="pp-loc-hint">Drag to explore · Scroll to zoom</p>
-            <img
-              className="pp-cast pp-cast-wave"
-              src="/brand/cast-wave.webp"
-              alt=""
-              aria-hidden="true"
-            />
           </div>
         </>
       )}
@@ -2062,6 +2066,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 <AlienPortrait
                   className="announce-portrait"
                   shirt={active.avatar.shirt}
+                  avatar={active.avatar}
                   size={92}
                 />
               )}
@@ -2360,13 +2365,21 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                         key={p.id}
                         style={{ '--player': p.avatar.shirt } as React.CSSProperties}
                       >
-                        <AlienPortrait shirt={p.avatar.shirt} size={40} />
+                        <AlienPortrait
+                          shirt={p.avatar.shirt}
+                          avatar={p.avatar}
+                          size={40}
+                        />
                         <b>{p.id === me?.id ? 'You' : p.avatar.name}</b>
                       </span>
                     ))}
                   </span>
                 </span>
               );
+              // Hero cut-outs: the solo star (or first team) leaps in from the
+              // left, the other side cheers from the bottom right.
+              const heroes = split === 4 ? seats.slice(0, 2) : seats.slice(0, split),
+                crowd = split === 4 ? seats.slice(2) : seats.slice(split);
               return (
                 <section
                   className={
@@ -2375,8 +2388,27 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                   }
                   aria-labelledby="pv-title"
                 >
-                  <span className="pv-backdrop" aria-hidden="true" />
-                  <span className="pv-rays" aria-hidden="true" />
+                  <StageBackdrop />
+                  <span className={`pv-cast pv-cast-hero n${heroes.length}`} aria-hidden="true">
+                    {heroes.map((p, k) => (
+                      <CastCutout
+                        key={p.id}
+                        avatar={p.avatar}
+                        pose={split === 1 ? 'leap' : 'cheer'}
+                        style={{ '--k': k } as React.CSSProperties}
+                      />
+                    ))}
+                  </span>
+                  <span className={`pv-cast pv-cast-crowd n${crowd.length}`} aria-hidden="true">
+                    {crowd.map((p, k) => (
+                      <CastCutout
+                        key={p.id}
+                        avatar={p.avatar}
+                        pose="cheer"
+                        style={{ '--k': k } as React.CSSProperties}
+                      />
+                    ))}
+                  </span>
                   <header className="pv-head">
                     <div className="pv-heading">
                       <span className="pv-kicker">
@@ -2444,6 +2476,8 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                         <button
                           key={index}
                           disabled={busy || decided}
+                          // Start the keyboard/pad cursor on the first card.
+                          autoFocus={i === 0 && mine === undefined && !decided}
                           className={
                             'pv-card' +
                             (mine === index ? ' is-mine' : '') +
@@ -2465,8 +2499,12 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                             '--len': Math.max(10, m.name.length),
                           } as React.CSSProperties)}
                         >
+                          <CardCrest id={m.id} />
                           <MinigameArt id={m.id} className="pv-art">
-                            <span className="pv-tab">{MODE_SHORT[mode]}</span>
+                            <span className="pv-mech">
+                              <MechanicIcon kind={mechanicOf(m.category)} />
+                              {m.category}
+                            </span>
                             <span className="pv-time">{m.duration}s</span>
                           </MinigameArt>
                           <span className="pv-plate">
@@ -2474,8 +2512,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                               {m.name}
                             </span>
                           </span>
-                          <small className="pv-genre">{m.category}</small>
-                          <span className="pv-brief">{brief}</span>
+                          <span className="pv-brief">{punchy(brief)}</span>
                           <span className="pv-keys">
                             {controlChips(m.controls).map((c) => (
                               <span key={c.keys}>
@@ -2484,27 +2521,32 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                               </span>
                             ))}
                           </span>
+                          {/* One slot per player in seat order: a ghost of their
+                              face until their ballot pops in. */}
                           <span className="pv-ballots">
-                            {game.players.map((_, k) => {
-                              const v = voters[k];
-                              return v ? (
+                            {game.players.map((p) => {
+                              const here = vote.ballots[p.id] === index;
+                              return (
                                 <span
-                                  className="pv-pip is-filled"
-                                  key={v.id}
-                                  title={v.avatar.name}
+                                  className={'pv-pip' + (here ? ' is-filled' : '')}
+                                  key={p.id + (here ? '-in' : '')}
+                                  title={p.avatar.name}
                                   style={
                                     {
-                                      '--player': v.avatar.shirt,
+                                      '--player': p.avatar.shirt,
                                     } as React.CSSProperties
                                   }
                                 >
-                                  <AlienPortrait shirt={v.avatar.shirt} size={36} />
+                                  <AlienPortrait
+                                    shirt={p.avatar.shirt}
+                                    avatar={p.avatar}
+                                    size={36}
+                                  />
                                 </span>
-                              ) : (
-                                <span className="pv-pip" key={'slot' + k} />
                               );
                             })}
                           </span>
+                          <PointerGlove />
                           {mine === index && (
                             <span className="pv-you">Your pick</span>
                           )}
@@ -2533,6 +2575,10 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 </section>
               );
             })()}
+          {!game.finale &&
+            ['turn', 'landed', 'rolling', 'moving', 'fork'].includes(game.phase) && (
+              <div className="hud-shade" aria-hidden="true" />
+            )}
           <div
             className="scoreboard"
             style={game.finale ? { display: 'none' } : undefined}
@@ -2553,7 +2599,8 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 <span className="player-portrait">
                   <AlienPortrait
                     shirt={p.avatar.shirt}
-                    size={52}
+                    avatar={p.avatar}
+                    size={60}
                     mood={
                       game.effect?.player === p.id &&
                       clock < (game.presentUntil ?? 0) &&
@@ -2638,51 +2685,64 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
           )}
           {(game.phase === 'turn' || game.phase === 'landed') && (
             <>
-              <div className="board-label">
-                <span className="eyebrow">
-                  {getBoard(game.boardId).name.toUpperCase()}
-                </span>
-                <span className="goal-chip">
-                  <DiamondIcon size={18} /> {RULES.pearlPrice} pts ·{' '}
-                  {game.diamondGoal
-                    ? `first to ${game.diamondGoal}`
-                    : `round ${game.round} of ${game.rounds}`}
-                </span>
-                <span className="bank-pot">
-                  <CoinIcon size={18} /> Bank {game.bank ?? 0}
-                </span>
-                <span
-                  className={`gimmick-tag ${game.routesOpen === false ? 'closed' : 'open'}`}
-                  title={getBoard(game.boardId).gimmickRule}
-                >
+              <div className="board-dock">
+                <div className="board-label">
+                  <span className="eyebrow">
+                    <small>
+                      {getPlanet(getBoard(game.boardId).planet).name.toUpperCase()}
+                    </small>
+                    {getBoard(game.boardId).name.toUpperCase()}
+                  </span>
+                  <span className="goal-chip" title="Diamond price and goal">
+                    <DiamondIcon size={20} /> {RULES.pearlPrice} pts ·{' '}
+                    {game.diamondGoal
+                      ? `first to ${game.diamondGoal}`
+                      : `round ${game.round} of ${game.rounds}`}
+                  </span>
+                  <span className="bank-pot" title="Shared bank">
+                    <CoinIcon size={20} /> Bank {game.bank ?? 0}
+                  </span>
                   {(() => {
                     const board = getBoard(game.boardId),
                       open = game.routesOpen !== false;
-                    if (board.gimmick === 'tide')
-                      return open ? '🌊 Low tide · bridge open' : '🌊 High tide · bridge flooded';
-                    if (board.gimmick === 'ferry')
-                      return open ? '☁️ Ferry docked' : '☁️ Ferry away';
-                    if (board.gimmick === 'eruption')
-                      return open ? '🌋 Lava bridge open' : '🌋 Eruption · bridge shut';
-                    return '🚀 Jump pads active';
+                    const label =
+                      board.gimmick === 'tide'
+                        ? open
+                          ? 'Low tide · bridge open'
+                          : 'High tide · bridge flooded'
+                        : board.gimmick === 'ferry'
+                          ? open
+                            ? 'Ferry docked'
+                            : 'Ferry away'
+                          : board.gimmick === 'eruption'
+                            ? open
+                              ? 'Lava bridge open'
+                              : 'Eruption · bridge shut'
+                            : 'Jump pads active';
+                    return (
+                      <span
+                        className={`gimmick-tag ${open ? 'open' : 'closed'}`}
+                        title={board.gimmickRule}
+                      >
+                        <GimmickIcon kind={board.gimmick} open={open} size={20} />
+                        {label}
+                      </span>
+                    );
                   })()}
-                </span>
-                {game.lastTurns && (
-                  <span className="last-turns-tag">
-                    LAST {lastTurnsCount(game.rounds)} TURNS · ×2 spaces
-                  </span>
-                )}
-              </div>
-              <div className="activity">
-                <span className="eyebrow">
-                  {getPlanet(getBoard(game.boardId).planet).name.toUpperCase()}{' '}
-                  ENCOUNTERS
-                </span>
-                {game.log.slice(0, 1).map((line) => (
-                  <p key={line} className="new">
-                    {line}
-                  </p>
-                ))}
+                  {game.lastTurns && (
+                    <span className="last-turns-tag">
+                      LAST {lastTurnsCount(game.rounds)} TURNS · ×2 spaces
+                    </span>
+                  )}
+                </div>
+                <div className="activity">
+                  <span className="eyebrow">LATEST</span>
+                  {game.log.slice(0, 1).map((line) => (
+                    <p key={line} className="new">
+                      {line}
+                    </p>
+                  ))}
+                </div>
               </div>
               <section
                 className={`turn-panel ${myTurn && game.phase === 'turn' ? 'roll-ready' : ''} ${myTurn ? '' : 'waiting'}`}
@@ -2695,7 +2755,11 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 <div className="turn-title">
                   <span className="dice-face">
                     {active && (
-                      <AlienPortrait shirt={active.avatar.shirt} size={52} />
+                      <AlienPortrait
+                        shirt={active.avatar.shirt}
+                        avatar={active.avatar}
+                        size={72}
+                      />
                     )}
                     {game.phase === 'landed' && (
                       <b className="last-roll">{game.lastRoll}</b>
@@ -2732,24 +2796,28 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                           </span>
                           <span className="roll-key">SPACE</span>
                         </button>
-                        <div className="inventory-label">
-                          YOUR BAG <small>Use one before rolling</small>
-                        </div>
-                        <div className="inventory">
+                        <div className="inventory" aria-label="Your bag">
+                          <span className="inventory-label">
+                            BAG
+                            <small>Use before rolling</small>
+                          </span>
                           {!!me?.lotteryBoosts && (
                             <button
+                              className="bag-slot"
                               disabled={busy || me.used}
                               title="Add 5 to your next roll. Kept separately from your bag."
                               onClick={() =>
                                 dispatch({ type: 'use', item: 'five' })
                               }
                             >
-                              <ItemIcon id="five" size={26} /> Lucky +5 ×
-                              {me.lotteryBoosts}
+                              <ItemIcon id="five" size={34} />
+                              <span className="bag-name">Lucky +5</span>
+                              <b className="bag-count">×{me.lotteryBoosts}</b>
                             </button>
                           )}
                           {me?.items.map((id, i) => (
                             <button
+                              className="bag-slot"
                               key={i}
                               disabled={busy || me.used}
                               title={
@@ -2759,12 +2827,28 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                                 dispatch({ type: 'use', item: id })
                               }
                             >
-                              <ItemIcon id={id} size={26} />
-                              {ITEMS.find((x) => x.id === id)?.name}
+                              <ItemIcon id={id} size={34} />
+                              <span className="bag-name">
+                                {ITEMS.find((x) => x.id === id)?.name}
+                              </span>
                             </button>
                           ))}
-                          {me?.items.length === 0 && (
-                            <span>No items yet. Visit a shop.</span>
+                          {Array.from(
+                            {
+                              length: Math.max(
+                                0,
+                                RULES.inventorySize - (me?.items.length ?? 0),
+                              ),
+                            },
+                            (_, i) => (
+                              <span
+                                className="bag-slot empty"
+                                key={'empty' + i}
+                                title="Empty slot · visit a shop to fill it"
+                              >
+                                <span className="bag-name">Empty</span>
+                              </span>
+                            ),
                           )}
                         </div>
                       </>
@@ -2871,6 +2955,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 </p>
               </section>
             )}
+          {game.finale && <FinaleStandings players={game.players} />}
           {game.finale &&
             ((clock - game.finale.startedAt < 11000 &&
               game.finale.reason === 'goal') ||
@@ -2939,19 +3024,42 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
               style={themeStyle(game.phase === 'finished' ? '' : mini.id)}
             >
               {/* Results stage (ui-vote-results.css): key-art header, podium rows. */}
-              <span className="pv-backdrop" aria-hidden="true" />
-              <span className="pv-rays" aria-hidden="true" />
-              {!game.finale && (
-                <>
-                  <CrewCutout side="left" />
-                  <CrewCutout side="right" />
-                </>
-              )}
+              <StageBackdrop />
+              {!game.finale &&
+                (() => {
+                  // The minigame's top two celebrate either side of the card.
+                  const podium = [...game.players].sort((a, b) => b.score - a.score);
+                  return (
+                    <>
+                      <CastCutout
+                        className="pr-cast pr-cast-left"
+                        avatar={podium[0].avatar}
+                        pose="leap"
+                      />
+                      {podium[1] && (
+                        <CastCutout
+                          className="pr-cast pr-cast-right"
+                          avatar={podium[1].avatar}
+                          pose="cheer"
+                        />
+                      )}
+                    </>
+                  );
+                })()}
               <div className="pr-card">
               {game.phase === 'finished' ? (
                 <span className="mg-art pr-hero pr-hero-champion" aria-hidden="true">
-                  <CrownIcon size={92} />
-                  <span className="pr-badge">That’s a wrap</span>
+                  {/* Finale header: the champion's rendered portrait under a spotlight. */}
+                  <span className="pr-champ-rays" />
+                  <AlienPortrait
+                    className="pr-champ-face"
+                    shirt={championOf(game).avatar.shirt}
+                    avatar={championOf(game).avatar}
+                    mood="happy"
+                    size={118}
+                  />
+                  <CrownIcon className="pr-champ-crown" size={46} />
+                  <span className="pr-badge">Planet champion</span>
                 </span>
               ) : (
                 <MinigameArt id={mini.id} className="pr-hero">
@@ -2959,12 +3067,16 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                 </MinigameArt>
               )}
               <h2
-                className="pr-title"
+                className={'pr-title' + (game.phase === 'finished' ? ' pr-title-champion' : '')}
                 data-text={
-                  game.phase === 'finished' ? 'Planet champion' : mini.name
+                  game.phase === 'finished'
+                    ? `${championOf(game).avatar.name} wins!`
+                    : mini.name
                 }
               >
-                {game.phase === 'finished' ? 'Planet champion' : mini.name}
+                {game.phase === 'finished'
+                  ? `${championOf(game).avatar.name} wins!`
+                  : mini.name}
               </h2>
               <ol className="pr-list">
                 {[...game.players]
@@ -2996,6 +3108,7 @@ export default function Party({ offline = false }: { offline?: boolean } = {}) {
                         <AlienPortrait
                           className="pr-face"
                           shirt={p.avatar.shirt}
+                          avatar={p.avatar}
                           size={46}
                           mood={rank === 1 ? 'happy' : rank === 4 ? 'sad' : 'neutral'}
                         />

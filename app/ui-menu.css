@@ -40,15 +40,6 @@
   transform-origin: 50% 100%;
   animation: pp-logo-bob 3.4s ease-in-out infinite;
 }
-.party-logo-wrap .logo-ufo-img {
-  position: absolute;
-  left: 78%;
-  top: -9%;
-  width: 25%;
-  height: auto;
-  pointer-events: none;
-  animation: pp-logo-fly 3s ease-in-out infinite;
-}
 @keyframes pp-logo-bob {
   0%,
   100% {
@@ -56,11 +47,6 @@
   }
   45% {
     transform: translateY(-7px) scale(0.99, 1.02);
-  }
-}
-@keyframes pp-logo-fly {
-  50% {
-    transform: translate(-6px, -10px) rotate(-5deg);
   }
 }
 @keyframes pp-twinkle {
@@ -87,23 +73,41 @@
 .pp-menu-hero {
   position: absolute;
   z-index: 4;
-  top: 6px;
-  left: calc(392px + (100% - 392px) / 2 - 26px);
-  width: clamp(340px, 39vw, 580px);
+  top: 20px;
+  left: calc(392px + (100% - 392px) / 2 - 64px);
+  width: clamp(360px, 46vw, 660px);
   transform: translateX(-50%);
   pointer-events: none;
   animation: pp-pop-in 0.8s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
-/* soft party glow + confetti around the logo */
-.pp-menu-hero::before {
+/* sunburst behind the wordmark: slow-turning rays fading out at the rim */
+.pp-logo-burst {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 52%;
+  width: 118%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) scaleY(0.6);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #fff3c0b0 0%, #ffd52e70 20%, #ff4fa848 44%, #8a3cff22 68%, transparent 100%);
+}
+.pp-logo-burst::before {
   content: '';
   position: absolute;
-  inset: -8% -14% -4%;
-  z-index: -1;
-  background:
-    radial-gradient(closest-side, #ff4fa855, #8a3cff33 55%, transparent 100%);
-  filter: blur(8px);
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, #fff1b070 0deg 6deg, transparent 6deg 15deg);
+  -webkit-mask-image: radial-gradient(closest-side, #000 20%, #0006 60%, transparent 96%);
+  mask-image: radial-gradient(closest-side, #000 20%, #0006 60%, transparent 96%);
+  animation: pp-burst-spin 70s linear infinite;
 }
+@keyframes pp-burst-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+/* confetti flecks around the logo */
 .pp-menu-hero::after {
   content: '';
   position: absolute;
@@ -112,12 +116,27 @@
   background:
     radial-gradient(circle, #ffd52e 0 4px, transparent 5px) 4% 70% / 30px 30px no-repeat,
     radial-gradient(circle, #2ccdf5 0 3.5px, transparent 4.5px) 96% 78% / 30px 30px no-repeat,
-    radial-gradient(circle, #ff4fa8 0 3.5px, transparent 4.5px) 14% 8% / 30px 30px no-repeat,
-    radial-gradient(circle, #86e842 0 3px, transparent 4px) 88% 12% / 30px 30px no-repeat,
+    radial-gradient(circle, #ff4fa8 0 3.5px, transparent 4.5px) 10% 8% / 30px 30px no-repeat,
+    radial-gradient(circle, #86e842 0 3px, transparent 4px) 84% 6% / 30px 30px no-repeat,
     radial-gradient(circle, #ffffff 0 2.5px, transparent 3.5px) 50% 100% / 30px 30px no-repeat,
     radial-gradient(circle, #ff9a2e 0 3px, transparent 4px) 0% 30% / 30px 30px no-repeat,
     radial-gradient(circle, #ffffff 0 2px, transparent 3px) 72% 2% / 30px 30px no-repeat;
   animation: pp-confetti 2.6s ease-in-out infinite;
+}
+.pp-menu-hero .party-logo {
+  filter: drop-shadow(0 6px 0 #1a053f80) drop-shadow(0 18px 22px #12002ecc);
+}
+.party-logo .logo-shine {
+  animation: pp-logo-shine 5.5s ease-in-out 1.2s infinite;
+}
+@keyframes pp-logo-shine {
+  0% {
+    transform: translateX(0);
+  }
+  30%,
+  100% {
+    transform: translateX(980px);
+  }
 }
 @keyframes pp-confetti {
   50% {
@@ -200,16 +219,19 @@
   color: #fff;
   font-family: var(--pp-font);
   background:
-    radial-gradient(120% 45% at 50% -8%, #ff7ad866, transparent 70%),
-    radial-gradient(#ffffff17 1.6px, transparent 2.2px) 0 0 / 18px 18px,
+    radial-gradient(120% 40% at 50% -6%, #ff7ad870, transparent 70%),
+    radial-gradient(90% 30% at 50% 108%, #2ccdf530, transparent 70%),
+    radial-gradient(#ffffff14 1.6px, transparent 2.2px) 0 0 / 18px 18px,
     linear-gradient(172deg, var(--pp-grape-hi) 0%, var(--pp-grape) 52%, var(--pp-grape-lo) 100%);
   border: 4px solid var(--pp-ink);
   border-radius: 30px;
   box-shadow:
     0 7px 0 var(--pp-ink),
-    0 26px 60px #5a14c873,
-    inset 0 3px 0 #ffffff40,
-    inset 0 -4px 0 #1a064d55;
+    0 30px 70px #12002ecc,
+    0 0 60px #8a3cff40,
+    inset 0 0 0 2px #ffffff26,
+    inset 0 4px 0 #ffffff40,
+    inset 0 -5px 0 #1a064d66;
   backdrop-filter: none;
 }
 :root .game-shell .pp-menu :is(h1, button, small, b, span) {
@@ -225,26 +247,36 @@
   line-height: 1;
   letter-spacing: 0;
   font-weight: 700;
-  color: var(--pp-ink);
+  color: #fff;
 }
 .pp-menu-banner > span {
   position: relative;
   display: inline-block;
-  padding: 7px 22px 9px;
-  background: linear-gradient(180deg, #fff27a 0%, #ffd52e 46%, #ffae1a 100%);
+  padding: 7px 22px 10px;
+  color: #fff;
+  text-shadow:
+    0 3px 0 var(--pp-ink),
+    1.5px 0 0 var(--pp-ink),
+    -1.5px 0 0 var(--pp-ink),
+    0 -1.5px 0 var(--pp-ink),
+    1.5px 1.5px 0 var(--pp-ink),
+    -1.5px 1.5px 0 var(--pp-ink);
+  background:
+    linear-gradient(180deg, #ffffff55 0%, #ffffff00 46%),
+    linear-gradient(180deg, #ff86cc 0%, #ff4fa8 50%, #d81f80 100%);
   border: 4px solid var(--pp-ink);
   border-radius: 18px;
   box-shadow:
     0 5px 0 var(--pp-ink),
-    inset 0 3px 0 #ffffffb0,
-    inset 0 -4px 0 #d9780055;
+    0 10px 24px #ff4fa855,
+    inset 0 3px 0 #ffffff70,
+    inset 0 -4px 0 #7a0a4466;
   transform: rotate(-3deg);
   animation: pp-wiggle 4s ease-in-out infinite;
 }
 :root .game-shell .pp-menu-banner em {
   font-style: normal;
-  color: #ff3d9a;
-  text-shadow: 0 2px 0 #ffffff;
+  color: #ffe14d;
 }
 .pp-menu-banner > span::before,
 .pp-menu-banner > span::after {
@@ -452,11 +484,11 @@
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 68px;
-  margin: 14px 0 0;
-  padding: 9px 16px 9px 9px;
+  min-height: 76px;
+  margin: 16px 0 0;
+  padding: 10px 18px 10px 10px;
   overflow: hidden;
-  font-size: 23px;
+  font-size: 25px;
   font-weight: 700;
   line-height: 1.05;
   color: var(--pp-ink);
@@ -466,8 +498,10 @@
   border-radius: 22px;
   box-shadow:
     0 6px 0 var(--pp-ink),
-    0 14px 28px #ff9a2e66,
-    inset 0 -5px 0 #d2600055;
+    0 0 0 4px #fff3,
+    0 12px 34px 4px #ffb02e88,
+    inset 0 3px 0 #ffffffa0,
+    inset 0 -6px 0 #d2600066;
   filter: none;
   transition:
     transform 0.18s cubic-bezier(0.3, 1.8, 0.5, 1),
@@ -526,8 +560,8 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 46px;
-  height: 46px;
+  width: 52px;
+  height: 52px;
   padding-left: 3px;
   border-radius: 50%;
   color: #fff;
@@ -571,31 +605,18 @@
   color: var(--pp-sun);
   font-weight: 700;
 }
-.pp-crew-faces {
-  display: flex;
-  align-items: center;
-  padding-left: 8px;
-}
-.pp-crew-faces .art {
-  width: 34px;
-  height: 34px;
-  margin-left: -6px;
+.pp-crew-chip {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  filter: drop-shadow(0 2px 0 #1b2440);
-}
-.pp-crew-faces .art.is-you {
-  width: 40px;
-  height: 40px;
-  margin-right: 4px;
-  position: relative;
-  z-index: 1;
-  box-shadow: 0 0 0 3px var(--pp-sun);
-}
-.pp-crew-faces .art:nth-child(2) {
-  transform: rotate(-6deg);
-}
-.pp-crew-faces .art:nth-child(4) {
-  transform: rotate(7deg);
+  color: var(--pp-ink);
+  background:
+    radial-gradient(circle at 34% 26%, #ffffffc0 0 12%, transparent 40%),
+    var(--pp-sun);
+  border: 3px solid var(--pp-ink);
+  box-shadow: 0 2px 0 var(--pp-ink);
 }
 
 /* Destination buttons */
@@ -614,12 +635,15 @@
   overflow: hidden;
   text-align: left;
   color: #fff;
-  background: linear-gradient(180deg, var(--c1) 0%, var(--c2) 100%);
-  border: 4px solid var(--pp-ink);
-  border-radius: 22px;
+  background:
+    linear-gradient(180deg, #ffffff1c 0%, #ffffff00 48%),
+    linear-gradient(180deg, #4a22b4 0%, #34148c 100%);
+  border: 3.5px solid var(--pp-ink);
+  border-radius: 20px;
   box-shadow:
     0 5px 0 var(--pp-ink),
-    inset 0 -5px 0 #00000026;
+    inset 0 2px 0 #ffffff38,
+    inset 0 -4px 0 #16034a66;
   transition:
     transform 0.2s cubic-bezier(0.3, 1.8, 0.5, 1),
     box-shadow 0.12s;
@@ -640,17 +664,20 @@
   top: 3px;
   height: 40%;
   border-radius: 14px 14px 40px 40px;
-  background: linear-gradient(180deg, #ffffff8c, #ffffff00);
+  background: linear-gradient(180deg, #ffffff14, #ffffff00);
   pointer-events: none;
 }
 :root .game-shell .pp-menu .menu-option.pp-opt:hover:not(:disabled) {
   color: #fff;
-  transform: translateY(-2px) scale(1.045) rotate(-0.6deg);
+  background:
+    linear-gradient(180deg, #ffffff26 0%, #ffffff00 48%),
+    linear-gradient(180deg, #5a2ad2 0%, #3e199f 100%);
+  transform: translateY(-2px) scale(1.035);
   box-shadow:
     0 7px 0 var(--pp-ink),
-    0 0 0 4px #ffffff,
-    0 0 26px 6px color-mix(in srgb, var(--c1) 75%, transparent),
-    inset 0 -5px 0 #00000026;
+    0 0 0 3px var(--c1),
+    0 0 24px 4px color-mix(in srgb, var(--c1) 60%, transparent),
+    inset 0 2px 0 #ffffff38;
 }
 :root .game-shell .pp-menu .menu-option.pp-opt:active:not(:disabled) {
   transform: translateY(5px) scale(1.01, 0.96);
@@ -661,63 +688,59 @@
 :root .game-shell .pp-menu .pp-opt > span:nth-child(2) {
   position: relative;
   z-index: 1;
-  font-size: 19.5px;
+  font-size: 19px;
   font-weight: 700;
   line-height: 1.1;
   color: #fff;
-  text-shadow:
-    0 3px 0 var(--pp-ink),
-    1.5px 0 0 var(--pp-ink),
-    -1.5px 0 0 var(--pp-ink),
-    0 -1.5px 0 var(--pp-ink),
-    1.5px 1.5px 0 var(--pp-ink),
-    -1.5px 1.5px 0 var(--pp-ink),
-    1.5px -1.5px 0 var(--pp-ink),
-    -1.5px -1.5px 0 var(--pp-ink);
+  text-shadow: 0 2px 0 #12033f;
 }
 :root .game-shell .pp-menu .pp-opt small {
   display: block;
   margin-top: 3px;
   font-size: 13px;
   font-weight: 600;
-  color: #ffffff;
-  text-shadow: 0 1.5px 0 #1b244080;
-  opacity: 0.95;
+  color: #cdbfff;
+  text-shadow: none;
 }
 .pp-opt-badge {
   position: relative;
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
   background:
-    radial-gradient(circle at 34% 26%, #ffffff 0 20%, #f2f0ff 60%, #d9d4f5 100%);
-  border: 3.5px solid var(--pp-ink);
-  box-shadow: 0 3px 0 var(--pp-ink);
+    radial-gradient(90% 60% at 40% 18%, #ffffffb0 0 18%, #ffffff00 60%),
+    linear-gradient(180deg, var(--c1) 0%, var(--c2) 100%);
+  border: 3px solid var(--pp-ink);
+  box-shadow:
+    0 3px 0 var(--pp-ink),
+    inset 0 -4px 0 #00000030;
+  transform: rotate(-4deg);
   transition: transform 0.25s cubic-bezier(0.3, 1.8, 0.5, 1);
 }
 :root .game-shell .pp-menu .pp-opt-badge > svg {
   width: 30px;
   height: 30px;
-  color: var(--c2);
+  color: #fff;
+  filter: drop-shadow(0 2px 0 #1b2440);
 }
 :root .game-shell .pp-menu .pp-opt-studio .pp-opt-badge {
-  background: none;
-  border: 0;
-  box-shadow: 0 3px 0 var(--pp-ink);
+  overflow: hidden;
 }
 :root .game-shell .pp-menu .pp-opt-studio .pp-opt-badge > svg {
-  width: 52px;
-  height: 52px;
+  width: 50px;
+  height: 50px;
+  margin-top: 8px;
+  filter: none;
 }
 :root .game-shell .pp-menu .pp-opt-arcade .pp-opt-badge > svg {
   width: 34px;
   height: 34px;
 }
 :root .game-shell .pp-menu .menu-option.pp-opt:hover:not(:disabled) .pp-opt-badge {
-  transform: rotate(-10deg) scale(1.08);
+  transform: rotate(-12deg) scale(1.1);
 }
 :root .game-shell .pp-menu .menu-option.pp-opt > svg:last-child {
   position: relative;
@@ -726,8 +749,8 @@
   height: 30px;
   margin: 0;
   padding: 5px;
-  color: #fff;
-  background: #1b244059;
+  color: var(--c1);
+  background: #12033f80;
   border-radius: 50%;
 }
 
@@ -756,9 +779,13 @@
 :root .game-shell .location.pp-location {
   right: 34px;
   bottom: 30px;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 16px;
   max-width: none;
-  padding: 12px 26px 14px;
-  text-align: center;
+  padding: 20px 26px 14px 18px;
+  text-align: left;
   text-shadow: none;
   color: #fff;
   font-family: var(--pp-font);
@@ -768,7 +795,7 @@
   box-shadow: none;
   transform: rotate(-2deg);
 }
-/* The plate is drawn on ::before so the waving crew member can stand behind it. */
+/* The plate is drawn on ::before so it can tilt and glow independently of its text. */
 :root .game-shell .location.pp-location::before {
   content: '';
   position: absolute;
@@ -782,71 +809,17 @@
   border-radius: 28px;
   box-shadow:
     0 7px 0 var(--pp-ink),
-    0 22px 46px #5a14c866,
-    inset 0 3px 0 #ffffff40;
+    0 26px 56px #12002ecc,
+    0 0 50px color-mix(in srgb, var(--pt) 30%, transparent),
+    inset 0 0 0 2px #ffffff26,
+    inset 0 4px 0 #ffffff40,
+    inset 0 -5px 0 #1a064d66;
 }
 
-/* -- The crew: rendered cut-outs with a white sticker edge -- */
-.pp-cast {
-  position: absolute;
-  display: block;
-  height: auto;
-  pointer-events: none;
-  user-select: none;
-  filter: drop-shadow(2.5px 0 0 #fff) drop-shadow(-2.5px 0 0 #fff)
-    drop-shadow(0 2.5px 0 #fff) drop-shadow(0 -2.5px 0 #fff)
-    drop-shadow(0 8px 10px #16033f99);
-}
-.pp-cast-dice {
-  left: -30%;
-  top: -4%;
-  width: 35%;
-  transform-origin: 50% 100%;
-  animation: pp-cast-hop 1.9s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-.pp-cast-cheer {
-  z-index: 4;
-  left: 384px;
-  bottom: 0;
-  width: 200px;
-  transform-origin: 50% 100%;
-  animation: pp-cast-sway 2.8s ease-in-out infinite;
-}
-:root .game-shell .location.pp-location .pp-cast-wave {
-  z-index: -2;
-  top: -132px;
-  left: -22px;
-  width: 150px;
-  transform-origin: 50% 100%;
-  animation: pp-cast-sway 2.4s ease-in-out -1s infinite;
-}
-@keyframes pp-cast-hop {
-  0%,
-  100% {
-    transform: translateY(0) scale(1.03, 0.97);
-  }
-  40% {
-    transform: translateY(-9px) scale(0.98, 1.03);
-  }
-}
-@keyframes pp-cast-sway {
-  0%,
-  100% {
-    transform: rotate(-4deg);
-  }
-  50% {
-    transform: rotate(4deg) translateY(-3px);
-  }
-}
-@media (max-width: 1100px) {
-  .pp-cast-cheer {
-    display: none;
-  }
-}
 :root .game-shell .location.pp-location h2.pp-loc-name {
   margin: 0 0 10px;
   font-family: var(--pp-font);
-  font-size: 60px;
+  font-size: 56px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -867,8 +840,44 @@
 }
 .pp-loc-stats {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
+}
+:root .game-shell .location.pp-location > :is(h2, .pp-loc-stats, p) {
+  grid-column: 2;
+}
+:root .game-shell .location.pp-location .pp-loc-orb {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  width: 92px;
+  height: 92px;
+  border-width: 4px;
+  box-shadow:
+    0 5px 0 var(--pp-ink),
+    0 0 0 4px var(--pt),
+    0 0 34px 10px color-mix(in srgb, var(--pt) 55%, transparent);
+}
+:root .game-shell .location.pp-location .pp-loc-orb > span {
+  animation-duration: 14s;
+}
+.pp-loc-tag {
+  position: absolute;
+  top: -15px;
+  left: 20px;
+  padding: 3px 12px 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pp-ink);
+  background: linear-gradient(180deg, #fff27a 0%, #ffd52e 55%, #ffb21a 100%);
+  border: 3px solid var(--pp-ink);
+  border-radius: 999px;
+  box-shadow:
+    0 3px 0 var(--pp-ink),
+    inset 0 2px 0 #ffffffa0;
+  transform: rotate(-3deg);
 }
 :root .game-shell .location.pp-location .pp-loc-stats span {
   display: inline-block;
@@ -887,10 +896,10 @@
   color: #e0268a;
 }
 :root .game-shell .location.pp-location p.pp-loc-hint {
-  margin: 10px 0 0;
-  font-size: 13px;
+  margin: 9px 0 0;
+  font-size: 12.5px;
   font-weight: 600;
-  color: #e3dbff;
+  color: #cdbfff;
 }
 
 /* -- Small screens -- */
@@ -908,10 +917,6 @@
     transform: none;
     animation: none;
   }
-  .pp-menu-hero .pp-cast-dice,
-  .pp-menu-hero .logo-ufo-img {
-    display: none;
-  }
   :root .game-shell .home-menu.pp-menu {
     top: 128px !important;
     left: 14px;
@@ -928,13 +933,17 @@
   .pp-menu-hero::after,
   .title-brand.pp-title-brand,
   .party-logo-wrap,
-  .party-logo-wrap .logo-ufo-img,
   .title-mode .start-prompt,
   .pp-menu-banner > span,
   .pp-menu-banner > span::before,
   .pp-menu-banner > span::after,
   .pp-orb > span,
-  .pp-cast,
+  .pp-logo-burst::before,
+  .party-logo .logo-shine,
+  .pp-sky-nebula,
+  .pp-sky-rays,
+  .pp-sky-dust,
+  .pp-sky-confetti > i,
   :root .game-shell .pp-menu .primary.pp-play::after {
     animation: none !important;
   }
@@ -948,12 +957,16 @@
   display: grid;
   place-items: center;
   padding: 0;
-  color: var(--pp-ink);
+  color: #fff;
   background:
-    radial-gradient(circle at 34% 26%, #ffffff 0 22%, #f1edff 60%, #d8d0ff 100%);
+    radial-gradient(80% 50% at 50% 12%, #ffffff55 0%, #ffffff00 70%),
+    linear-gradient(172deg, var(--pp-grape-hi) 0%, var(--pp-grape) 55%, var(--pp-grape-lo) 100%);
   border: 3.5px solid var(--pp-ink);
   border-radius: 50%;
-  box-shadow: 0 4px 0 var(--pp-ink), 0 8px 18px #16033f80;
+  box-shadow:
+    0 4px 0 var(--pp-ink),
+    0 10px 22px #12002eb0,
+    inset 0 0 0 2px #ffffff26;
   transition: transform 0.2s cubic-bezier(0.3, 1.8, 0.5, 1);
 }
 :root .game-shell .masthead:has(.pp-wordmark.on-menu) .icon-button svg {
@@ -963,9 +976,120 @@
 }
 :root .game-shell .masthead:has(.pp-wordmark.on-menu) .icon-button:hover {
   transform: translateY(-2px) scale(1.08) rotate(-6deg);
+  color: var(--pp-ink);
   background: radial-gradient(circle at 34% 26%, #ffffff 0 22%, #fff4b8 60%, #ffd52e 100%);
 }
 :root .game-shell .masthead:has(.pp-wordmark.on-menu) .icon-button:active {
   transform: translateY(3px);
   box-shadow: 0 1px 0 var(--pp-ink);
+}
+/* -- Menu sky: painted nebula, sun rays and star dust layered over the 3D void --
+   The wrapper must not form a stacking context, so the screen-blended layers mix
+   with the WebGL canvas underneath. Hidden on the daylit board view. */
+.pp-menu-sky {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.game-shell.light-ui .pp-menu-sky {
+  display: none;
+}
+.pp-menu-sky > span {
+  position: absolute;
+  pointer-events: none;
+}
+.pp-sky-nebula {
+  inset: -3%;
+  background: url('/brand/menu-nebula.webp') 50% 50% / cover no-repeat;
+  mix-blend-mode: screen;
+  filter: saturate(1.4) brightness(1.3);
+  -webkit-mask-image: radial-gradient(ellipse 30% 36% at 62% 50%, #0006 0%, #000c 60%, #000 100%);
+  mask-image: radial-gradient(ellipse 30% 36% at 62% 50%, #0006 0%, #000c 60%, #000 100%);
+  animation: pp-sky-drift 80s ease-in-out infinite alternate;
+}
+@keyframes pp-sky-drift {
+  to {
+    transform: scale(1.06) translate(-1%, 0.6%);
+  }
+}
+.pp-sky-rays {
+  left: 61.7%;
+  top: 49%;
+  width: 150vmax;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  background: repeating-conic-gradient(from 8deg, #ffe7b014 0deg 5deg, transparent 5deg 14deg, #ff9ad80e 14deg 17deg, transparent 17deg 29deg);
+  filter: blur(3px);
+  -webkit-mask-image: radial-gradient(closest-side, transparent 3%, #000 9%, #0006 26%, transparent 50%);
+  mask-image: radial-gradient(closest-side, transparent 3%, #000 9%, #0006 26%, transparent 50%);
+  mix-blend-mode: screen;
+  animation: pp-burst-spin 240s linear infinite;
+}
+.pp-sky-dust {
+  inset: 0;
+  background:
+    radial-gradient(circle, #fff 0 1.4px, transparent 2.2px) 40px 60px / 260px 230px,
+    radial-gradient(circle, #ffe7a8 0 1.2px, transparent 2px) 170px 20px / 310px 270px,
+    radial-gradient(circle, #9ef2ff 0 1.3px, transparent 2.1px) 90px 180px / 370px 330px,
+    radial-gradient(circle, #ffb3ea 0 1.2px, transparent 2px) 250px 140px / 430px 390px;
+  mix-blend-mode: screen;
+  animation: pp-sky-twinkle 4.5s ease-in-out infinite;
+}
+@keyframes pp-sky-twinkle {
+  50% {
+    opacity: 0.45;
+  }
+}
+.pp-sky-vignette {
+  inset: 0;
+  background:
+    radial-gradient(ellipse 85% 80% at 62% 50%, transparent 60%, #0a011e90 100%),
+    linear-gradient(180deg, transparent 70%, #1a063f66 100%);
+}
+
+/* Title screen: a soft party glow behind the wordmark (no characters on the title). */
+.title-brand.pp-title-brand::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -18% -16% -22%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #ffd52e55 0%, #ff4fa840 38%, #8a3cff26 66%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Party confetti drifting through the sky, kept to the edges so the planets stay clear. */
+.pp-sky-confetti {
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask-image: radial-gradient(ellipse 34% 40% at 62% 50%, transparent 35%, #000 100%);
+  mask-image: radial-gradient(ellipse 34% 40% at 62% 50%, transparent 35%, #000 100%);
+}
+.pp-sky-confetti > i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -440px;
+  height: calc(100% + 440px);
+  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='520' height='440'><g stroke='%231b2440' stroke-width='2.5' stroke-linejoin='round'><rect x='40' y='30' width='17' height='9' rx='2' fill='%23ffd52e' transform='rotate(25 48 34)'/><rect x='300' y='84' width='15' height='8' rx='2' fill='%23ff4fa8' transform='rotate(-35 307 88)'/><circle cx='186' cy='150' r='5' fill='%232ccdf5'/><path d='M424 40l4 9 10 1-7 7 2 10-9-5-9 5 2-10-7-7 10-1z' fill='%23ffd52e'/><rect x='252' y='300' width='16' height='8' rx='2' fill='%2386e842' transform='rotate(60 260 304)'/><circle cx='474' cy='232' r='4.5' fill='%23ff9a2e'/><rect x='140' y='382' width='15' height='8' rx='2' fill='%232ccdf5' transform='rotate(-15 147 386)'/><circle cx='30' cy='402' r='3.5' fill='%23ffffff'/><path d='M96 214l3 7 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z' fill='%23ff4fa8'/></g><g fill='none' stroke-width='4' stroke-linecap='round'><path d='M360 372q8-10 16 0t16 0' stroke='%23ff4fa8'/><path d='M70 120q8-10 16 0t16 0' stroke='%2386e842'/><path d='M400 160q8-10 16 0t16 0' stroke='%232ccdf5'/></g></svg>") 0 0 / 520px 440px repeat;
+  animation: pp-confetti-fall 30s linear infinite;
+}
+.pp-sky-confetti > i + i {
+  top: -660px;
+  height: calc(100% + 660px);
+  background-size: 780px 660px;
+  background-position: 260px 120px;
+  opacity: 0.5;
+  animation: pp-confetti-fall-far 52s linear infinite;
+}
+@keyframes pp-confetti-fall {
+  to {
+    transform: translateY(440px);
+  }
+}
+@keyframes pp-confetti-fall-far {
+  to {
+    transform: translateY(660px);
+  }
 }

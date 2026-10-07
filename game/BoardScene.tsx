@@ -26,6 +26,7 @@ import { createFinale } from './Finale';
 import { createBoardSky } from './SpaceLife';
 import {
   buildField,
+  createLavaSea,
   createOcean,
   createPlayerRings,
   createRoads,
@@ -34,7 +35,7 @@ import {
   worldStyle,
 } from './BoardWorld';
 /** On-board pawn scale (the avatar model is ~3 units tall at 1). */
-const PAWN = 1.1;
+const PAWN = 1.3;
 /** Glb materials replaced by the code-built raised roads. */
 const GLB_ROADS = new Set(['Road', 'Curb', 'Cloudway', 'Boardwalk', 'Catwalk', 'Bridge']);
 type Props = {
@@ -127,8 +128,9 @@ export default function BoardScene(props: Props) {
     if (style.ocean) ambient.groundColor.set('#5e8a74');
     scene.add(ambient);
     const sun = new T.DirectionalLight('#ffe6bf', 3.2);
-    // A lower, warmer sun on styled boards throws longer shadows for depth.
-    if (style.sky) sun.position.set(-36 * sceneryScale, 44, 20 * sceneryScale);
+    // A lower, warmer sun from the left on styled boards throws long shadows
+    // across the board toward the camera, so every prop reads as standing up.
+    if (style.sky) sun.position.set(-40 * sceneryScale, 40, 2 * sceneryScale);
     else sun.position.set(-26 * sceneryScale, 58, 16 * sceneryScale);
     sun.castShadow = true;
     sun.shadow.mapSize.set(props.low ? 512 : 2048, props.low ? 512 : 2048);
@@ -145,8 +147,8 @@ export default function BoardScene(props: Props) {
     sun.shadow.normalBias = 0.03;
     scene.add(sun);
     // Cool bounce from the sky opposite the sun keeps shadow sides blue, not grey.
-    const fill = new T.DirectionalLight('#a9d4ff', style.sky ? 0.9 : 0);
-    fill.position.set(30, 22, -24);
+    const fill = new T.DirectionalLight('#a9d4ff', style.sky ? 1.1 : 0);
+    fill.position.set(30, 26, 34);
     scene.add(fill);
     const sunDir = sun.position.clone().normalize();
     const boardSky = createBoardSky(scene, board.planet === 'earth');
@@ -158,7 +160,8 @@ export default function BoardScene(props: Props) {
     world.add(roads.root);
     const rings = createPlayerRings();
     world.add(rings.root);
-    let ocean: ReturnType<typeof createOcean> | undefined;
+    let ocean: ReturnType<typeof createOcean> | undefined,
+      lavaOcean: ReturnType<typeof createLavaSea> | undefined;
     // Procedural scenery lives in its own group so Blender-built scenery can replace it.
     const scenery = new T.Group();
     world.add(scenery);
@@ -379,7 +382,7 @@ export default function BoardScene(props: Props) {
           if (!mesh.isMesh) return;
           if (mesh.name === 'Terrain') terrainMesh = mesh;
           const name = (mesh.material as T.Material).name;
-          if (name === 'Water' || name === 'CloudSea') seaMesh = mesh;
+          if (name === 'Water' || name === 'CloudSea' || name === 'LavaSea') seaMesh = mesh;
         });
         const seaLevel = seaMesh
           ? seaMesh.getWorldPosition(new T.Vector3()).y
@@ -390,6 +393,12 @@ export default function BoardScene(props: Props) {
           ocean?.dispose();
           ocean = createOcean(style.ocean, field, sunDir, style.fog?.color ?? skyColor, board.radius);
           world.add(ocean.mesh);
+        }
+        if (field && seaMesh && (seaMesh.material as T.Material).name === 'LavaSea') {
+          seaMesh.visible = false;
+          lavaOcean?.dispose();
+          lavaOcean = createLavaSea(field, skyColor, board.radius);
+          world.add(lavaOcean.mesh);
         }
         // Older board exports scattered props evenly; thin those into clumps.
         // (Nimbus Reef's export is already clustered.)
@@ -423,8 +432,15 @@ export default function BoardScene(props: Props) {
             material.depthWrite = false;
             mesh.renderOrder = -1;
           }
-          if (material.name === 'Lava') lava = material;
-          if (material.name === 'LavaSea') {
+          if (material.name === 'Lava') {
+            lava = material;
+            // Dark base, saturated glow: stays molten orange under the tone curve.
+            lava.color.set('#3a0c02');
+            lava.emissive.set('#ff4a0c');
+            lava.emissiveIntensity = 1.3;
+          }
+          // Fallback when the procedural molten sea could not be built.
+          if (material.name === 'LavaSea' && !lavaOcean) {
             // Molten sea: the baked Ignara crust and crack-glow maps, tiled and drifting.
             const loader = new T.TextureLoader();
             const tile = (url: string, srgb: boolean) => {
@@ -649,6 +665,19 @@ export default function BoardScene(props: Props) {
     const travelFade = document.createElement('div');
     travelFade.className = 'planet-travel-fade';
     root.appendChild(travelFade);
+    // Soft lens vignette on the board view: pulls the eye to the middle of
+    // the board and seats the HUD corners. Not shown in orbit or the studio.
+    const vignette = document.createElement('div');
+    Object.assign(vignette.style, {
+      position: 'absolute',
+      inset: '0',
+      pointerEvents: 'none',
+      background:
+        'radial-gradient(ellipse 75% 70% at 50% 46%, rgba(4,20,52,0) 58%, rgba(4,20,52,0.22) 82%, rgba(3,14,40,0.5) 100%)',
+      opacity: '0',
+      transition: 'opacity 500ms ease',
+    });
+    root.insertBefore(vignette, travelFade);
     const directTransfer =
       !props.orbital &&
       previousBoard.current !== props.boardId &&
@@ -683,8 +712,8 @@ export default function BoardScene(props: Props) {
       // space between the scoreboard and the action panels.
       const elevation = 1.06,
         azimuth = 0.1,
-        reach = board.radius * 2.62,
-        north = -board.radius * 0.2;
+        reach = board.radius * 2.8,
+        north = -board.radius * 0.13;
       transitionPosition.set(
         studio ? 2.1 : Math.sin(azimuth) * Math.cos(elevation) * reach,
         studio ? 2.2 : Math.sin(elevation) * reach,
@@ -735,7 +764,8 @@ export default function BoardScene(props: Props) {
         planetLife.draw(worldClock, !!p.reduced);
       }
       if (lava && !p.reduced)
-        lava.emissiveIntensity = 3.2 + Math.sin(worldClock * 2.3) * 0.6 + Math.sin(worldClock * 7.1) * 0.25;
+        // Kept under the tone curve so the pool stays orange, not white-pink.
+        lava.emissiveIntensity = 1.3 + Math.sin(worldClock * 2.3) * 0.25 + Math.sin(worldClock * 7.1) * 0.1;
       if (seaMaterial) seaMaterial.opacity = 0.78 + Math.sin(worldClock * 0.8) * 0.03;
       if (lavaSea?.map && lavaSea.emissiveMap && !p.reduced) {
         lavaSea.map.offset.set(worldClock * 0.004, worldClock * 0.002);
@@ -761,6 +791,7 @@ export default function BoardScene(props: Props) {
       fill.visible = !p.orbital;
       dome?.update(worldClock, camera);
       ocean?.update(p.reduced ? 0 : worldClock);
+      lavaOcean?.update(p.reduced ? 0 : worldClock);
       boardSky.root.visible = !p.orbital && !studio;
       boardSky.draw(camera, worldClock, p.sunBrightness ?? 0.55, !!p.reduced);
       scene.fog = p.orbital ? null : boardFog;
@@ -838,6 +869,8 @@ export default function BoardScene(props: Props) {
       ship.updateMatrixWorld(true);
       world.visible = !studio && !p.orbital;
       actors.visible = !studio && !p.orbital;
+      const vignetteOn = world.visible && !finale ? '1' : '0';
+      if (vignette.style.opacity !== vignetteOn) vignette.style.opacity = vignetteOn;
       creator.visible = studio;
       if (
         lastMode !== p.mode ||
@@ -1327,6 +1360,7 @@ export default function BoardScene(props: Props) {
       roads.dispose();
       rings.dispose();
       ocean?.dispose();
+      lavaOcean?.dispose();
       dome?.dispose();
       environment.dispose();
       pmrem.dispose();
@@ -1335,6 +1369,7 @@ export default function BoardScene(props: Props) {
       renderer.dispose();
       renderer.domElement.remove();
       travelFade.remove();
+      vignette.remove();
     };
   }, [props.low, props.boardId]);
   return (

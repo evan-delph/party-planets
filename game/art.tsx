@@ -4,8 +4,9 @@
  * interface reads as one family. To swap in painted art later, replace a
  * component's body with an <img> — call sites only depend on the props.
  */
-import type { CSSProperties, ReactElement } from 'react';
-import { ALIEN_SKIN, SPACE_INFO, type SpaceKind } from './config';
+import { useEffect, useState, type CSSProperties, type ReactElement } from 'react';
+import { ALIEN_SKIN, SPACE_INFO, type Avatar, type SpaceKind } from './config';
+import { assetUrl } from './assets';
 
 export const INK = '#1b2440';
 type ArtProps = { size?: number; className?: string; style?: CSSProperties };
@@ -113,15 +114,121 @@ export function DiceCube({ size = 64, className, style }: ArtProps) {
 }
 
 // ── Characters ──────────────────────────────────────────────────────────────
-/** Round portrait of a crew alien in their shirt color. */
+/** `amount` of colour `a` mixed into `b` (hex in, hex out). */
+function mix(a: string, b: string, amount: number) {
+  const rgb = (h: string) => {
+    const n = parseInt(h.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
+    return [n >> 16, (n >> 8) & 255, n & 255];
+  };
+  const x = rgb(a),
+    y = rgb(b);
+  return (
+    '#' +
+    x
+      .map((v, i) =>
+        Math.round(v * amount + y[i] * (1 - amount))
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')
+  );
+}
+type Mood = 'happy' | 'sad' | 'neutral';
+const portraitUrls = new Map<string, string>();
+const portraitJobs = new Map<string, Promise<string>>();
+// Bump the version when the alien model or the portrait framing changes,
+// then re-run scripts/bake-portraits.mjs.
+const PORTRAIT_VERSION = 'v1';
+const portraitKey = (a: Avatar) =>
+  JSON.stringify([
+    PORTRAIT_VERSION, a.shirt, a.hair, a.hairColor, a.accessory, a.eyes, a.eyeColor, a.mouth, a.brows,
+    a.nose, a.beard, a.pattern, a.freckles, a.gloves, a.eyeSpacing, a.mouthScale, a.width, a.height,
+  ]);
+/**
+ * Where a pre-rendered portrait for this avatar lives. The default crew
+ * (your starting alien and the three CPU rivals) ship baked, so their cards
+ * show the real characters instantly; anyone else is rendered on first use.
+ */
+export function bakedPortraitPath(a: Avatar) {
+  let h = 0x811c9dc5;
+  for (const c of portraitKey(a)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
+  return '/textures/portraits/' + (h >>> 0).toString(36) + '.webp';
+}
+function loadBaked(a: Avatar) {
+  return new Promise<string>((ok, fail) => {
+    const url = assetUrl(bakedPortraitPath(a));
+    const img = new Image();
+    img.onload = () => ok(url);
+    img.onerror = fail;
+    img.src = url;
+  });
+}
+/** The rendered 3D portrait for an avatar, once it is ready (see portraits.ts). */
+function useRenderedPortrait(avatar: Avatar | undefined) {
+  const key = avatar ? portraitKey(avatar) : '';
+  const [, setReady] = useState(0);
+  useEffect(() => {
+    if (!avatar || portraitUrls.has(key)) return;
+    let live = true;
+    let job = portraitJobs.get(key);
+    if (!job) {
+      job = loadBaked(avatar).catch(() =>
+        import('./portraits').then((m) => m.renderPortrait(avatar)),
+      );
+      portraitJobs.set(key, job);
+      job.then(
+        (url) => portraitUrls.set(key, url),
+        () => portraitJobs.delete(key),
+      );
+    }
+    job.then(
+      () => live && setReady((n) => n + 1),
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+    // The key captures every avatar field the render depends on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return avatar ? portraitUrls.get(key) : undefined;
+}
+
+/**
+ * Round portrait of a crew alien. Pass `avatar` to show that player's real
+ * rendered 3D character on a disc in their colour; without it (or until the
+ * render is ready) a vector alien in their shirt colour stands in.
+ */
 export function AlienPortrait({
   shirt,
+  avatar,
   size = 44,
   mood = 'happy',
   className,
   style,
-}: ArtProps & { shirt: string; mood?: 'happy' | 'sad' | 'neutral' }) {
+}: ArtProps & { shirt: string; avatar?: Avatar; mood?: Mood }) {
   const id = 'ap' + shirt.replace('#', '');
+  const rendered = useRenderedPortrait(avatar);
+  if (rendered)
+    return (
+      <svg viewBox="0 0 64 64" {...box(size, `rendered mood-${mood} ${className ?? ''}`, style)}>
+        <defs>
+          <clipPath id={id + 'r'}>
+            <circle cx="32" cy="32" r="29" />
+          </clipPath>
+          <radialGradient id={id + 'rg'} cx="0.42" cy="0.3" r="0.85">
+            <stop offset="0" stopColor="#ffffff" />
+            <stop offset="0.45" stopColor={mix(shirt, '#ffffff', 0.3)} />
+            <stop offset="1" stopColor={mix(shirt, '#ffffff', 0.78)} />
+          </radialGradient>
+        </defs>
+        <circle cx="32" cy="32" r="29" fill={`url(#${id}rg)`} />
+        <g clipPath={`url(#${id}r)`}>
+          <image href={rendered} x="-6" y="-3" width="76" height="76" />
+        </g>
+        <circle cx="32" cy="32" r="29" fill="none" stroke={INK} strokeWidth="3" />
+      </svg>
+    );
   return (
     <svg viewBox="0 0 64 64" {...box(size, className, style)}>
       <defs>
@@ -352,6 +459,50 @@ export function ItemIcon({ id, size = 26, className, style }: ArtProps & { id: s
   return (
     <svg viewBox="0 0 40 40" {...box(size, className, style)}>
       {ITEM_ART[id] ?? <circle cx="20" cy="20" r="12" fill="#ddd" {...stroke} />}
+    </svg>
+  );
+}
+
+/** Board gimmick status: tide waves, cloud ferry, volcano, jump pad. */
+export function GimmickIcon({
+  kind,
+  open = true,
+  size = 20,
+  className,
+  style,
+}: ArtProps & { kind: string; open?: boolean }) {
+  return (
+    <svg viewBox="0 0 32 32" {...box(size, className, style)}>
+      {kind === 'tide' ? (
+        <g {...stroke} strokeWidth="2.2">
+          <circle cx="16" cy="16" r="13.5" fill={open ? '#5fd3ff' : '#2f7fe0'} />
+          <path
+            d="M5 17c3-3 5-3 7.5 0s5 3 7.5 0 5-3 7 0v6.5a11 11 0 0 1-22 0z"
+            fill={open ? '#2a8fe0' : '#1d4fb8'}
+          />
+          <path d="M8 13.5c2-2 3.5-2 5.5 0" fill="none" stroke="#fff" strokeWidth="2" />
+        </g>
+      ) : kind === 'ferry' ? (
+        <g {...stroke} strokeWidth="2.2">
+          <circle cx="16" cy="16" r="13.5" fill="#b9e6ff" />
+          <path d="M7 21a4.5 4.5 0 0 1 2-8.6 6.5 6.5 0 0 1 12.4 1.6A3.6 3.6 0 0 1 25 21z" fill="#fff" />
+          {!open && <path d="M9 9l14 14" stroke="#e2453f" strokeWidth="2.6" />}
+        </g>
+      ) : kind === 'eruption' ? (
+        <g {...stroke} strokeWidth="2.2">
+          <circle cx="16" cy="16" r="13.5" fill={open ? '#ffd0a8' : '#ff9a6b'} />
+          <path d="M5.5 24l7-11h7l7 11z" fill="#8a5a44" />
+          <path d="M12.5 13l2 3 1.5-2 1.5 2 2-3" fill="#ff5a2a" />
+          <path d="M14 9.5c0-2 1-3 2-4.5 1 1.5 2 2.5 2 4.5" fill="#ffb02e" />
+        </g>
+      ) : (
+        <g {...stroke} strokeWidth="2.2">
+          <circle cx="16" cy="16" r="13.5" fill="#d7c4ff" />
+          <path d="M16 6c4 3 5 8 3.5 13h-7C11 14 12 9 16 6z" fill="#fff" />
+          <path d="M12.5 19l-3 4h4zM19.5 19l3 4h-4z" fill="#ff5a8a" />
+          <circle cx="16" cy="12.5" r="2" fill="#5fe3ff" strokeWidth="1.6" />
+        </g>
+      )}
     </svg>
   );
 }

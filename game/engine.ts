@@ -233,6 +233,60 @@ export type Action = {
   scores?: number[];
 };
 export const BOT_NAMES = ['Chorizo', 'Coco', 'Bratley'];
+/**
+ * CPU rivals' signature looks (cosmetic only). Each has its own silhouette:
+ * Chorizo is tall and lanky with a flame mohawk, headphones and a moustache;
+ * Coco is small and round with a pink bun, a flower and freckles; Bratley is
+ * broad and smug under a straw sun hat, with gold specs and a goatee.
+ */
+const BOT_LOOKS: Partial<Avatar>[] = [
+  {
+    hair: 7,
+    hairColor: '#ff5a2c',
+    accessory: 5,
+    beard: 1,
+    brows: 3,
+    eyes: 0,
+    mouth: 2,
+    pattern: 1,
+    height: 1.18,
+    width: 0.86,
+    shoeColor: '#2a1d4a',
+    eyeColor: '#5a2410',
+    eyeSpacing: 0.15,
+  },
+  {
+    hair: 6,
+    hairColor: '#ff7fc4',
+    accessory: 2,
+    freckles: true,
+    brows: 1,
+    eyes: 0,
+    mouth: 0,
+    pattern: 2,
+    height: 0.84,
+    width: 1.14,
+    shoeColor: '#ffd23f',
+    eyeColor: '#6a2a9a',
+    eyeSpacing: 0.175,
+    mouthScale: 1.15,
+  },
+  {
+    hair: 5,
+    hairColor: '#4a2a14',
+    accessory: 1,
+    beard: 2,
+    brows: 2,
+    eyes: 1,
+    mouth: 1,
+    pattern: 3,
+    height: 1.02,
+    width: 1.2,
+    shoeColor: '#7a2f1c',
+    eyeColor: '#1d3a5a',
+    nose: 1,
+  },
+];
 export function player(id: string, avatar: Avatar, cpu = false): Player {
   return {
     id,
@@ -277,11 +331,10 @@ export function newGame(
           'bot' + i,
           {
             ...DEFAULT_AVATAR,
+            ...BOT_LOOKS[i],
             name,
             skin: ALIEN_SKIN,
             shirt: OUTFITS[i + 1],
-            hair: i + 2,
-            accessory: i,
           },
           true,
         ),

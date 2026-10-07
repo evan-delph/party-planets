@@ -7,6 +7,7 @@ import {
   badgeTexture,
   popTexture,
 } from './beach-textures';
+import { randomAt } from '../simulation';
 
 /**
  * Reef Ring Rally presentation: a sunlit lagoon diorama with a sand beach in
@@ -27,15 +28,18 @@ export const BEACH_SUN = SUN;
 const GLINT = new T.Vector3(0.18, 0.2, -1).normalize();
 /** Islands as x, z, radius (shared by the meshes and the water shader). */
 const ISLANDS: [number, number, number][] = [
-  [-22, -11, 7.5],
-  [23.5, -17, 8.5],
-  [-62, -95, 15],
-  [48, -120, 13],
-  [105, -150, 22],
-  [-130, -165, 24],
-  [8, -190, 9],
+  // Two palm isles frame the upper corners of the lineup view.
+  [-25, -34, 8.5],
+  [28, -44, 9.5],
+  [-58, -92, 13],
+  [64, -112, 14],
+  [118, -165, 22],
+  [-135, -170, 24],
+  [12, -205, 9],
 ];
-const OBJ = 16;
+const OBJ = 24;
+/** The far edge of the play area: rings cross this rope just before pickup. */
+export const BEACH_LINE_Z = -8.9;
 const SKY = {
   zenith: '#1569d8',
   upper: '#2f8fea',
@@ -363,6 +367,199 @@ function island(
     }
 }
 
+// --- costumes -------------------------------------------------------------------
+// The alien's head sits at y 1.76 in its own space (radii 0.51 / 0.52 / 0.42).
+function lathe(profile: [number, number][], y0: number, segs = 28) {
+  return new T.LatheGeometry(
+    profile.map(([r, y]) => new T.Vector2(r, y)),
+    segs,
+  ).translate(0, y0, 0);
+}
+
+function flower(
+  geos: T.BufferGeometry[],
+  at: T.Vector3,
+  normal: T.Vector3,
+  size: number,
+  petal: string,
+  heart: string,
+) {
+  const q = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 0, 1), normal.clone().normalize());
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2,
+      g = new T.SphereGeometry(size, 8, 6);
+    g.scale(1, 0.55, 0.3);
+    g.translate(size * 0.85, 0, 0);
+    g.rotateZ(a);
+    g.applyQuaternion(q);
+    g.translate(at.x, at.y, at.z);
+    geos.push(prep(g, petal));
+  }
+  const c = new T.SphereGeometry(size * 0.42, 8, 6);
+  c.translate(at.x, at.y, at.z);
+  c.translate(normal.x * size * 0.2, normal.y * size * 0.2, normal.z * size * 0.2);
+  geos.push(prep(c, heart));
+}
+
+/**
+ * Per-player beach costume, built in the alien's own space so it can follow
+ * the body: P1 a wide straw sun hat, P2 a pink bucket hat with a hibiscus, P3
+ * pushed-up goggles and a tall snorkel, P4 a striped propeller beanie.
+ */
+function costume(i: number) {
+  const g = new T.Group(),
+    geos: T.BufferGeometry[] = [];
+  g.name = 'Beach costume';
+  let spinner: T.Object3D | undefined;
+  const slot = i % 4;
+  if (slot === 0) {
+    const straw = new T.Color('#f4d47c'),
+      shade = new T.Color('#d9ab4f');
+    geos.push(
+      prep(
+        lathe(
+          [
+            [0.001, 0.44],
+            [0.2, 0.43],
+            [0.31, 0.39],
+            [0.36, 0.3],
+            [0.4, 0.13],
+            [0.44, 0.04],
+            [0.58, 0.0],
+            [0.74, -0.05],
+            [0.85, -0.11],
+            [0.87, -0.15],
+            [0.83, -0.14],
+            [0.68, -0.08],
+            [0.56, -0.04],
+            [0.43, -0.03],
+          ],
+          2.05,
+          32,
+        ),
+        (p) => straw.clone().lerp(shade, Math.sin(p.y * 90) * 0.5 + 0.5).multiplyScalar(p.y < 2.0 ? 0.82 : 1),
+      ),
+    );
+    const band = new T.CylinderGeometry(0.41, 0.445, 0.12, 28, 1, true);
+    band.translate(0, 2.13, 0);
+    geos.push(prep(band, '#e8432f'));
+    flower(geos, new T.Vector3(0.3, 2.16, 0.33), new T.Vector3(0.6, 0.1, 0.8), 0.1, '#ffffff', '#ffc21a');
+  } else if (slot === 1) {
+    const pink = new T.Color('#ff4f8b'),
+      deep = new T.Color('#d92e6c');
+    geos.push(
+      prep(
+        lathe(
+          [
+            [0.001, 0.38],
+            [0.22, 0.37],
+            [0.34, 0.32],
+            [0.4, 0.17],
+            [0.44, 0.03],
+            [0.55, -0.05],
+            [0.68, -0.15],
+            [0.73, -0.2],
+            [0.69, -0.2],
+            [0.54, -0.1],
+            [0.43, -0.03],
+          ],
+          2.07,
+          30,
+        ),
+        (p) => pink.clone().lerp(deep, p.y < 2.07 ? 0.55 : 0),
+      ),
+    );
+    const band = new T.CylinderGeometry(0.405, 0.445, 0.1, 28, 1, true);
+    band.translate(0, 2.13, 0);
+    geos.push(prep(band, '#ffffff'));
+    flower(geos, new T.Vector3(0.43, 2.18, 0.08), new T.Vector3(1, 0.25, 0.2), 0.15, '#ffef5c', '#ff7a1a');
+  } else if (slot === 2) {
+    const strap = new T.TorusGeometry(1, 0.045, 6, 36);
+    strap.rotateX(Math.PI / 2);
+    strap.scale(0.5, 1, 0.42);
+    strap.rotateX(-0.28);
+    strap.translate(0, 2.0, -0.02);
+    geos.push(prep(strap, '#1a6fd0'));
+    for (const side of [-1, 1]) {
+      const lens = new T.CylinderGeometry(0.14, 0.14, 0.09, 18);
+      lens.rotateX(Math.PI / 2 - 0.75);
+      lens.translate(side * 0.15, 2.13, 0.27);
+      geos.push(prep(lens, (p) => new T.Color(p.y > 2.15 ? '#bff4ff' : '#1ea7ff')));
+      const rim = new T.TorusGeometry(0.14, 0.035, 6, 18);
+      rim.rotateX(-0.75);
+      rim.translate(side * 0.15, 2.155, 0.3);
+      geos.push(prep(rim, '#0e3f86'));
+    }
+    const tube = new T.CylinderGeometry(0.05, 0.05, 1.05, 10);
+    tube.translate(0.55, 2.2, -0.04);
+    geos.push(prep(tube, (p) => new T.Color(Math.floor(p.y * 6) % 2 ? '#ffe14a' : '#1ea7ff')));
+    const tip = new T.CylinderGeometry(0.075, 0.06, 0.16, 10);
+    tip.translate(0.55, 2.78, -0.04);
+    geos.push(prep(tip, '#ff6a1f'));
+    const clip = new T.BoxGeometry(0.12, 0.12, 0.1);
+    clip.translate(0.5, 1.82, -0.02);
+    geos.push(prep(clip, '#0e3f86'));
+  } else {
+    const purple = new T.Color('#9c5cff'),
+      lilac = new T.Color('#e6d6ff'),
+      sun = new T.Color('#ffc21a');
+    const cap = lathe(
+      [
+        [0.001, 0.31],
+        [0.2, 0.29],
+        [0.35, 0.2],
+        [0.46, 0.06],
+        [0.51, -0.06],
+        [0.53, -0.14],
+        [0.5, -0.15],
+      ],
+      2.02,
+      24,
+    );
+    cap.scale(1, 1, 0.88);
+    geos.push(
+      prep(cap, (p) => {
+        const a = Math.atan2(p.z, p.x),
+          k = Math.floor(((a + Math.PI) / (Math.PI * 2)) * 6) % 3;
+        return p.y < 1.9 ? lilac.clone() : k === 1 ? sun.clone() : purple.clone();
+      }),
+    );
+    const stem = new T.CylinderGeometry(0.035, 0.035, 0.16, 8);
+    stem.translate(0, 2.39, 0);
+    geos.push(prep(stem, '#3a2466'));
+    spinner = new T.Group();
+    spinner.position.set(0, 2.47, 0);
+    const blades: T.BufferGeometry[] = [];
+    for (const side of [-1, 1]) {
+      const b = new T.SphereGeometry(0.28, 10, 6);
+      b.scale(1, 0.08, 0.32);
+      b.rotateX(side * 0.35);
+      b.translate(side * 0.26, 0, 0);
+      blades.push(prep(b, side > 0 ? '#ff3f7a' : '#1ea7ff'));
+    }
+    const hub = new T.SphereGeometry(0.07, 8, 6);
+    blades.push(prep(hub, '#ffc21a'));
+    const merged = mergeGeometries(blades, false)!;
+    blades.forEach((b) => b.dispose());
+    const prop = new T.Mesh(
+      merged,
+      new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.4 }),
+    );
+    prop.castShadow = true;
+    spinner.add(prop);
+    g.add(spinner);
+  }
+  const merged = mergeGeometries(geos, false)!;
+  geos.forEach((x) => x.dispose());
+  const mesh = new T.Mesh(
+    merged,
+    new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, side: T.DoubleSide }),
+  );
+  mesh.castShadow = true;
+  g.add(mesh);
+  return { group: g, spinner };
+}
+
 // --- materials ---------------------------------------------------------------
 function waterMaterial(low: boolean) {
   const lin = (c: string) => new T.Color(c);
@@ -413,7 +610,7 @@ function waterMaterial(low: boolean) {
       }
       float depthAt(vec2 p) {
         float d = (8.6 + p.x * p.x * 0.0055) - p.y;
-        float depth = d * 0.055 + smoothstep(14.0, 90.0, d) * 3.6;
+        float depth = d * 0.07 + smoothstep(14.0, 90.0, d) * 3.6;
         for (int i = 0; i < ISL; i++) {
           vec4 s = uIslands[i];
           float di = length(p - s.xy) - s.z - 1.6;
@@ -467,6 +664,16 @@ function waterMaterial(low: boolean) {
         // Sandy ripples on the lagoon floor show through the shallows.
         float floorRipple = vnoise(p * vec2(0.9, 2.4) + vnoise(p * 0.3) * 2.0);
         col *= 1.0 - 0.07 * floorRipple * (1.0 - smoothstep(0.2, 1.6, depth));
+        // Coral heads and sea-grass beds read as darker patches through the
+        // turquoise, with pale sand pockets between them: a living reef floor.
+        vec2 rq = p * 0.16 + vec2(vnoise(p * 0.05) * 3.0, 0.0);
+        float reefN = vnoise(rq) * 0.62 + vnoise(rq * 2.7 + 7.0) * 0.38;
+        float reefBand = smoothstep(0.35, 0.8, depth) * (1.0 - smoothstep(1.6, 3.2, depth));
+        float coral = smoothstep(0.56, 0.7, reefN) * reefBand;
+        vec3 reefTint = mix(vec3(0.03, 0.36, 0.42), vec3(0.18, 0.22, 0.45), vnoise(p * 0.4));
+        col = mix(col, reefTint, coral * 0.55);
+        float pocket = smoothstep(0.34, 0.2, reefN) * reefBand;
+        col = mix(col, uShallow * 1.08, pocket * 0.35);
         #if LOW == 0
         float cs = (1.0 - smoothstep(0.15, 2.6, depth)) * (0.4 + 0.6 * fade);
         vec2 cuv = p * 0.085 + g * 0.05;
@@ -499,7 +706,7 @@ function waterMaterial(low: boolean) {
         col += vec3(1.0, 0.96, 0.86) * (pow(sp, 900.0) * 5.0 + pow(sp, 90.0) * 0.45 + pow(sp, 12.0) * 0.05);
         #if LOW == 0
         float glitter = smoothstep(0.93, 1.0, vnoise(p * vec2(7.0, 11.0) + vec2(t * 1.7, -t * 1.1)));
-        col += glitter * (0.25 + 1.6 * pow(sp, 8.0)) * fade * 1.4;
+        col += glitter * (0.2 + 1.4 * pow(sp, 8.0)) * fade * 0.9;
         #endif
 
         float edge = 1.0 - smoothstep(0.0, 0.42, depth);
@@ -589,7 +796,8 @@ type Shared = {
   dangerMat: T.MeshBasicMaterial;
   discGeo: T.CircleGeometry;
   discMat: T.MeshBasicMaterial;
-  all: (T.BufferGeometry | T.Material)[];
+  bonusLabel: T.SpriteMaterial;
+  all: (T.BufferGeometry | T.Material | T.Texture)[];
 };
 
 function starShape(outer: number, inner: number) {
@@ -606,7 +814,8 @@ function starShape(outer: number, inner: number) {
 
 function makeShared(): Shared {
   const glow = glowTexture(),
-    spark = sparkleTexture();
+    spark = sparkleTexture(),
+    bonus = popTexture('+3', '#ffe14a');
   const additive = (color: string, map: T.Texture, opacity: number) =>
     new T.SpriteMaterial({
       map,
@@ -721,12 +930,24 @@ function makeShared(): Shared {
       toneMapped: false,
       side: T.DoubleSide,
     }),
+    bonusLabel: new T.SpriteMaterial({
+      map: bonus,
+      transparent: true,
+      depthWrite: false,
+      toneMapped: false,
+      fog: false,
+    }),
   };
   return {
     ...s,
-    all: Object.values(s).flatMap((v) =>
-      v instanceof T.BufferGeometry || v instanceof T.Material ? [v] : [],
-    ),
+    all: [
+      glow,
+      spark,
+      bonus,
+      ...Object.values(s).flatMap((v) =>
+        v instanceof T.BufferGeometry || v instanceof T.Material ? [v] : [],
+      ),
+    ],
   };
 }
 
@@ -756,6 +977,13 @@ function ringMesh(sh: Shared, value: number) {
     band.scale.setScalar(0.86);
     band.position.z = 0.02;
     spin.add(band);
+    // Points label so the bonus reads from a still frame.
+    const tag = new T.Sprite(sh.bonusLabel);
+    tag.name = 'bonus';
+    tag.scale.set(1.5, 0.75, 1);
+    tag.position.y = 1.75;
+    tag.renderOrder = 4;
+    g.add(tag);
   }
   for (let k = 0; k < (big ? 3 : 2); k++) {
     const s = new T.Sprite(sh.sparkle);
@@ -767,6 +995,63 @@ function ringMesh(sh: Shared, value: number) {
   g.userData.beachShared = true;
   g.userData.gameColor = true;
   return g;
+}
+
+/** Jelly face, frill, spots and tentacles baked into two vertex-coloured meshes. */
+const jellyBakes = new WeakMap<Shared, { face: T.Mesh; tents: T.Mesh }>();
+function jellyParts(sh: Shared) {
+  const cached = jellyBakes.get(sh);
+  if (cached) return cached;
+  const face: T.BufferGeometry[] = [],
+    tents: T.BufferGeometry[] = [];
+  const bake = (
+    into: T.BufferGeometry[],
+    geo: T.BufferGeometry,
+    color: string,
+    pos: [number, number, number],
+    rot: [number, number, number] = [0, 0, 0],
+    scale: [number, number, number] = [1, 1, 1],
+  ) => {
+    const m = new T.Matrix4().compose(
+      new T.Vector3(...pos),
+      new T.Quaternion().setFromEuler(new T.Euler(...rot)),
+      new T.Vector3(...scale),
+    );
+    into.push(prep(geo.clone().applyMatrix4(m), color));
+  };
+  bake(face, sh.frillGeo, '#b45cff', [0, 0.06, 0], [Math.PI / 2, 0, 0], [1, 1, 0.7]);
+  for (let k = 0; k < 5; k++) {
+    const a = 0.6 + k * 1.15;
+    bake(face, sh.spotGeo, '#fff4fc', [Math.cos(a) * 0.4, 0.42 + (k % 2) * 0.08, Math.sin(a) * 0.4 - 0.05]);
+  }
+  // Mischievous face toward the beach so the hazard has a personality.
+  for (const side of [-1, 1]) {
+    bake(face, sh.eyeGeo, '#ffffff', [side * 0.2, 0.3, 0.5], [0, 0, 0], [1, 1.15, 0.6]);
+    bake(face, sh.pupilGeo, '#1a0f2e', [side * 0.19, 0.27, 0.6]);
+    bake(face, sh.browGeo, '#1a0f2e', [side * 0.2, 0.5, 0.56], [0, 0, side * 0.45]);
+  }
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2;
+    bake(tents, sh.tentGeo, '#c98aff', [Math.cos(a) * 0.38, 0.05, Math.sin(a) * 0.38], [0, -a, 0], [1, 1.6 + (k % 3) * 0.35, 1]);
+  }
+  const mat = new T.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.3,
+    emissive: '#3c0f5a',
+    emissiveIntensity: 0.35,
+  });
+  const merge = (list: T.BufferGeometry[]) => {
+    const g = mergeGeometries(list, false)!;
+    list.forEach((x) => x.dispose());
+    return g;
+  };
+  const out = {
+    face: new T.Mesh(merge(face), mat),
+    tents: new T.Mesh(merge(tents), mat),
+  };
+  sh.all.push(out.face.geometry, out.tents.geometry, mat);
+  jellyBakes.set(sh, out);
+  return out;
 }
 
 function jellyMesh(sh: Shared) {
@@ -786,42 +1071,11 @@ function jellyMesh(sh: Shared) {
   core.scale.setScalar(0.55);
   core.position.y = 0.05;
   body.add(core);
-  const frill = new T.Mesh(sh.frillGeo, sh.frillMat);
-  frill.rotation.x = Math.PI / 2;
-  frill.position.y = 0.06;
-  frill.scale.z = 0.7;
-  body.add(frill);
-  for (let k = 0; k < 5; k++) {
-    const a = 0.6 + k * 1.15,
-      sp = new T.Mesh(sh.spotGeo, sh.spotMat);
-    sp.position.set(Math.cos(a) * 0.4, 0.42 + (k % 2) * 0.08, Math.sin(a) * 0.4 - 0.05);
-    body.add(sp);
-  }
-  // Mischievous face toward the beach so the hazard has a personality.
-  for (const side of [-1, 1]) {
-    const eye = new T.Mesh(sh.eyeGeo, sh.eyeMat);
-    eye.position.set(side * 0.2, 0.3, 0.5);
-    eye.scale.set(1, 1.15, 0.6);
-    body.add(eye);
-    const pupil = new T.Mesh(sh.pupilGeo, sh.pupilMat);
-    pupil.position.set(side * 0.19, 0.27, 0.6);
-    body.add(pupil);
-    const brow = new T.Mesh(sh.browGeo, sh.pupilMat);
-    brow.position.set(side * 0.2, 0.5, 0.56);
-    brow.rotation.z = side * 0.45;
-    body.add(brow);
-  }
-  const tentacles = new T.Group();
+  const parts = jellyParts(sh);
+  body.add(new T.Mesh(parts.face.geometry, parts.face.material));
+  const tentacles = new T.Mesh(parts.tents.geometry, parts.tents.material);
   tentacles.name = 'tentacles';
   body.add(tentacles);
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2,
-      t = new T.Mesh(sh.tentGeo, sh.tentMat);
-    t.position.set(Math.cos(a) * 0.38, 0.05, Math.sin(a) * 0.38);
-    t.rotation.y = -a;
-    t.scale.y = 1.6 + (k % 3) * 0.35;
-    tentacles.add(t);
-  }
   const danger = new T.Mesh(sh.dangerGeo, sh.dangerMat);
   danger.name = 'danger';
   danger.rotation.x = -Math.PI / 2;
@@ -1067,6 +1321,48 @@ export function createBeachLook(
     sail.computeVertexNormals();
     parts.frond.push(prep(sail, (p) => new T.Color(p.y > 2.6 * s ? c : '#ffffff')));
   }
+  // Float line along the far edge of the play area: rings cross it just
+  // before they can be grabbed, so "line up here" reads at a glance.
+  {
+    const L = 11.2,
+      pts: T.Vector3[] = [];
+    for (let k = 0; k <= 44; k++) {
+      const x = -L + (k / 44) * L * 2,
+        sag = Math.abs(Math.sin(((x + L) / 1.4) * Math.PI));
+      pts.push(new T.Vector3(x, 0.16 - sag * 0.05, BEACH_LINE_Z));
+    }
+    const rope = new T.TubeGeometry(new T.CatmullRomCurve3(pts), 88, 0.035, 5);
+    parts.trunk.push(prep(rope, '#f5ecd2'));
+    const n = 30;
+    for (let k = 0; k <= n; k++) {
+      const x = -L + (k / n) * L * 2,
+        f = new T.SphereGeometry(0.17, 10, 7);
+      f.scale(1.25, 0.75, 1);
+      f.translate(x, 0.16, BEACH_LINE_Z);
+      const c = ['#ff3f6e', '#ffffff', '#ffc21a', '#ffffff'][k % 4];
+      parts.flower.push(prep(f, (p) => new T.Color(p.y > 0.1 ? c : '#d9e8ef')));
+    }
+    for (const side of [-1, 1]) {
+      const x = side * (L + 0.35);
+      const base = new T.CylinderGeometry(0.42, 0.5, 0.5, 16);
+      base.translate(x, 0.15, BEACH_LINE_Z);
+      parts.flower.push(prep(base, (p) => new T.Color(p.y > 0.2 ? '#ff3f6e' : '#ffffff')));
+      const mast = new T.CylinderGeometry(0.05, 0.06, 2.4, 8);
+      mast.translate(x, 1.5, BEACH_LINE_Z);
+      parts.trunk.push(prep(mast, '#f4f4f4'));
+      const cone = new T.ConeGeometry(0.34, 0.6, 14);
+      cone.translate(x, 0.65, BEACH_LINE_Z);
+      parts.flower.push(prep(cone, (p) => new T.Color(Math.floor(p.y * 6) % 2 ? '#ffffff' : '#ff3f6e')));
+      const flag = new T.BufferGeometry().setFromPoints([
+        new T.Vector3(0, 2.65, 0),
+        new T.Vector3(0, 2.0, 0),
+        new T.Vector3(-side * 0.95, 2.35, 0.05),
+      ]);
+      flag.translate(x, 0, BEACH_LINE_Z);
+      flag.computeVertexNormals();
+      parts.frond.push(prep(flag, '#ffc21a'));
+    }
+  }
   const matFor = (name: string) => {
     const m = own(
       new T.MeshStandardMaterial({
@@ -1099,7 +1395,7 @@ export function createBeachLook(
 
   // Collectibles and bursts.
   const sh = makeShared();
-  disposables.push(...sh.all);
+  disposables.push({ dispose: () => sh.all.forEach((x) => x.dispose()) });
   const popTex = [own(popTexture('+1', '#ffd22e')), own(popTexture('+3', '#ff4f9e'))];
   const bursts: Burst[] = Array.from({ length: 6 }, () => {
     const group = new T.Group();
@@ -1142,6 +1438,29 @@ export function createBeachLook(
     return { group, ring, sparks, pop, start: -99, value: 1 };
   });
 
+  // Spray kicked up off every board tail: one point cloud for all riders.
+  const SPRAY = 14;
+  const sprayGeo = own(new T.BufferGeometry());
+  sprayGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(playerCount * SPRAY * 3), 3));
+  sprayGeo.setAttribute('color', new T.BufferAttribute(new Float32Array(playerCount * SPRAY * 3), 3));
+  const spray = new T.Points(
+    sprayGeo,
+    own(
+      new T.PointsMaterial({
+        map: own(glowTexture()),
+        size: 0.42,
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+        blending: T.AdditiveBlending,
+        toneMapped: false,
+      }),
+    ),
+  );
+  spray.frustumCulled = false;
+  spray.name = 'Board spray';
+  root.add(spray);
+
   // A few gulls wheeling over the lagoon.
   const gullMat = own(new T.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6 })),
     wingGeo = own(new T.BoxGeometry(0.9, 0.04, 0.28).translate(0.45, 0, 0)),
@@ -1162,8 +1481,21 @@ export function createBeachLook(
   // Player dressing: colour-coded paddle boards, water rings and badges.
   const badges: T.Sprite[] = [];
   const boards: T.Group[] = [];
+  const outfits: { group: T.Group; spinner?: T.Object3D }[] = [];
+  const stance: number[] = [];
   function dressPlayer(group: T.Group, i: number) {
     const color = BEACH_COLORS[i % BEACH_COLORS.length];
+    const outfit = costume(i);
+    outfit.group.traverse((o) => {
+      const m = o as T.Mesh;
+      if (m.isMesh) {
+        own(m.geometry);
+        own(m.material as T.Material);
+      }
+    });
+    group.add(outfit.group);
+    outfits[i] = outfit;
+    stance[i] = i < playerCount / 2 ? 1 : -1;
     const board = new T.Group();
     board.name = 'Surf board';
     group.add(board);
@@ -1229,6 +1561,33 @@ export function createBeachLook(
     return null;
   }
 
+  // Upcoming rings and jellies. Spawns are deterministic, so the lagoon shows
+  // the next few seconds of the stream drifting in from the horizon; each one
+  // hands over seamlessly to the real object the moment it spawns.
+  const preview = {
+    ring1: [] as T.Group[],
+    ring3: [] as T.Group[],
+    jelly: [] as T.Group[],
+  };
+  const previewRoot = new T.Group();
+  previewRoot.name = 'Incoming rings';
+  root.add(previewRoot);
+  const pooled = (list: T.Group[], n: number, make: () => T.Group) => {
+    while (list.length < n) {
+      const g = make();
+      g.visible = false;
+      g.traverse((o) => (o.castShadow = false));
+      previewRoot.add(g);
+      list.push(g);
+    }
+    return list[n - 1];
+  };
+
+  // Display spacing: overlapping riders are eased apart sideways (capped at
+  // about two board-widths) so every alien and its badge reads alone.
+  const spread = Array.from({ length: playerCount }, () => 0);
+  let spreadReady = false;
+
   function burst(x: number, y: number, z: number, value: number, time: number) {
     const b = bursts.reduce((a, c) => (c.start < a.start ? c : a));
     b.start = time;
@@ -1240,20 +1599,91 @@ export function createBeachLook(
   }
 
   const objSlots = uniforms.uObj.value as T.Vector4[];
+  const forecastSlots: [number, number, number][] = [];
   return {
     root,
     dressPlayer,
     objectMesh,
-    /** Pose a surfing alien: board bob, lean into turns, arms out for balance. */
+    /**
+     * Sideways display offsets that keep riders a board-width apart: the
+     * smallest shifts that space the lineup (weighted so your own alien moves
+     * least), scaled back so no rider is shown more than MAX from its seat.
+     */
+    layout(
+      actors: { x: number; z: number; alive: boolean }[],
+      me: number,
+      delta: number,
+    ) {
+      const n = actors.length,
+        ox = new Array<number>(n).fill(0),
+        GAP = 2.8,
+        MAX = 2.6;
+      const order = actors
+        .map((_, a) => a)
+        .filter((a) => actors[a].alive)
+        .sort((a, b) => actors[a].x - actors[b].x || a - b);
+      // Pool-adjacent-violators: blocks of riders packed exactly GAP apart.
+      type Block = { from: number; len: number; w: number; sum: number };
+      const blocks: Block[] = [];
+      const base = (b: Block) => b.sum / b.w;
+      order.forEach((a, k) => {
+        const w = a === me ? 2 : 1;
+        blocks.push({ from: k, len: 1, w, sum: w * actors[a].x });
+        while (blocks.length > 1) {
+          const cur = blocks[blocks.length - 1],
+            prev = blocks[blocks.length - 2];
+          if (base(prev) + prev.len * GAP <= base(cur)) break;
+          // Merge: every rider in cur sits prev.len slots further along.
+          prev.sum += cur.sum - cur.w * prev.len * GAP;
+          prev.w += cur.w;
+          prev.len += cur.len;
+          blocks.pop();
+        }
+      });
+      let worst = 0;
+      for (const b of blocks)
+        for (let j = 0; j < b.len; j++) {
+          const a = order[b.from + j];
+          ox[a] = base(b) + j * GAP - actors[a].x;
+          worst = Math.max(worst, Math.abs(ox[a]));
+        }
+      const fit = worst > MAX ? MAX / worst : 1;
+      const k = spreadReady ? 1 - Math.exp(-Math.max(0, delta) * 7) : 1;
+      spreadReady = true;
+      let cx = 0,
+        live = 0;
+      for (let a = 0; a < n; a++) {
+        spread[a] += (ox[a] * fit - spread[a]) * k;
+        if (actors[a].alive) {
+          cx += actors[a].x + spread[a];
+          live++;
+        }
+      }
+      cx /= Math.max(1, live);
+      // Riders on the left face in toward the right and vice versa, so the
+      // lineup opens toward the camera like a stage.
+      for (let a = 0; a < n; a++) {
+        const x = actors[a].x + spread[a];
+        if (x < cx - 0.4) stance[a] = 1;
+        else if (x > cx + 0.4) stance[a] = -1;
+      }
+      return spread;
+    },
+    /** Pose a surfing alien: board bob, carve into turns, side-on surf stance. */
     poseActor(
       group: T.Group,
       avatar: T.Group,
       i: number,
       p: { vx: number; vz: number; flash: number; alive: boolean },
       time: number,
+      delta = 1 / 60,
     ) {
-      const bob = Math.sin(time * 2.3 + i * 1.7) * 0.05;
-      group.position.y = 0.2 + bob;
+      const bob = Math.sin(time * 2.3 + i * 1.7) * 0.05,
+        hop = p.flash > 0.05 ? Math.sin(Math.min(1, p.flash / 0.3) * Math.PI) * 0.35 : 0;
+      group.position.y = 0.2 + bob + hop;
+      // Board points out to sea and carves with sideways speed.
+      const carve = T.MathUtils.clamp(p.vx * 0.07, -0.5, 0.5);
+      group.rotation.set(0, Math.PI - carve, T.MathUtils.clamp(-p.vx * 0.025, -0.14, 0.14));
       const board = boards[i];
       if (board) {
         board.scale.setScalar(1.3);
@@ -1261,25 +1691,102 @@ export function createBeachLook(
         board.rotation.x = Math.sin(time * 1.9 + i) * 0.04;
         board.rotation.z = Math.sin(time * 1.6 + i * 2) * 0.05;
       }
+      // Surf stance: side-on to the board, chest opened toward the camera.
+      const want = stance[i] > 0 ? -(Math.PI / 2 + 0.55) : Math.PI / 2 + 0.55,
+        cur = avatar.userData.beachYaw ?? want;
+      const yaw = cur + (want - cur) * (1 - Math.exp(-Math.max(0, delta) * 6));
+      avatar.userData.beachYaw = yaw;
+      avatar.rotation.order = 'YXZ';
+      avatar.rotation.y = yaw;
+      avatar.rotation.x = 0.06;
       avatar.position.y = 0.06;
-      avatar.rotation.z = T.MathUtils.clamp(-p.vx * 0.03, -0.18, 0.18) + Math.sin(time * 1.6 + i * 2) * 0.04;
+      avatar.rotation.z += Math.sin(time * 1.6 + i * 2) * 0.05;
       const rig = avatar.userData.rig;
       if (rig && p.flash < 0.05) {
         rig.arms.forEach((arm: T.Group, j: number) => {
-          arm.rotation.x = Math.sin(time * 2.4 + j + i) * 0.15;
-          arm.rotation.z = (j ? -1 : 1) * (1.05 + Math.sin(time * 2.3 + i + j * 2) * 0.12);
+          arm.rotation.x = Math.sin(time * 2.4 + j + i) * 0.18 + (j ? -0.25 : 0.25);
+          arm.rotation.z = (j ? -1 : 1) * (1.0 + Math.sin(time * 2.3 + i + j * 2) * 0.14);
         });
         rig.legs.forEach((leg: T.Group, j: number) => {
           leg.rotation.x = 0;
-          leg.rotation.z = (j ? -1 : 1) * 0.12;
+          leg.rotation.z = (j ? -1 : 1) * 0.24;
         });
+      }
+      const outfit = outfits[i];
+      if (outfit) {
+        outfit.group.position.copy(avatar.position);
+        outfit.group.rotation.copy(avatar.rotation);
+        outfit.group.scale.copy(avatar.scale);
+        if (outfit.spinner) outfit.spinner.rotation.y = time * 14;
       }
       const badge = badges[i];
       if (badge) {
         badge.position.copy(group.position);
-        badge.position.y += 3.35 + Math.sin(time * 3 + i) * 0.06;
+        badge.position.y += 3.75 - hop + Math.sin(time * 3 + i) * 0.06;
         badge.visible = group.visible;
       }
+    },
+    /** Lay out the next few seconds of the deterministic ring stream. */
+    forecast(
+      seed: number,
+      serial: number,
+      spawnAt: number,
+      now: number,
+      duration: number,
+      time: number,
+    ) {
+      let s = serial,
+        r1 = 0,
+        r3 = 0,
+        j = 0,
+        lit = 0;
+      for (let k = 0; k < 12; k++) {
+        const at = spawnAt + k * 0.75;
+        if (at > duration) break;
+        const lane = randomAt(seed, s + 30) * 18 - 9,
+          value = s % 5 === 0 ? 3 : 1,
+          id = s,
+          z = -16 - 4 * Math.max(0, at - now);
+        s++;
+        const big = value >= 3,
+          g = big
+            ? pooled(preview.ring3, ++r3, () => ringMesh(sh, 3))
+            : pooled(preview.ring1, ++r1, () => ringMesh(sh, 1));
+        g.visible = true;
+        g.position.set(lane, 0.95 + Math.sin(time * 2.4 + id) * 0.16, z);
+        const grow = T.MathUtils.clamp((z + 66) / 10, 0, 1);
+        g.scale.setScalar(Math.max(0.001, grow) * (big ? 0.88 : 0.8));
+        const spin = g.getObjectByName('spin');
+        if (spin) {
+          spin.rotation.y = Math.sin(time * 1.6 + id) * 0.55;
+          spin.rotation.z = Math.sin(time * 1.1 + id * 2) * 0.08;
+        }
+        const star = g.getObjectByName('star');
+        if (star) star.rotation.y = time * 2.2;
+        g.children.forEach((c) => {
+          if (c.name === 'sparkle') c.visible = false;
+        });
+        if (lit < 8 && grow > 0.5) {
+          forecastSlots.push([lane, z, 0.75 * grow]);
+          lit++;
+        }
+        if (s % 3 === 0) {
+          const jz = -17 - 4 * Math.max(0, at - now),
+            jg = pooled(preview.jelly, ++j, () => jellyMesh(sh));
+          jg.visible = true;
+          const pulse = Math.sin(time * 4 + s);
+          jg.position.set(-lane, 0.55 + pulse * 0.12, jz);
+          jg.scale.setScalar(Math.max(0.001, T.MathUtils.clamp((jz + 66) / 10, 0, 1)));
+          const body = jg.getObjectByName('body');
+          if (body) body.scale.set(1 + pulse * 0.06, 1 - pulse * 0.08, 1 + pulse * 0.06);
+          const danger = jg.getObjectByName('danger');
+          if (danger) danger.position.y = -jg.position.y + 0.04;
+          s++;
+        }
+      }
+      for (let k = r1; k < preview.ring1.length; k++) preview.ring1[k].visible = false;
+      for (let k = r3; k < preview.ring3.length; k++) preview.ring3[k].visible = false;
+      for (let k = j; k < preview.jelly.length; k++) preview.jelly[k].visible = false;
     },
     /** Pose rings/jellies, fire collect bursts and feed the water shader. */
     update(
@@ -1289,6 +1796,28 @@ export function createBeachLook(
       time: number,
     ) {
       uniforms.uTime.value = time;
+      {
+        const pos = sprayGeo.getAttribute('position') as T.BufferAttribute,
+          col = sprayGeo.getAttribute('color') as T.BufferAttribute;
+        actors.forEach((a, i) => {
+          for (let k = 0; k < SPRAY; k++) {
+            const n = i * SPRAY + k,
+              seed = hash(n * 3.7),
+              ph = (time * (1.1 + seed * 0.6) + seed) % 1,
+              side = k % 2 ? 1 : -1,
+              fade = a.visible ? Math.sin(ph * Math.PI) * (1 - ph) * 1.6 : 0;
+            // Boards point out to sea, so spray trails toward the camera.
+            pos.setXYZ(
+              n,
+              a.x + side * (0.25 + ph * (0.5 + seed * 0.5)),
+              0.12 + Math.sin(ph * Math.PI) * (0.25 + seed * 0.35),
+              a.z + 1.1 + ph * (0.9 + seed),
+            );
+            col.setXYZ(n, fade * 0.9, fade, fade);
+          }
+        });
+        pos.needsUpdate = col.needsUpdate = true;
+      }
       for (const g of gulls) {
         const k = g.userData.k as number,
           a = time * (0.18 + k * 0.03) + k * 1.3,
@@ -1299,20 +1828,26 @@ export function createBeachLook(
         g.children.forEach((w) => (w.rotation.z = w.scale.x * flap));
       }
       const seen = new Set<number>();
-      let slot = 0;
+      let slot = 0,
+        rear = -Infinity;
+      for (const a of actors) if (a.visible) rear = Math.max(rear, a.z);
+      if (rear === -Infinity) rear = 7;
       for (const o of objects) {
         seen.add(o.id);
         last.set(o.id, { ...o });
         const g = meshes.get(o.id);
         if (!g) continue;
-        const fadeIn = T.MathUtils.clamp((o.z + 16.5) / 2, 0, 1),
-          fadeOut = T.MathUtils.clamp((8.6 - o.z) / 1.6, 0, 1),
-          s = Math.max(0.001, Math.min(fadeIn, fadeOut));
+        // Rings arrive already full size: the forecast stream hands them over.
+        // Once something has drifted past every rider it can never matter
+        // again, so it slips under the surface instead of crowding the lens.
+        const fadeOut = T.MathUtils.clamp((8.6 - o.z) / 1.6, 0, 1),
+          gone = T.MathUtils.clamp((o.z - rear - 1.4) / 1.6, 0, 1),
+          s = Math.max(0.001, Math.min(fadeOut, 1 - gone));
         if (o.kind === 'ring') {
           const big = o.value >= 3;
-          g.position.set(o.x, 1.2 + Math.sin(time * 2.4 + o.id) * 0.16, o.z);
+          g.position.set(o.x, 0.95 + Math.sin(time * 2.4 + o.id) * 0.16, o.z);
           g.rotation.set(0, 0, 0);
-          g.scale.setScalar(s * (big ? 1.08 : 1));
+          g.scale.setScalar(s * (big ? 0.88 : 0.8));
           const spin = g.getObjectByName('spin');
           if (spin) {
             spin.rotation.y = Math.sin(time * 1.6 + o.id) * 0.55;
@@ -1348,9 +1883,15 @@ export function createBeachLook(
       }
       for (const [id, o] of last)
         if (!seen.has(id)) {
-          if (o.kind === 'ring' && o.owner >= 0) burst(o.x, 1.2, o.z, o.value, time);
+          // The pop lands on the rider who scored (their display position),
+          // so it is always clear who took the ring.
+          if (o.kind === 'ring' && o.owner >= 0)
+            burst(actors[o.owner]?.x ?? o.x, 0.95, o.z, o.value, time);
           last.delete(id);
         }
+      for (const [x, z, r] of forecastSlots)
+        if (slot < OBJ - playerCount) objSlots[slot++].set(x, z, r, 1);
+      forecastSlots.length = 0;
       for (const a of actors)
         if (slot < OBJ && a.visible) objSlots[slot++].set(a.x, a.z, 0.95, 3);
       for (; slot < OBJ; slot++) objSlots[slot].set(0, 0, 0, 0);

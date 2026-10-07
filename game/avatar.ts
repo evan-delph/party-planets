@@ -55,6 +55,57 @@ function disposeTree(o: T.Object3D) {
   });
 }
 
+// ── Skin: soft, slightly glossy green with a glowing fresnel rim ────────────
+const SKIN_PARTS = new Set(['Skin', 'SkinShade', 'Lid', 'NoseSkin']);
+const skinUpgrades = new Map<string, T.Material>();
+
+/**
+ * Adds a view-dependent rim glow to a standard material, so characters keep a
+ * bright, readable silhouette against any background (a key part of the
+ * "console mascot" look).
+ */
+export function addRimLight(
+  material: T.MeshStandardMaterial,
+  color: T.ColorRepresentation,
+  strength = 0.45,
+  power = 2.6,
+) {
+  // Colour, strength and falloff are uniforms, so every rim-lit material
+  // shares one shader program.
+  const rim = {
+    rimColor: { value: new T.Color(color) },
+    rimStrength: { value: strength },
+    rimPower: { value: power },
+  };
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, rim);
+    shader.fragmentShader =
+      'uniform vec3 rimColor;\nuniform float rimStrength;\nuniform float rimPower;\n' +
+      shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        {
+          float rimF = 1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+          totalEmissiveRadiance += rimColor * pow(rimF, rimPower) * rimStrength;
+        }`,
+      );
+  };
+  material.customProgramCacheKey = () => 'alien-rim';
+  return material;
+}
+
+function alienSkin(m: T.Material) {
+  let upgraded = skinUpgrades.get(m.uuid);
+  if (!upgraded) {
+    const skin = (m as T.MeshStandardMaterial).clone();
+    skin.roughness = Math.min(skin.roughness, 0.42);
+    addRimLight(skin, '#e9ffb8', m.name === 'Skin' ? 0.42 : 0.3);
+    skinUpgrades.set(m.uuid, skin);
+    upgraded = skin;
+  }
+  return upgraded;
+}
+
 /** Clone the modeled alien and apply every Character Studio option. */
 function buildModeled(g: T.Group, a: Avatar, model: T.Object3D) {
   const root = model.clone(true);
@@ -73,6 +124,7 @@ function buildModeled(g: T.Group, a: Avatar, model: T.Object3D) {
     if (!mesh.isMesh) return;
     mesh.castShadow = mesh.receiveShadow = true;
     const swap = (m: T.Material) => {
+      if (SKIN_PARTS.has(m.name)) return alienSkin(m);
       const color = recolor[m.name];
       if (!color) return m;
       if (!own.has(m.name)) {
@@ -157,12 +209,45 @@ function buildModeled(g: T.Group, a: Avatar, model: T.Object3D) {
     face.add(m);
   }
   happy.visible = sad.visible = false;
+  // Expression extras: "^ ^" joy eyes, heavy sulky lids and mood brows.
+  let eyeMaterial: T.Material | undefined;
+  eyes[0].traverse((o) => {
+    const m = (o as T.Mesh).material as T.Material | undefined;
+    if (!eyeMaterial && m && !Array.isArray(m) && m.name === 'Eye') eyeMaterial = m;
+  });
+  const lidMaterial = (part('Lid0') as T.Mesh | undefined)?.material as T.Material | undefined;
+  const joy: T.Mesh[] = [],
+    caps: T.Mesh[] = [],
+    brows: T.Object3D[] = [],
+    browBase: { visible: boolean; rz: number; y: number }[] = [];
+  const joyGeometry = new T.TorusGeometry(0.105, 0.026, 8, 20, Math.PI);
+  const capGeometry = new T.SphereGeometry(1.14, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+  [-1, 1].forEach((side, i) => {
+    const eye = eyes[i];
+    const arc = new T.Mesh(joyGeometry, eyeMaterial ?? new T.MeshStandardMaterial({ color: '#071219' }));
+    arc.position.set(side * spacing, eye.position.y - 0.035, eye.position.z + 0.07);
+    arc.rotation.set(-0.15, 0, side * -0.14);
+    arc.scale.set(1, 1.15, 1);
+    arc.visible = false;
+    eye.parent!.add(arc);
+    joy.push(arc);
+    if (lidMaterial) {
+      const cap = new T.Mesh(capGeometry, lidMaterial);
+      cap.visible = false;
+      eye.add(cap);
+      caps.push(cap);
+    }
+    const brow = part('Brow' + i)!;
+    brows.push(brow);
+    browBase.push({ visible: brow.visible, rz: brow.rotation.z, y: brow.position.y });
+  });
   // Few draw calls: merge each rigid group's visible static parts by material.
   const animated = new Set<T.Object3D>([
     ...arms,
     ...legs,
     ...eyes,
     ...eyelids,
+    ...joy,
     face,
     nose,
     part('Brow0')!,
@@ -175,7 +260,20 @@ function buildModeled(g: T.Group, a: Avatar, model: T.Object3D) {
       if ((x as T.Mesh).isMesh) x.castShadow = false;
     });
   g.add(root);
-  g.userData.rig = { arms, legs, neutral, happy, sad, eyes, eyeBases, eyelids };
+  g.userData.rig = {
+    arms,
+    legs,
+    neutral,
+    happy,
+    sad,
+    eyes,
+    eyeBases,
+    eyelids,
+    joy,
+    caps,
+    brows,
+    browBase,
+  };
 }
 
 /** Merge visible meshes under `group` (excluding `skip` subtrees) per material. */
@@ -523,6 +621,8 @@ function makeProceduralAvatar(a: Avatar) {
   const eyes: T.Mesh[] = [];
   const eyeBases: number[] = [];
   const eyelids: T.Mesh[] = [];
+  const joy: T.Mesh[] = [],
+    caps: T.Mesh[] = [];
   const eyeHue = new T.Color(a.eyeColor ?? '#294d5d')
     .lerp(new T.Color('#040d14'), 0.8)
     .getHexString();
@@ -563,6 +663,26 @@ function makeProceduralAvatar(a: Avatar) {
     sphere(0.075, '#a4d6e2', 0.29, -0.38, 0.94, eye).scale.z = 0.15;
     eyes.push(eye);
     eyeBases.push(eye.scale.y);
+    // Mood extras, matching the modeled alien: "^" joy arc and a sulky lid.
+    const arc = add(
+      new T.TorusGeometry(0.105, 0.026, 8, 20, Math.PI),
+      `#${eyeHue}`,
+      side * spacing,
+      1.8,
+      0.42,
+    );
+    arc.rotation.set(-0.15, 0, side * -0.14);
+    arc.scale.y = 1.15;
+    arc.visible = false;
+    arc.userData.animated = true;
+    joy.push(arc);
+    const cap = new T.Mesh(
+      new T.SphereGeometry(1.14, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      mat('#65b849'),
+    );
+    cap.visible = false;
+    eye.add(cap);
+    caps.push(cap);
     if ((a.brows ?? 0) > 0 || a.eyes === 3) {
       const brow = add(
         new T.CapsuleGeometry(a.brows === 2 ? 0.018 : 0.012, 0.17, 4, 8),
@@ -774,7 +894,7 @@ function makeProceduralAvatar(a: Avatar) {
     }
   };
   bake(g);
-  g.userData.rig = { arms, legs, neutral, happy, sad, eyes, eyeBases, eyelids };
+  g.userData.rig = { arms, legs, neutral, happy, sad, eyes, eyeBases, eyelids, joy, caps };
   return g;
 }
 
@@ -787,40 +907,118 @@ export function animateAvatar(
 ) {
   const rig = g.userData.rig;
   if (!rig) return;
+  // 'cheer' is the big joyful face (closed "^ ^" eyes, wide grin); 'sulk' is
+  // the heavy-lidded, worried-brow loser face. Both build on happy / sad.
+  const cheer = mood === 'cheer',
+    sulk = mood === 'sulk';
+  const glad = mood === 'happy' || cheer,
+    down = mood === 'sad' || sulk;
   const stride = reduced
     ? 0
     : Math.sin(t * (speed > 5 ? 18 : 11)) * Math.min(0.9, speed * 0.14);
+  const idle = reduced || speed > 0.1 ? 0 : 1;
   rig.arms.forEach((arm: T.Group, i: number) => {
-    arm.rotation.x = (i ? 1 : -1) * stride;
-    arm.rotation.z =
-      mood === 'happy'
-        ? (i ? -1 : 1) * 2.3
-        : (i ? 1 : -1) * (mood === 'sad' ? 0.05 : 0.14);
+    const side = i ? 1 : -1;
+    arm.rotation.x = side * stride + (down ? -0.12 : 0);
+    // Raised arms open outward in a "hooray" V so the hands stay clear of
+    // the big head (straight up would bury them behind it).
+    arm.rotation.z = glad
+      ? side * (2.2 + (reduced ? 0 : Math.sin(t * 9 + i * Math.PI) * 0.2))
+      : side *
+        (down ? 0.05 : 0.14 + idle * Math.sin(t * 1.7 + i * 1.3) * 0.045);
   });
   rig.legs.forEach((leg: T.Group, i: number) => {
     leg.rotation.x = (i ? -1 : 1) * stride;
   });
-  rig.neutral.visible = mood !== 'happy' && mood !== 'sad';
-  rig.happy.visible = mood === 'happy';
-  rig.sad.visible = mood === 'sad';
+  rig.neutral.visible = !glad && !down;
+  rig.happy.visible = glad;
+  rig.sad.visible = down;
+  rig.happyBase ??= rig.happy.scale.clone();
+  rig.happy.scale.copy(rig.happyBase);
+  if (cheer) rig.happy.scale.multiply(CHEER_MOUTH);
   const blinkPhase = t % 4.7;
   const blink =
     !reduced && blinkPhase < 0.15
       ? Math.max(0.1, Math.abs(blinkPhase - 0.075) / 0.075)
       : 1;
   rig.eyes.forEach((eye: T.Mesh, i: number) => {
+    eye.visible = !cheer || !rig.joy?.length;
     eye.scale.y =
       rig.eyeBases[i] *
       blink *
-      (mood === 'happy' ? 0.87 : mood === 'sad' ? 0.91 : 1);
+      (glad ? 0.87 : down ? 0.91 : 1);
+  });
+  rig.joy?.forEach((arc: T.Mesh) => (arc.visible = cheer));
+  rig.caps?.forEach((cap: T.Mesh) => {
+    cap.visible = sulk;
+    cap.rotation.x = -0.08;
   });
   rig.eyelids?.forEach((lid: T.Mesh, i: number) => {
+    lid.visible = !cheer;
     lid.rotation.z =
-      (i ? 1 : -1) * (mood === 'sad' ? 0.03 : mood === 'happy' ? -0.32 : -0.23);
+      (i ? 1 : -1) * (down ? 0.03 : glad ? -0.32 : -0.23);
+  });
+  rig.brows?.forEach((brow: T.Object3D, i: number) => {
+    const base = rig.browBase[i],
+      side = i ? 1 : -1;
+    brow.visible = base.visible || sulk;
+    brow.rotation.z = sulk ? Math.PI / 2 - side * 0.42 : base.rz;
+    brow.position.y = base.y + (cheer ? 0.05 : sulk ? -0.035 : 0);
   });
   g.rotation.z = reduced
     ? 0
-    : mood === 'sad'
+    : down
       ? Math.sin(t * 3) * 0.05
       : Math.sin(t * 11) * Math.min(0.035, speed * 0.01);
+}
+
+const CHEER_MOUTH = new T.Vector3(1.2, 1.35, 1);
+
+export type AvatarPose = 'trophy' | 'cheer' | 'clap' | 'wave' | 'sulk' | 'dance';
+/**
+ * Full-body celebration poses layered on top of animateAvatar (call that
+ * first for the face). Returns a vertical hop offset for the caller to add.
+ */
+export function poseAvatar(g: T.Group, pose: AvatarPose, t: number, reduced = false) {
+  const rig = g.userData.rig;
+  if (!rig) return 0;
+  const [left, right] = rig.arms as T.Object3D[];
+  const [legL, legR] = rig.legs as T.Object3D[];
+  const s = reduced ? 0 : 1;
+  let hop = 0;
+  if (pose === 'trophy' || pose === 'cheer') {
+    const beat = t * 4.4;
+    hop = Math.abs(Math.sin(beat)) * 0.32 * s;
+    // Arms open up and outward (left arm: negative Z, right arm: positive Z).
+    left.rotation.set(Math.sin(beat * 0.5) * 0.25 * s, 0, -2.15 - Math.sin(beat) * 0.3 * s);
+    right.rotation.set(
+      0,
+      0,
+      pose === 'trophy' ? 2.3 + Math.sin(beat) * 0.06 * s : 2.15 + Math.sin(beat) * 0.3 * s,
+    );
+    legL.rotation.x = -Math.abs(Math.sin(beat)) * 0.35 * s;
+    legR.rotation.x = Math.abs(Math.sin(beat)) * 0.1 * s;
+  } else if (pose === 'clap') {
+    const clap = Math.abs(Math.sin(t * 7.5)) * s;
+    left.rotation.set(-1.15, 0.2, 0.62 - clap * 0.42);
+    right.rotation.set(-1.15, -0.2, -0.62 + clap * 0.42);
+    hop = Math.abs(Math.sin(t * 3.75)) * 0.06 * s;
+    legL.rotation.x = legR.rotation.x = 0;
+  } else if (pose === 'wave') {
+    left.rotation.set(0, 0, -0.16 - Math.sin(t * 1.6) * 0.04 * s);
+    right.rotation.set(0, 0, 2.3 + Math.sin(t * 8) * 0.32 * s);
+    hop = Math.abs(Math.sin(t * 3.2)) * 0.05 * s;
+  } else if (pose === 'dance') {
+    const beat = t * 5.2;
+    left.rotation.set(Math.sin(beat) * 0.4 * s, 0, -1.3 + Math.sin(beat) * 0.6 * s);
+    right.rotation.set(-Math.sin(beat) * 0.4 * s, 0, 1.3 + Math.sin(beat) * 0.6 * s);
+    legL.rotation.x = Math.sin(beat) * 0.3 * s;
+    legR.rotation.x = -Math.sin(beat) * 0.3 * s;
+    hop = Math.abs(Math.sin(beat)) * 0.12 * s;
+  } else if (pose === 'sulk') {
+    left.rotation.set(-0.28, 0, 0.06 + Math.sin(t * 1.3) * 0.03 * s);
+    right.rotation.set(-0.28, 0, -0.06 - Math.sin(t * 1.3) * 0.03 * s);
+    legL.rotation.x = legR.rotation.x = 0;
+  }
+  return hop;
 }

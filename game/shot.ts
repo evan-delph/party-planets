@@ -76,7 +76,19 @@ export function buildShot(scene: string, avatar: Avatar, now: number): ShotSetup
     // The winner's celebration with the whole crew (character showcase).
     const g = boardGame(avatar, 'crown', now);
     g.phase = 'finished';
-    g.finale = { reason: 'goal', startedAt: now - 4000, winner: g.players[0].id };
+    // The champion leads on diamonds, then points (as the results card ranks).
+    const champ = [...g.players].sort((a, b) => b.pearls - a.pearls || b.shells - a.shells)[0];
+    // Start mid-ceremony: the intro (drop-ins, crown, confetti) has played and
+    // the camera has settled on the podium beside the results card.
+    g.finale = { reason: 'goal', startedAt: now - 14000, winner: champ.id };
+    // finale:lounge (bonus awards inside the ship) · finale:bonus (the
+    // podium after a bonus-award ending).
+    if (arg === 'lounge') {
+      g.phase = 'bonus';
+      g.finale = { reason: 'bonuses', startedAt: now - 22000 };
+      g.due = now + 600000;
+    } else if (arg === 'bonus')
+      g.finale = { reason: 'bonuses', startedAt: now - 36000, winner: champ.id };
     return { started: true, panel: 'play', game: g, boardId: 'crown' };
   }
   if (kind === 'vote' || kind === 'results') {

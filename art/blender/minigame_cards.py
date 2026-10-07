@@ -64,7 +64,8 @@ def ambient(color, strength=0.6):
     bg.inputs['Strength'].default_value = strength
 
 
-def bloom(strength=0.6, threshold=1.0, size=0.6):
+def bloom(strength=0.6, threshold=1.0, size=0.6, saturation=1.18):
+    """Bloom plus a saturation lift (AgX desaturates bright toy colours)."""
     scene = bpy.context.scene
     tree = bpy.data.node_groups.new('Comp', 'CompositorNodeTree')
     tree.interface.new_socket('Image', in_out='OUTPUT', socket_type='NodeSocketColor')
@@ -76,8 +77,38 @@ def bloom(strength=0.6, threshold=1.0, size=0.6):
     glare.inputs['Size'].default_value = size
     out = tree.nodes.new('NodeGroupOutput')
     tree.links.new(rl.outputs['Image'], glare.inputs['Image'])
-    tree.links.new(glare.outputs[0], out.inputs[0])
+    last = glare.outputs[0]
+    if saturation != 1.0:
+        try:
+            hs = tree.nodes.new('CompositorNodeHueSat')
+            hs.inputs['Saturation'].default_value = saturation
+            tree.links.new(last, hs.inputs['Image'])
+            last = hs.outputs[0]
+        except Exception as e:  # node API differs between Blender versions
+            print('HueSat skipped', e)
+    tree.links.new(last, out.inputs[0])
     scene.compositing_node_group = tree
+
+
+def frame_objects(objs, cam, margin=1.08):
+    """Aim `cam` at the world bounding box of `objs` and dolly to fit it."""
+    bpy.context.view_layer.update()
+    pts = []
+    for o in objs:
+        if o.type == 'MESH' and o.visible_get():
+            pts += [o.matrix_world @ Vector(c) for c in o.bound_box]
+    lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    center = (lo + hi) / 2
+    scene = bpy.context.scene
+    aspect = scene.render.resolution_x / scene.render.resolution_y
+    fov = 2 * math.atan(18 / cam.data.lens)  # sensor fit AUTO: larger side gets 36 mm
+    vfov = fov if aspect < 1 else 2 * math.atan(math.tan(fov / 2) / aspect)
+    hfov = 2 * math.atan(math.tan(vfov / 2) * aspect)
+    need = max((hi.z - lo.z) / 2 / math.tan(vfov / 2), (hi.x - lo.x) / 2 / math.tan(hfov / 2)) * margin
+    d = (cam.location - center).normalized()
+    cam.location = center + d * (need + (hi.y - lo.y) / 2)
+    cam.rotation_euler = (center - cam.location).to_track_quat('-Z', 'Y').to_euler()
 
 
 def camera(loc, target, lens=35, focus=None, fstop=4.0):
@@ -105,7 +136,7 @@ def sun(rot, color='#fff1d6', energy=4.0, angle=4.0):
     return light
 
 
-def lamp(loc, color, energy=300, radius=0.5, kind='POINT'):
+def lamp(loc, color, energy=300, radius=0.5, kind='POINT', shadow=True):
     light = bpy.data.objects.new('Lamp', bpy.data.lights.new('Lamp', kind))
     light.data.energy = energy
     light.data.color = kit.linear(color)[:3]
@@ -113,6 +144,7 @@ def lamp(loc, color, energy=300, radius=0.5, kind='POINT'):
         light.data.shadow_soft_size = radius
     else:
         light.data.size = radius
+    light.data.use_shadow = shadow
     light.location = loc
     bpy.context.scene.collection.objects.link(light)
     return light
@@ -460,11 +492,14 @@ def cloud(loc, scale=1.0, seed=0, color='#ffffff', emit=0.0):
         blob('Cloud', m, Vector(loc) + off, rnd.uniform(0.9, 1.6) * scale, (1.2, 1, 0.8), 0.15, seed * 10 + i, 2)
 
 
-def water(name='Water', size=120, res=160, color='#1aa0c8', deep='#0b5d8c', waves=None, rough=0.06, loc=(0, 0, 0), foam_level=None):
+def water(name='Water', size=120, res=160, color='#1aa0c8', deep='#0b5d8c', waves=None, rough=0.06, loc=(0, 0, 0), foam_level=None,
+          extra=None, caustics=0.0):
     def h(x, y):
         z = 0.0
         for amp, fx, fy, ph in (waves or [(0.12, 0.35, 0.2, 0), (0.08, -0.2, 0.5, 1.3), (0.05, 0.8, -0.6, 2.1)]):
             z += amp * math.sin(fx * x + fy * y + ph)
+        if extra:
+            z += extra(x, y)
         return z
     o = terrain(name, None, size, res, h, 6.0, loc)
     m = bpy.data.materials.new(name)
@@ -486,6 +521,21 @@ def water(name='Water', size=120, res=160, color='#1aa0c8', deep='#0b5d8c', wave
     bump.inputs['Strength'].default_value = 0.25
     nt.links.new(noise.outputs['Fac'], bump.inputs['Height'])
     nt.links.new(bump.outputs['Normal'], b.inputs['Normal'])
+    if caustics:
+        # Sun caustics: bright cells of a Voronoi edge pattern added as emission.
+        vor = nt.nodes.new('ShaderNodeTexVoronoi')
+        vor.feature = 'DISTANCE_TO_EDGE'
+        vor.inputs['Scale'].default_value = 2.4
+        tco = nt.nodes.new('ShaderNodeTexCoord')
+        nt.links.new(tco.outputs['Object'], vor.inputs['Vector'])
+        cr = nt.nodes.new('ShaderNodeMapRange')
+        cr.inputs['From Min'].default_value = 0.0
+        cr.inputs['From Max'].default_value = 0.035
+        cr.inputs['To Min'].default_value = caustics
+        cr.inputs['To Max'].default_value = 0.0
+        nt.links.new(vor.outputs['Distance'], cr.inputs['Value'])
+        b.inputs['Emission Color'].default_value = kit.linear('#c8fff6')
+        nt.links.new(cr.outputs['Result'], b.inputs['Emission Strength'])
     o.data.materials.append(m)
     return o, h
 
@@ -507,28 +557,102 @@ def foam_ring(loc, radius, width=0.18, seed=0, h=None):
 
 
 # -- The crew alien ---------------------------------------------------------
-HIDE = ('Acc', 'Aloha', 'Overalls', 'Dots', 'Stripes', 'Hair', 'Beard', 'Freckles', 'Lid', 'MouthFrown', 'MouthSmile', 'Glove')
+# The default cast, mirroring the in-game avatars (config DEFAULT_AVATAR and the
+# BOT_LOOKS signature looks in game/engine.ts), keyed by shirt colour. Every crew
+# alien in a preview wears its owner's look, so the cast reads as characters.
+# Keep in sync with game/engine.ts BOT_LOOKS and game/art-minigames.tsx CAST.
+DEFAULT_LOOK = dict(hair=0, hairColor='#603821', accessory=0, beard=0, brows=0, eyes=0, pattern=4,
+                    height=1.0, width=1.0, shoeColor='#183e47', eyeColor='#294d5d', eyeSpacing=0.155,
+                    nose=0, mouthScale=1.0, freckles=False)
+CAST = {
+    '#12ad9a': dict(DEFAULT_LOOK, who='frankie'),
+    '#f25265': dict(DEFAULT_LOOK, who='chorizo', hair=7, hairColor='#ff5a2c', accessory=5, beard=1, brows=3,
+                    pattern=1, height=1.18, width=0.86, shoeColor='#2a1d4a', eyeColor='#5a2410', eyeSpacing=0.15),
+    '#7549cb': dict(DEFAULT_LOOK, who='coco', hair=6, hairColor='#ff7fc4', accessory=2, freckles=True, brows=1,
+                    pattern=2, height=0.84, width=1.14, shoeColor='#ffd23f', eyeColor='#6a2a9a', eyeSpacing=0.175,
+                    mouthScale=1.15),
+    '#f4b62c': dict(DEFAULT_LOOK, who='bratley', hair=5, hairColor='#4a2a14', accessory=1, beard=2, brows=2, eyes=1,
+                    pattern=3, height=1.02, width=1.2, shoeColor='#7a2f1c', eyeColor='#1d3a5a', nose=1),
+}
+OPTIONAL = ('Acc', 'Aloha', 'Overalls', 'Dots', 'Stripes', 'Hair', 'Beard', 'Freckles', 'Lid', 'MouthFrown',
+            'MouthSmile', 'MouthGrin', 'Glove', 'Hand', 'Collar', 'Placket')
+HIDE = OPTIONAL
 
 
-def alien(loc, face=0.0, shirt=SHIRTS[0], pose='idle', scale=1.0, tilt=(0, 0), mouth='grin'):
-    """Import the crew alien. face: degrees around Z (0 faces -Y, the camera side).
+def _mix(a, b, t):
+    ca, cb = kit.linear(a), kit.linear(b)
+    return tuple(ca[i] + (cb[i] - ca[i]) * t for i in range(3)) + (1.0,)
 
-    Poses: idle, cheer, run, hop, balance, throw, duck, swim, ride, wave.
+
+def alien(loc, face=0.0, shirt=SHIRTS[0], pose='idle', scale=1.0, tilt=(0, 0), mouth='grin', brows=None):
+    """Import the crew alien in its owner's look. face: degrees around Z (0 faces -Y, the camera side).
+
+    Poses: idle, cheer, run, hop, balance, throw, duck, swim, ride, wave, point,
+    leap, flail, windup, scared, rodeo, splash, surf. Mouths: grin, smile, frown,
+    shout (wide open). Brows (expression): None, 'up', 'angry', 'worried'.
     """
+    from mathutils import Quaternion
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=ALIEN)
     new = [o for o in bpy.data.objects if o not in before]
     root = next(o for o in new if o.parent is None and o.name.startswith('Alien'))
     by = {o.name.split('.')[0]: o for o in new}
-    keep_mouth = {'grin': 'MouthGrin', 'smile': 'MouthSmile'}.get(mouth)
+    look = CAST.get(shirt.lower(), DEFAULT_LOOK)
+    pattern = look['pattern']
+    keep = {'Glove0', 'Glove1', {'grin': 'MouthGrin', 'shout': 'MouthGrin', 'smile': 'MouthSmile',
+                                 'frown': 'MouthFrown'}.get(mouth, 'MouthGrin')}
+    keep |= {name for name, on in (('Collar', pattern != 4), ('Placket', pattern not in (3, 4)),
+                                   ('Stripes', pattern == 1), ('Dots', pattern == 2), ('Overalls', pattern == 3),
+                                   ('Aloha', pattern == 4), ('Freckles', look['freckles'])) if on}
+    for key, prefix in (('hair', 'Hair'), ('accessory', 'Acc'), ('beard', 'Beard')):
+        if look[key]:
+            keep.add(f'{prefix}{look[key]}')
+    gone = set()
     for o in new:
         base = o.name.split('.')[0]
-        if base.startswith(HIDE) and base != keep_mouth:
+        if base.startswith(OPTIONAL) and base not in keep:
+            gone.add(base)
             bpy.data.objects.remove(o, do_unlink=True)
-    if keep_mouth != 'MouthGrin' and 'MouthGrin' in by:
-        bpy.data.objects.remove(by['MouthGrin'], do_unlink=True)
+    by = {k: v for k, v in by.items() if k not in gone}
+    # Face proportions from the look: eye spacing and shape, nose, mouth size.
+    spacing = min(0.27, max(0.18, look['eyeSpacing'] + 0.055))
+    for i, side in enumerate((-1, 1)):
+        eye = by.get(f'Eye{i}')
+        if eye:
+            eye.location.x = side * spacing
+            if look['eyes'] == 1:
+                eye.scale.z = 0.205
+            elif look['eyes'] == 2:
+                eye.scale.x = 0.17
+        b = by.get(f'Brow{i}')
+        if not b:
+            continue
+        if not look['brows'] and not brows:
+            bpy.data.objects.remove(b, do_unlink=True)
+            continue
+        b.location.x = side * spacing
+        b.rotation_mode = 'QUATERNION'
+        if look['brows'] == 3:
+            b.rotation_quaternion = Quaternion((0, -1, 0), side * 0.43) @ b.rotation_quaternion
+        if look['brows'] == 2:
+            b.scale = (b.scale.x * 1.5, b.scale.y, b.scale.z * 1.5)
+        if brows:
+            ang = {'angry': 24, 'worried': -22, 'up': -6}[brows] * -side
+            b.rotation_quaternion = Quaternion((0, 1, 0), math.radians(ang)) @ b.rotation_quaternion
+            if brows in ('up', 'worried'):
+                b.location.z += 0.06
+    if look['nose'] == 1 and 'Nose' in by:
+        by['Nose'].scale *= 1.45
+    if 'Face' in by:
+        f = by['Face']
+        f.scale = (look['mouthScale'],) * 3
+        if mouth == 'shout':
+            f.scale = (1.25 * look['mouthScale'], look['mouthScale'], 1.9 * look['mouthScale'])
+            f.location.z -= 0.03
     shirt_lin = kit.linear(shirt)
-    tint = {'Shirt': shirt_lin, 'ShirtSeam': tuple(c * 0.55 for c in shirt_lin[:3]) + (1,)}
+    tint = {'Shirt': shirt_lin, 'ShirtSeam': _mix(shirt, '#23334b', 0.24), 'ShirtThread': _mix(shirt, '#fff2ce', 0.6),
+            'Hair': kit.linear(look['hairColor']), 'Shoe': kit.linear(look['shoeColor']),
+            'Eye': _mix(look['eyeColor'], '#040d14', 0.8)}
     copies = {}
     for o in bpy.data.objects:
         if o.type != 'MESH' or o.name.split('.')[0] in HIDE:
@@ -551,7 +675,7 @@ def alien(loc, face=0.0, shirt=SHIRTS[0], pose='idle', scale=1.0, tilt=(0, 0), m
     root.location = loc
     root.rotation_mode = 'XYZ'
     root.rotation_euler = (math.radians(tilt[0]), math.radians(tilt[1]), math.radians(face))
-    root.scale = (scale, scale, scale)
+    root.scale = (scale * look['width'], scale * look['width'], scale * look['height'])
     arm0, arm1 = by.get('Arm0'), by.get('Arm1')
     leg0, leg1 = by.get('Leg0'), by.get('Leg1')
     R = math.radians
@@ -567,6 +691,13 @@ def alien(loc, face=0.0, shirt=SHIRTS[0], pose='idle', scale=1.0, tilt=(0, 0), m
         'swim': ((R(-150), R(30), 0), (R(30), R(-30), 0), (R(30), 0, 0), (R(-30), 0, 0)),
         'ride': ((R(-70), R(10), 0), (R(-70), R(-10), 0), (R(-80), R(-8), 0), (R(-80), R(8), 0)),
         'point': ((R(-90), R(0), 0), (0, R(-14), 0), (0, 0, 0), (0, 0, 0)),
+        'leap': ((R(-35), R(150), 0), (R(-10), R(-120), 0), (R(-55), R(-12), 0), (R(35), R(14), 0)),
+        'flail': ((R(-20), R(115), R(10)), (R(30), R(-70), 0), (R(-20), R(-18), 0), (R(10), R(22), 0)),
+        'windup': ((R(-150), R(40), 0), (R(-60), R(-50), 0), (R(-30), R(-6), 0), (R(30), R(8), 0)),
+        'scared': ((R(-40), R(100), 0), (R(-40), R(-100), 0), (R(-50), 0, 0), (R(45), 0, 0)),
+        'rodeo': ((R(-30), R(160), R(-10)), (R(-75), R(-20), 0), (R(-75), R(-38), 0), (R(-75), R(38), 0)),
+        'splash': ((R(-110), R(60), 0), (R(-100), R(-60), 0), (R(-20), 0, 0), (R(20), 0, 0)),
+        'surf': ((R(-20), R(145), 0), (R(15), R(-70), 0), (R(-12), R(-16), 0), (R(14), R(14), 0)),
     }
     pa, pb, la, lb = poses[pose]
     for part, rot in ((arm0, pa), (arm1, pb), (leg0, la), (leg1, lb)):
@@ -585,76 +716,104 @@ def scene(fn):
     return fn
 
 
+HERO_W, HERO_H = 1000, 720
+
+
+def hero_begin():
+    """Hero key-art shots render taller (fits the 4:3 vote cards and 16:7 results)."""
+    scene = begin()
+    scene.render.resolution_x, scene.render.resolution_y = HERO_W, HERO_H
+    return scene
+
+
 @scene
 def tidetiles():
-    """Caldera Critter: a molten critter charges across a cracked caldera floor."""
-    begin()
+    """Caldera Critter hero shot: Chorizo rodeo-rides the lava critter at the camera
+    while the crew scatters, under a lit volcanic twilight."""
+    hero_begin()
     rnd = random.Random(7)
-    sky_dome([(0.0, '#2a0d0a'), (0.5, '#ff6a2a'), (0.56, '#c2361f'), (0.7, '#5a1622'), (1.0, '#1c0a1e')])
-    ambient('#ff7a4a', 0.35)
+    sky_dome([(0.0, '#3a1410'), (0.5, '#ffb347'), (0.54, '#ff6a3c'), (0.62, '#e0407a'),
+              (0.76, '#7a2f9a'), (1.0, '#2a1458')], strength=1.15)
+    ambient('#ff8a5a', 0.45)
 
     def ground(x, y):
-        r = math.hypot(x, y)
-        rim = min(3.5, max(0.0, r - 11) ** 1.4 * 0.3)
+        r = math.hypot(x, y - 2)
+        rim = min(4.0, max(0.0, r - 12) ** 1.4 * 0.3)
         return rim + 0.12 * math.sin(x * 0.9) * math.cos(y * 0.7) + 0.06 * math.sin(x * 2.3 + y * 1.7)
-    terrain('Caldera', scan('Basalt', 'volcanic_rock_tiles', tint='#8a5a4c', rough=0.6), 70, 140, ground, 2.2)
-    lava = glow('Lava', '#ff5a0a', 4.0)
-    hot = glow('LavaCore', '#ffb21a', 7.0)
-    crust = mat('Crust', '#2a1512', rough=0.9)
-    for i in range(8):
-        a = i / 8 * math.tau + rnd.uniform(-0.3, 0.3)
-        start = (math.cos(a) * rnd.uniform(1.5, 3.5) - 1.5, math.sin(a) * rnd.uniform(1.5, 3.5) + 1.5, 0)
-        pts = crack(rnd, start, a, steps=12, step=0.75, wander=0.45)
+    terrain('Caldera', scan('Basalt', 'volcanic_rock_tiles', tint='#5a3a36', rough=0.8), 80, 160, ground, 2.2)
+    lava = glow('Lava', '#ff5200', 2.2)
+    hot = glow('LavaCore', '#ffc21a', 3.6)
+    crust = mat('Crust', '#2a1512', rough=0.8)
+    for i in range(11):
+        a = i / 11 * math.tau + rnd.uniform(-0.25, 0.25)
+        start = (math.cos(a) * 1.2 - 0.4, math.sin(a) * 1.2 + 3.4, 0)
+        pts = crack(rnd, start, a, steps=14, step=0.8, wander=0.4)
         pts = [(x, y, ground(x, y)) for x, y, _ in pts]
-        ribbon('FissureLip', crust, [(x, y, z + 0.005) for x, y, z in pts], 0.75)
-        ribbon('Fissure', lava, [(x, y, z + 0.01) for x, y, z in pts], 0.42)
-        ribbon('FissureCore', hot, [(x, y, z + 0.02) for x, y, z in pts], 0.13)
+        ribbon('FissureLip', crust, [(x, y, z + 0.005) for x, y, z in pts], 0.65)
+        ribbon('Fissure', lava, [(x, y, z + 0.01) for x, y, z in pts], 0.34)
+        ribbon('FissureCore', hot, [(x, y, z + 0.02) for x, y, z in pts], 0.08)
         mid = pts[len(pts) // 2]
-        lamp((mid[0], mid[1], mid[2] + 0.8), '#ff6a12', 220, 1.0)
-    # Bubbling lava pools around the rim.
-    for i, (x, y, r) in enumerate([(-7.5, 3.0, 1.6), (6.8, 5.5, 1.3), (8.5, -1.5, 1.0), (-5.0, 8.5, 1.8)]):
+        lamp((mid[0], mid[1], mid[2] + 0.7), '#ff6a12', 260, 1.0, shadow=False)
+    for i, (x, y, r) in enumerate([(-6.5, 6.0, 1.8), (5.8, 7.5, 1.5), (6.5, 0.5, 1.1), (-4.0, -1.2, 1.0)]):
         cyl('Pool', lava, (x, y, ground(x, y) + 0.04), r, 0.1, scale=(1, 0.75, 1))
-        for k in range(4):
-            sphere('Bubble', hot, (x + rnd.uniform(-r, r) * 0.6, y + rnd.uniform(-r, r) * 0.4, ground(x, y) + 0.15), rnd.uniform(0.12, 0.28), (1, 1, 0.6), seg=12)
-        lamp((x, y, ground(x, y) + 1.2), '#ff6a12', 420, 1.5)
-    rockm = scan('Crag', 'dark_rock', tint='#7a5a55', rough=0.8)
-    for i in range(26):
-        a = i / 26 * math.tau
-        r = rnd.uniform(12.5, 16)
-        rock((math.cos(a) * r, math.sin(a) * r, ground(math.cos(a) * r, math.sin(a) * r) - 0.4), rnd.uniform(1.4, 3.2), rockm, i, rnd.uniform(0.9, 1.6))
-    # Distant volcano with a glowing crown.
-    v = cone('Volcano', rockm, (-6, 48, 2), 26, 6, 26, verts=48)
+        for k in range(5):
+            sphere('Bubble', hot, (x + rnd.uniform(-r, r) * 0.6, y + rnd.uniform(-r, r) * 0.4, ground(x, y) + 0.15),
+                   rnd.uniform(0.12, 0.3), (1, 1, 0.6), seg=12)
+        lamp((x, y, ground(x, y) + 1.0), '#ff6a12', 520, 1.5, shadow=False)
+    rockm = scan('Crag', 'dark_rock', tint='#8a6058', rough=0.6)
+    for i in range(22):
+        a = math.radians(-10) + i / 21 * math.radians(200)
+        r = rnd.uniform(13, 17)
+        x, y = math.cos(a) * r, math.sin(a) * r + 2
+        rock((x, y, ground(x, y) - 0.4), rnd.uniform(1.6, 3.6), rockm, i, rnd.uniform(1.0, 1.8))
+    # Erupting volcano on the horizon with lava streams and lit smoke.
+    v = cone('Volcano', rockm, (-28, 58, 0), 26, 6, 30, verts=48)
     kit.world_uvs(v, 3)
-    cyl('Crown', glow('Crown', '#ff8a2a', 20), (-6, 48, 15.1), 6.2, 0.4)
-    lamp((-6, 46, 18), '#ff7a2a', 6000, 4)
-    for k in range(7):
-        blob('Smoke', mat('Smoke', '#3a2228', rough=1), (-6 + rnd.uniform(-5, 7), 50 + rnd.uniform(-2, 2), 20 + k * 3.2), 3.5 + k * 0.7, (1.3, 1, 0.8), 0.3, k, 2)
+    cyl('Crown', glow('Crown', '#ffb03a', 30), (-28, 58, 15.1), 6.2, 0.5)
+    for k in range(4):
+        a = math.radians(-120 + k * 22)
+        top = Vector((-28 + math.cos(a) * 6, 58 + math.sin(a) * 6, 15))
+        bot = Vector((-28 + math.cos(a) * 22, 58 + math.sin(a) * 22, 1.5))
+        pts = [tuple(top.lerp(bot, t) + Vector((rnd.uniform(-0.6, 0.6), 0, 0.4))) for t in (0, 0.25, 0.5, 0.75, 1)]
+        ribbon('Stream', lava, pts, 1.4, 0.3, False)
+    lamp((-28, 54, 20), '#ff7a2a', 12000, 6)
+    smoke = mat('Smoke', '#6a3a6a', rough=1, emit=0.18, emit_color='#ff7a5a')
+    for k in range(8):
+        blob('Smoke', smoke, (-28 + rnd.uniform(-4, 4) - k * 1.5, 60 + rnd.uniform(-2, 2), 18 + k * 3.0),
+             2.6 + k * 0.6, (1.3, 1, 0.8), 0.12, k, 3)
+    for k in range(18):
+        sphere('Lavabomb', hot, (-28 + rnd.uniform(-8, 8), 58 + rnd.uniform(-3, 3), 17 + rnd.uniform(0, 12)),
+               rnd.uniform(0.25, 0.6), seg=10)
 
-    # The critter, mid-charge toward the camera side.
-    critter((-2.4, 2.6, 0), 1.35, 25)
-    lamp((-0.5, -1.5, 3.2), '#ffb070', 650, 1.5)
-    specks('Dust', mat('Dust', '#6d4a40', rough=1), 70, ((-5.5, -3.0), (3.5, 6.0), (0.1, 1.6)), (0.08, 0.25), 4, 'ico')
+    # Hero: Chorizo rodeo-riding the critter straight at the camera.
+    critter((-0.6, 3.6, 0), 1.35, 14, rider='#f25265')
+    lamp((-0.6, 0.6, 0.5), '#ff8a2a', 900, 1.2)           # lava bounce under the critter
+    specks('Dust', mat('Dust', '#7a4a3a', rough=1), 90, ((-3.5, 2.5), (3.0, 6.5), (0.1, 1.3)), (0.08, 0.25), 4, 'ico')
 
-    # Crew aliens scattering toward the viewer.
-    alien((2.2, -2.2, ground(2.2, -2.2)), 55, SHIRTS[0], 'run', tilt=(0, -6))
-    alien((4.6, 1.2, 1.4), 70, SHIRTS[1], 'hop', tilt=(-14, 0))
-    alien((-0.6, -3.6, ground(-0.6, -3.6)), 15, SHIRTS[2], 'run', tilt=(0, 6))
-    alien((-6.2, 0.6, ground(-6.2, 0.6)), -30, SHIRTS[3], 'duck')
+    # The crew scatters: Frankie bolts past the lens, Coco and Bratley dive aside.
+    alien((2.15, -1.9, ground(2.15, -1.9)), 28, '#12ad9a', 'scared', 1.0, (-16, 8), mouth='shout', brows='worried')
+    lamp((2.0, -2.6, 0.4), '#ff7a2a', 260, 0.8)
+    alien((-3.7, 1.0, ground(-3.7, 1.0) + 0.2), -38, '#7549cb', 'run', 1.0, (-10, -10), mouth='shout', brows='worried')
+    alien((3.9, 4.6, 1.3), 52, '#f4b62c', 'hop', 1.0, (-18, 10), mouth='shout', brows='up')
 
-    specks('Embers', glow('Ember', '#ffb44a', 9), 140, ((-14, 14), (-4, 30), (0.4, 12)), (0.025, 0.07), 9)
-    sun((50, 0, 140), '#ffd2a8', 2.6, 8)
-    area((10, -8, 7), (0, 2, 1), '#a8ccff', 1600, 8)  # cool rim for separation
-    area((-9, -9, 9), (0, 1, 1), '#ffd8b0', 900, 8)
-    bloom(0.7, 0.95, 0.7)
-    camera((8.0, -11.2, 4.6), (-0.8, 1.6, 1.7), 30, (-1.6, 1.8, 1.8), 4.5)
+    specks('Embers', glow('Ember', '#ffc04a', 9), 200, ((-12, 12), (-2, 26), (0.3, 10)), (0.02, 0.05), 9, 'ico')
+    specks('NearEmbers', glow('Ember2', '#ffb04a', 8), 14, ((-2.5, 3.5), (-4.0, -3.0), (0.6, 3.6)), (0.015, 0.03), 12, 'ico')
+    # Rim and key: magenta and cyan back-lights, warm key from the camera side.
+    area((-5, 12, 7), (-0.6, 3.4, 3.4), '#ff4fa0', 4000, 4)
+    area((7, 10, 6), (0, 2, 3), '#6fd8ff', 4200, 4)
+    area((-6, -7, 6), (0, 2, 3), '#fff0dc', 2000, 6)
+    sun((60, 0, 160), '#ffd2a8', 1.6, 8)
+    bloom(0.55, 1.0, 0.7, 1.15)
+    camera((2.6, -6.6, 1.6), (-0.5, 3.0, 3.4), 24, (-0.4, 2.2, 3.4), 5.6)
     render('tidetiles')
 
 
-def critter(loc, scale=1.0, face=0.0):
+
+def critter(loc, scale=1.0, face=0.0, rider=None):
     """Molten, spiky salamander-blob built facing -Y at the origin, then placed."""
     parts = []
-    skin = mat('CritterSkin', '#ff4e1f', rough=0.32, sss=0.3, coat=0.5)
-    belly = mat('CritterBelly', '#ffc04a', rough=0.4, emit=2.5, emit_color='#ff9a2a')
+    skin = mat('CritterSkin', '#d42a08', rough=0.28, sss=0.12, coat=0.7)
+    belly = mat('CritterBelly', '#ffc04a', rough=0.4, emit=1.4, emit_color='#ff9a2a')
     parts.append(sphere('Critter', skin, (0, 0, 1.35), 1.0, (1.45, 1.6, 1.18)))
     parts.append(sphere('Belly', belly, (0, -0.7, 1.0), 0.95, (1.05, 0.7, 0.75)))
     plate = mat('Plates', '#3b1d1a', rough=0.5, coat=0.3)
@@ -663,6 +822,8 @@ def critter(loc, scale=1.0, face=0.0):
         t = k / 4
         y = -0.6 + t * 1.8
         z = 2.55 - abs(t - 0.35) * 0.8
+        if rider and k in (1, 2):
+            continue
         parts.append(cone('Spike', plate, (0, y, z), 0.32, 0.04, 0.85, (25 + 20 * t, 0, 0), 12))
         parts.append(sphere('SpikeTip', tip, (0, y + 0.18 + t * 0.2, z + 0.38), 0.08, seg=10))
     for side in (-1, 1):
@@ -683,6 +844,12 @@ def critter(loc, scale=1.0, face=0.0):
         for fwd in (-1, 1):
             parts.append(sphere('Foot', skin, (side * 0.95, fwd * 0.8, 0.28), 0.42, (1, 1.25, 0.65)))
     parts.append(cone('Tail', skin, (0, 1.9, 0.75), 0.5, 0.05, 1.6, (-70, 0, 0), 16))
+    if rider:
+        saddle = mat("Saddle", "#7a3cff", rough=0.35, coat=0.6)
+        parts.append(sphere("Saddle", saddle, (0, 0.05, 2.5), 0.62, (1.0, 1.05, 0.28)))
+        parts.append(torus("SaddleRim", mat("SaddleGold", "#ffc93a", rough=0.2, metal=1.0), (0, 0.05, 2.56), 0.6, 0.06, scale=(1, 1.05, 1)))
+        r = alien((0, 0.15, 2.62), 0, rider, "surf", 1.1, (-6, 10), mouth="shout", brows="up")
+        parts.append(r)
     root = bpy.data.objects.new('CritterRoot', None)
     bpy.context.scene.collection.objects.link(root)
     for p in parts:
@@ -695,101 +862,140 @@ def critter(loc, scale=1.0, face=0.0):
 
 @scene
 def boulderbuffet():
-    """Ripple Rumble: one alien balances on a bobbing saucer as rivals splash waves."""
-    begin()
+    """Ripple Rumble hero shot: Bratley flails on the tipping saucer as a rolling
+    wave from the floatie crew slams into it, in bright tropical sun."""
+    hero_begin()
     rnd = random.Random(3)
-    sky_dome([(0.0, '#7fd3ff'), (0.5, '#aee8ff'), (0.56, '#58b8ff'), (0.75, '#2a86f0'), (1.0, '#1450c8')])
-    ambient('#9ad8ff', 0.75)
-    sea, h = water(size=160, res=200, color='#29c4d6', deep='#0a5fa8', waves=[(0.22, 0.42, 0.18, 0), (0.12, -0.25, 0.55, 1.3), (0.06, 0.9, -0.7, 2.1)])
-    # Saucer: the crew's UFO, beached on the swell.
+    sky_dome([(0.0, '#7fd3ff'), (0.5, '#e8fbff'), (0.53, '#9ee2ff'), (0.66, '#3aa6ff'), (1.0, '#1450d8')], strength=1.1)
+    ambient('#9ad8ff', 0.7)
+    hub = Vector((0.2, 3.4, 0))
+
+    def wave(x, y):
+        # A rolling crest sweeping in from the right, arcing round the saucer.
+        d = math.hypot(x - hub.x, y - hub.y)
+        side = max(0.0, math.cos(math.atan2(y - hub.y, x - hub.x) - math.radians(25))) ** 2
+        return 1.0 * side * math.exp(-((d - 3.4) ** 2) / 0.5)
+    sea, h = water(size=160, res=260, color='#12c4d2', deep='#0650b0', rough=0.03,
+                   waves=[(0.16, 0.42, 0.18, 0), (0.10, -0.25, 0.55, 1.3), (0.05, 0.9, -0.7, 2.1)],
+                   extra=wave, caustics=0.22)
+    # Saucer: the crew's UFO, tipping hard as the wave hits.
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=UFO)
     ufo = next(o for o in bpy.data.objects if o not in before and o.parent is None)
-    ufo.location = (0, 2, -0.95)
-    ufo.rotation_euler = (math.radians(7), math.radians(-6), math.radians(20))
-    ufo.scale = (1.0, 1.0, 1.0)
+    ufo.location = (hub.x, hub.y, -0.85)
+    ufo.rotation_euler = (math.radians(9), math.radians(-14), math.radians(20))
     for name in list(o.name for o in bpy.data.objects if o not in before):
-        if name.split('.')[0] == 'Ramp':
+        if name.split('.')[0].startswith('Ramp'):
             bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
-    foam_ring((0, 2, h(0, 2)), 3.1, 0.2, 1, h)
-    alien((0.15, 1.9, 1.05), 25, SHIRTS[3], 'balance', 1.15, (8, -12))
-    # Three rivals in floaties, splashing.
+    foam_ring((hub.x, hub.y, h(hub.x, hub.y)), 3.0, 0.26, 1, h)
+    alien((hub.x - 0.1, hub.y - 0.15, 1.92), 18, '#f4b62c', 'flail', 1.12, (6, -20), mouth='shout', brows='worried')
+    # Foam crest along the wave and a sheet of spray where it breaks on the hull.
+    crest = mat('CrestFoam', '#f6feff', rough=0.45, emit=0.35)
+    pts = []
+    for k in range(17):
+        a = math.radians(-50 + k * 6.5)
+        x, y = hub.x + math.cos(a) * 3.4, hub.y + math.sin(a) * 3.4
+        pts.append((x, y, h(x, y) + 0.08))
+    ribbon('Crest', crest, pts, 0.75)
+    splash = mat('Splash', '#e9fbff', rough=0.05, alpha=0.8, emit=0.25, coat=1.0)
+    for k in range(110):
+        a = math.radians(rnd.uniform(-40, 80))
+        r = rnd.uniform(2.2, 3.6)
+        p = Vector((hub.x + math.cos(a) * r, hub.y + math.sin(a) * r, 0))
+        p.z = h(p.x, p.y) + rnd.uniform(0.3, 2.6)
+        sphere('Drop', splash, p, rnd.uniform(0.03, 0.1), seg=10)
+    # The floatie crew: Frankie up close splashing, Coco and Chorizo behind.
     tube_colors = ['#ff5a6e', '#ffd23f', '#7a5cff']
-    for i, (x, y, face) in enumerate([(-4.8, -0.2, -60), (4.2, -0.6, 60), (2.0, 8.0, 160)]):
+    crew = [((-1.4, -0.1), 40, '#12ad9a', 'splash', 'grin', None),
+            ((3.5, 2.6), -12, '#7549cb', 'cheer', 'grin', None),
+            ((-3.6, 6.4), 20, '#f25265', 'splash', 'shout', 'angry')]
+    for i, ((x, y), face, shirt, pose, mouth, brows) in enumerate(crew):
         z = h(x, y)
-        tube = mat(f'Tube{i}', tube_colors[i], rough=0.25, coat=0.8)
+        tube = mat(f'Tube{i}', tube_colors[i], rough=0.2, coat=0.9)
         torus('Floatie', tube, (x, y, z + 0.25), 0.95, 0.38)
+        white = mat('TubeWhite', '#ffffff', rough=0.2, coat=0.9)
         for k in range(6):
             a = k / 6 * math.tau
-            sphere('Stripe', mat('TubeWhite', '#ffffff', rough=0.25, coat=0.8), (x + math.cos(a) * 0.95, y + math.sin(a) * 0.95, z + 0.27), 0.39, (1, 1, 1), seg=16).scale = (0.45, 0.45, 1)
-        alien((x, y, z - 0.75), face, SHIRTS[[1, 0, 2][i]], 'cheer' if i != 1 else 'throw')
-        foam_ring((x, y, z), 1.35, 0.14, i, h)
-        # Splash sheets curling toward the saucer.
-        d = Vector((0 - x, 2 - y, 0)).normalized()
-        splash = mat('Splash', '#e9fbff', rough=0.1, alpha=0.85, emit=0.1)
-        for k in range(22):
-            t = rnd.uniform(0.15, 0.6)
-            p = Vector((x, y, z)) + d * (t * 4.0) + Vector((-d.y, d.x, 0)) * rnd.uniform(-0.9, 0.9)
-            p.z += math.sin(t * math.pi) * 2.2 + rnd.uniform(-0.2, 0.3)
-            sphere('Drop', splash, p, rnd.uniform(0.08, 0.2), seg=12)
-        # Foam crest of the wave they sent rolling.
-        mid = Vector((x, y, 0)) + d * 3.0
-        side = Vector((-d.y, d.x, 0))
-        crest = [tuple(mid + side * s + d * (0.35 * (1 - s * s / 4)) + Vector((0, 0, h(*(mid + side * s).xy) + 0.18))) for s in (-2, -1.4, -0.7, 0, 0.7, 1.4, 2)]
-        ribbon('Crest', mat('CrestFoam', '#f4fdff', rough=0.5, emit=0.25), crest, 0.55)
-    # Distant islands with palms.
+            sphere('Stripe', white, (x + math.cos(a) * 0.95, y + math.sin(a) * 0.95, z + 0.27), 0.39, seg=16).scale = (0.45, 0.45, 1)
+        alien((x, y, z - 0.75), face, shirt, pose, 1.0, (0, 0), mouth=mouth, brows=brows)
+        foam_ring((x, y, z), 1.35, 0.16, i, h)
+        d = Vector((hub.x - x, hub.y - y, 0)).normalized()
+        for k in range(26):
+            t = rnd.uniform(0.1, 0.55)
+            p = Vector((x, y, z)) + d * (t * 3.5) + Vector((-d.y, d.x, 0)) * rnd.uniform(-0.8, 0.8)
+            p.z += math.sin(t * math.pi) * 2.0 + rnd.uniform(-0.2, 0.3)
+            sphere('Drop', splash, p, rnd.uniform(0.03, 0.09), seg=10)
+    # Distant islands with palms and big summer clouds.
     sand = scan('Sand', 'coast_sand_01', tint='#ffe2b0', rough=0.9)
-    for i, (x, y, r) in enumerate([(-26, 46, 7), (22, 54, 9), (40, 30, 4)]):
+    for i, (x, y, r) in enumerate([(-30, 50, 8), (26, 58, 10), (46, 34, 4)]):
         isl = blob('Isle', sand, (x, y, -1.2), r, (1, 0.8, 0.28), 0.2, i, 3)
         kit.world_uvs(isl, 3)
         for k in range(3):
             palm((x + rnd.uniform(-r, r) * 0.4, y + rnd.uniform(-r, r) * 0.3, 0.6), rnd.uniform(5, 7), rnd.uniform(5, 18), rnd.uniform(0, 360), i * 3 + k)
-    for i, (x, y, z, s) in enumerate([(-30, 80, 14, 3.2), (12, 90, 20, 4.0), (45, 70, 12, 2.6), (-8, 70, 9, 2.0)]):
-        cloud((x, y, z), s, i)
-    specks('Spray', mat('Spray', '#ffffff', rough=0.2, emit=0.2), 120, ((-7, 7), (-2, 9), (0.3, 3.5)), (0.03, 0.08), 5, 'ico')
-    sun((48, 8, 200), '#fff2d8', 4.5, 3)
-    area((-8, -12, 9), (0, 2, 1), '#ffe2b8', 900, 8)
-    bloom(0.5, 1.0, 0.6)
-    camera((5.6, -8.6, 3.4), (-0.2, 2.6, 1.7), 28, (0.1, 1.9, 1.8), 5.0)
+    for i, (x, y, z, s) in enumerate([(-34, 80, 16, 3.6), (10, 92, 22, 4.4), (48, 74, 13, 3.0), (-6, 74, 9, 2.2)]):
+        cloud((x, y, z), s, i, '#ffffff', 0.9)
+    specks('Spray', mat('Spray', '#ffffff', rough=0.2, emit=0.4), 140, ((-6, 7), (-1, 8), (0.3, 3.8)), (0.02, 0.06), 5, 'ico')
+    # Back-lit sun for a glitter path, warm key from the camera side, cyan rim.
+    sun((55, 0, 215), '#fff2d0', 4.6, 2)
+    area((-6, -8, 7), (0, 2, 1.5), '#fff0dc', 1800, 7)
+    area((6, 9, 4), (0.2, 3.4, 2.0), '#7ae8ff', 2600, 4)
+    lamp((hub.x, hub.y - 2.5, 0.4), '#bff8ff', 500, 2.0, shadow=False)
+    bloom(0.55, 1.0, 0.6, 1.15)
+    camera((2.2, -3.9, 1.7), (-0.2, 3.2, 2.1), 24, (0.1, 3.2, 2.3), 6.0)
     render('boulderbuffet')
 
 
 @scene
 def cannoncay():
-    """Snowball Showdown: snow sentries lob snowballs across a frozen pond."""
-    begin()
+    """Snowball Showdown hero shot: Coco winds up a throw from the ice tower while
+    the crew scrambles across the frozen pond under a cold blue sky and low gold sun."""
+    hero_begin()
     rnd = random.Random(11)
-    sky_dome([(0.0, '#bfe8ff'), (0.5, '#eaf7ff'), (0.58, '#9fd3ff'), (1.0, '#3c86e0')])
-    ambient('#cfe9ff', 0.85)
+    sky_dome([(0.0, '#cfeeff'), (0.5, '#fff4e0'), (0.53, '#bfe6ff'), (0.64, '#62aef5'), (1.0, '#1f4fc8')], strength=1.1)
+    ambient('#9fc8ff', 0.75)
 
     def ground(x, y):
-        r = math.hypot(x * 0.9, y)
-        bank = min(2.5, max(0.0, r - 7.5) ** 1.2 * 0.2)
+        r = math.hypot(x * 0.9, y - 4)
+        bank = min(2.5, max(0.0, r - 8.0) ** 1.2 * 0.2)
         return bank + 0.15 * math.sin(x * 0.6 + y * 0.4) + 0.08 * math.cos(y * 1.3)
-    snow = mat('Snow', '#f3f9ff', rough=0.55, sss=0.35)
+    snow = mat('Snow', '#f6faff', rough=0.5, sss=0.4, spec=0.7)
     terrain('Snowfield', snow, 90, 150, ground, 4.0)
-    # Frozen pond: glossy, slightly see-through ice with cracks.
-    ice = mat('Ice', '#8fd5ff', rough=0.04, coat=1.0, spec=0.9)
-    cyl('Pond', ice, (0, 0, 0.12), 7.6, 0.2, scale=(1.15, 1, 1), verts=96)
-    crackm = mat('IceCrack', '#d9f3ff', rough=0.2, emit=0.4)
-    for i in range(7):
+    # Frozen pond: glossy blue ice with cracks and frost rings.
+    ice = mat('Ice', '#5cc4ff', rough=0.03, coat=1.0, spec=1.0)
+    cyl('Pond', ice, (0.5, 4, 0.12), 8.0, 0.2, scale=(1.2, 1, 1), verts=96)
+    crackm = mat('IceCrack', '#e6f8ff', rough=0.2, emit=0.6)
+    for i in range(9):
         a = rnd.uniform(0, math.tau)
-        pts = crack(rnd, (math.cos(a) * 1.5, math.sin(a) * 1.5, 0.22), a, 7, 0.7, 0.6)
-        ribbon('Crack', crackm, pts, 0.06, 0.0, False)
-    torus('PondRim', snow, (0, 0, 0.18), 7.75, 0.45, scale=(1.15, 1, 0.6))
-    # Snow forts.
-    for i, (x, y, a) in enumerate([(-5.5, -2.5, 20), (4.5, -3.8, -25), (6.5, 2.5, -70)]):
-        for k in range(5):
-            box('FortBlock', snow, (x + math.cos(math.radians(a)) * (k - 2) * 0.62, y + math.sin(math.radians(a)) * (k - 2) * 0.62, 0.45 + (k % 2) * 0.05), (0.6, 0.5, 0.55), (0, 0, a), 0.08)
-        for k in range(4):
-            box('FortBlock', snow, (x + math.cos(math.radians(a)) * (k - 1.5) * 0.62, y + math.sin(math.radians(a)) * (k - 1.5) * 0.62, 1.0), (0.6, 0.5, 0.5), (0, 0, a), 0.08)
-    # Snow sentries on the far bank, winding up.
+        pts = crack(rnd, (0.5 + math.cos(a) * 1.5, 4 + math.sin(a) * 1.5, 0.23), a, 8, 0.75, 0.6)
+        ribbon('Crack', crackm, pts, 0.05, 0.0, False)
+    torus('PondRim', snow, (0.5, 4, 0.18), 8.15, 0.5, scale=(1.2, 1, 0.6))
+    # The ice tower Coco commands from, close to the lens.
+    tower_ice = mat('TowerIce', '#9fdcff', rough=0.08, coat=1.0, spec=0.9, sss=0.2)
+    tx, ty = -2.7, -0.6
+    for row in range(3):
+        z = 0.35 + row * 0.62
+        for k in range(6):
+            a = k / 6 * math.tau + row * 0.5
+            box('TowerBlock', tower_ice, (tx + math.cos(a) * 0.95, ty + math.sin(a) * 0.95, z), (0.92, 0.55, 0.6),
+                (0, 0, math.degrees(a) + 90), 0.1)
+    cyl('TowerTop', snow, (tx, ty, 2.04), 1.35, 0.3, verts=40)
+    blob('TowerCap', snow, (tx, ty, 2.2), 1.35, (1, 1, 0.22), 0.15, 3, 3)
+    for k in range(10):
+        a = k / 10 * math.tau
+        cone('Icicle', tower_ice, (tx + math.cos(a) * 1.3, ty + math.sin(a) * 1.3, 1.63), 0.09, 0.0,
+             rnd.uniform(0.4, 0.8), (180, 0, 0), 8)
+    pile = [sphere('Ammo', snow, (tx + 0.55 + (k % 2) * 0.3, ty - 0.7 + (k // 2) * 0.25, 2.43 + (k // 4) * 0.2), 0.17, seg=16)
+            for k in range(5)]
+    alien((tx - 0.05, ty + 0.1, 2.26), 50, '#7549cb', 'windup', 1.0, (4, -8), mouth='grin', brows='angry')
+    # Snowball in the hand, about to fly.
+
+    # Snow sentries flanking the pond, winding up their own throws.
     coal = mat('Coal', '#1b1f2a', rough=0.4)
     carrot = mat('Carrot', '#ff7a1a', rough=0.5)
     stick = mat('Stick', '#6b4630', rough=0.9)
     scarf = [mat('ScarfR', '#e8364f', rough=0.7), mat('ScarfB', '#2f6fe0', rough=0.7), mat('ScarfY', '#ffc52e', rough=0.7)]
-    aim = glow('AimLine', '#6fe7ff', 6)
-    for i, (x, y) in enumerate([(-5.5, 9.5), (0.5, 11.2), (6.8, 8.6)]):
+    aim = glow('AimLine', '#6fe7ff', 5)
+    for i, (x, y) in enumerate([(-6.5, 10.5), (7.6, 9.2), (4.0, 13.0)]):
         z = ground(x, y)
         sphere('SnowBase', snow, (x, y, z + 0.9), 1.15)
         sphere('SnowMid', snow, (x, y, z + 2.35), 0.85)
@@ -803,35 +1009,44 @@ def cannoncay():
         kit.strut('Arm', (x + 0.75, y, z + 2.5), (x + 1.4, y - 0.2, z + 3.6), 0.06, stick, 8)
         kit.strut('Arm', (x - 0.75, y, z + 2.5), (x - 1.5, y + 0.1, z + 2.0), 0.06, stick, 8)
         sphere('Held', snow, (x + 1.45, y - 0.25, z + 3.8), 0.35)
-        # Glowing aim line on the ice.
-        tx, ty = rnd.uniform(-3, 3), rnd.uniform(-4, 1)
-        ribbon('Aim', aim, [(x + (tx - x) * t, y + (ty - y) * t, 0.25) for t in (0.3, 0.5, 0.7, 0.9, 1.0)], 0.12, 0, False)
-    # Snowballs in flight with frost trails.
-    trail = mat('Trail', '#dff6ff', rough=0.3, alpha=0.5, emit=0.6)
-    for i, (x, y, z, dx, dy) in enumerate([(-2.5, 4.0, 2.4, 0.5, -1), (2.8, 3.0, 2.0, -0.3, -1), (0.6, 6.2, 3.2, 0.1, -1)]):
-        sphere('Snowball', snow, (x, y, z), 0.38)
+        gx, gy = rnd.uniform(-2, 3), rnd.uniform(2, 6)
+        ribbon('Aim', aim, [(x + (gx - x) * t, y + (gy - y) * t, 0.25) for t in (0.35, 0.55, 0.75, 0.9, 1.0)], 0.1, 0, False)
+    # Snowballs in flight with frosty trails.
+    trail = mat('Trail', '#e6f8ff', rough=0.3, alpha=0.55, emit=0.8)
+    for i, (x, y, z, dx, dy) in enumerate([(0.2, 3.0, 3.0, -0.5, -1), (3.2, 5.4, 2.4, 0.4, -1), (-0.9, 6.8, 3.6, 0.6, -1)]):
+        sphere('Snowball', snow, (x, y, z), 0.32)
         d = Vector((dx, dy, 0.25)).normalized()
         for k in range(1, 9):
-            sphere('Trail', trail, Vector((x, y, z)) - d * k * 0.35, 0.34 * (1 - k / 10), seg=12)
-    # Crew dodging on the ice.
-    alien((-3.4, -0.6, 0.22), 50, SHIRTS[0], 'run', tilt=(0, 8))
-    alien((2.8, 1.4, 0.22), 10, SHIRTS[1], 'duck')
-    alien((-0.8, 3.2, 0.22), -20, SHIRTS[2], 'balance', tilt=(-6, 10))
-    alien((0.2, -2.6, 0.9), 30, SHIRTS[3], 'hop', tilt=(-8, 0))
-    # Burst of powder where a snowball landed.
-    specks('Puff', snow, 50, ((2.4, 4.0), (-2.2, -0.8), (0.2, 1.4)), (0.06, 0.16), 2, 'ico')
-    for i in range(16):
-        a = math.radians(-20) + i / 15 * math.radians(220)
-        r = rnd.uniform(13, 20)
-        pine((math.cos(a) * r, math.sin(a) * r + 4, ground(math.cos(a) * r, math.sin(a) * r + 4) - 0.3), rnd.uniform(5, 8), True, i)
-    for i in range(5):
-        blob('Mountain', mat('Peak', '#e6f2ff', rough=0.6, sss=0.2), (-45 + i * 22, 75 + rnd.uniform(-8, 8), -2), rnd.uniform(14, 22), (1, 0.7, 1.3), 0.35, i, 3)
-    specks('Snowfall', mat('Flake', '#ffffff', rough=0.5, emit=0.6), 300, ((-14, 14), (-6, 24), (0.5, 12)), (0.03, 0.07), 6, 'ico')
-    sun((50, 0, 210), '#fff6e8', 3.8, 3)
-    area((-10, -12, 8), (0, 2, 1), '#ffd9b0', 900, 8)
-    bloom(0.4, 1.0, 0.5)
-    camera((5.4, -10.5, 4.6), (0, 3.0, 1.6), 28, (0.4, -0.5, 1.2), 5.0)
+            sphere('Trail', trail, Vector((x, y, z)) - d * k * 0.3, 0.28 * (1 - k / 10), seg=12)
+    # The crew scrambling across the ice.
+    alien((1.6, 2.4, 0.22), 20, '#12ad9a', 'scared', 1.0, (-12, 10), mouth='shout', brows='worried')
+    alien((-0.4, 5.6, 0.22), -25, '#f25265', 'duck', 1.0, (0, -8), mouth='shout', brows='up')
+    alien((3.9, 6.2, 0.7), 35, '#f4b62c', 'hop', 1.0, (-10, 6), mouth='grin', brows='up')
+    specks('Puff', snow, 60, ((0.4, 2.2), (4.6, 5.8), (0.2, 1.4)), (0.05, 0.14), 2, 'ico')
+    # Pines, peaks, sparkles on the snow and drifting flakes.
+    for i in range(18):
+        a = math.radians(-10) + i / 17 * math.radians(200)
+        r = rnd.uniform(14, 20)
+        x, y = math.cos(a) * r, math.sin(a) * r + 6
+        pine((x, y, ground(x, y) - 0.3), rnd.uniform(5, 8), True, i)
+    for i in range(6):
+        blob('Mountain', mat('Peak', '#ffe2d2', rough=0.55, sss=0.2), (-50 + i * 22, 80 + rnd.uniform(-8, 8), -2),
+             rnd.uniform(14, 24), (1, 0.7, 1.3), 0.3, i, 4)
+    sparkle = glow('Sparkle', '#ffffff', 14)
+    specks('Glitter', sparkle, 260, ((-9, 10), (-3, 14), (0, 0)), (0.012, 0.03), 8, 'ico',
+           z_fn=lambda x, y, r: ground(x, y) + 0.03 if math.hypot((x - 0.5) / 1.2, y - 4) > 8.3 else 0.24)
+    specks('Snowfall', mat('Flake', '#ffffff', rough=0.5, emit=1.0), 300, ((-12, 12), (-4, 22), (0.5, 11)), (0.02, 0.05), 6, 'ico')
+    # Low gold sun from the right, cool sky fill, warm accent on the hero and a cyan rim.
+    sun((70, 0, 235), '#ffc46a', 5.0, 2)
+    area((9, -2, 4), (1, 5, 1), '#ffb45a', 3200, 5)
+    area((-7, -7, 6), (-1, 2, 2), '#dff0ff', 1400, 7)
+    area((-6.5, 2.5, 5.0), (tx, ty, 3.4), '#7ae8ff', 2400, 2.5)
+    area((1.0, -3.5, 4.0), (tx, ty, 3.6), '#ffcf8a', 1000, 2.0)
+    lamp((tx, ty, 1.4), '#7fd8ff', 300, 1.0, shadow=False)
+    bloom(0.5, 1.0, 0.6, 1.15)
+    camera((0.4, -5.6, 3.1), (-0.9, 3.6, 2.8), 24, (tx, ty, 3.4), 5.6)
     render('cannoncay')
+
 
 
 # -- Shared looks for the remaining games -----------------------------------
@@ -1991,6 +2206,182 @@ def returnsender():
     render('returnsender')
 
 
+
+
+def star_prop(name, material, loc, r=0.5, rot=(90, 0, 0)):
+    bm = bmesh.new()
+    pts = []
+    for k in range(10):
+        a = math.pi / 2 + k * math.pi / 5
+        rr = r if k % 2 == 0 else r * 0.45
+        pts.append(bm.verts.new((math.cos(a) * rr, math.sin(a) * rr, 0)))
+    face = bm.faces.new(pts)
+    ext = bmesh.ops.extrude_face_region(bm, geom=[face])
+    for v in ext['geom']:
+        if isinstance(v, bmesh.types.BMVert):
+            v.co.z += r * 0.35
+    o = obj_from_bm(name, bm, material, False)
+    mod = o.modifiers.new('Bevel', 'BEVEL')
+    mod.width = r * 0.08
+    mod.segments = 2
+    o.location = loc
+    o.rotation_euler = tuple(math.radians(a) for a in rot)
+    return o
+
+
+def nebula(dome, colors=('#ff5ad1', '#4ad8ff', '#9a6aff'), strength=0.55):
+    """Swirl soft nebula clouds into a sky dome's gradient with layered noise."""
+    nt = dome.data.materials[0].node_tree
+    em = next(n for n in nt.nodes if n.type == 'EMISSION')
+    base = em.inputs['Color'].links[0].from_socket
+    tc = nt.nodes.new('ShaderNodeTexCoord')
+    last = base
+    for i, col in enumerate(colors):
+        nz = nt.nodes.new('ShaderNodeTexNoise')
+        nz.inputs['Scale'].default_value = 0.004 + i * 0.002
+        nz.inputs['Detail'].default_value = 3
+        nz.inputs['Roughness'].default_value = 0.6
+        nz.inputs['Distortion'].default_value = 0.8 + i * 0.4
+        mp = nt.nodes.new('ShaderNodeMapRange')
+        mp.inputs['From Min'].default_value = 0.52 + i * 0.02
+        mp.inputs['From Max'].default_value = 0.78
+        mp.inputs['To Max'].default_value = strength
+        mix = nt.nodes.new('ShaderNodeMix')
+        mix.data_type = 'RGBA'
+        mix.blend_type = 'SCREEN'
+        mix.inputs['B'].default_value = kit.linear(col)
+        nt.links.new(tc.outputs['Object'], nz.inputs['Vector'])
+        nt.links.new(nz.outputs['Fac'], mp.inputs['Value'])
+        nt.links.new(mp.outputs['Result'], mix.inputs['Factor'])
+        nt.links.new(last, mix.inputs['A'])
+        last = mix.outputs['Result']
+    nt.links.new(last, em.inputs['Color'])
+
+
+def toon_planet(name, loc, r, light, dark, band=None, glow_color='#ffffff', seg=64):
+    """Self-lit stylised planet: banded gradient, soft terminator and a bright rim."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes['Principled BSDF']
+    b.inputs['Roughness'].default_value = 0.5
+    tc = nt.nodes.new('ShaderNodeTexCoord')
+    wv = nt.nodes.new('ShaderNodeTexWave')
+    wv.bands_direction = 'Z'
+    wv.inputs['Scale'].default_value = 0.08 / r * 20
+    wv.inputs['Distortion'].default_value = 5
+    wv.inputs['Detail'].default_value = 2
+    ramp = nt.nodes.new('ShaderNodeValToRGB')
+    els = ramp.color_ramp.elements
+    els[0].color = kit.linear(dark)
+    els[1].color = kit.linear(light)
+    if band:
+        els.new(0.5).color = kit.linear(band)
+    nt.links.new(tc.outputs['Object'], wv.inputs['Vector'])
+    nt.links.new(wv.outputs['Fac'], ramp.inputs['Fac'])
+    nt.links.new(ramp.outputs['Color'], b.inputs['Base Color'])
+    nt.links.new(ramp.outputs['Color'], b.inputs['Emission Color'])
+    b.inputs['Emission Strength'].default_value = 0.35
+    o = sphere(name, m, loc, r, seg=seg)
+    # Atmosphere halo: a slightly larger back-face shell glowing at the rim.
+    halo = bpy.data.materials.new(name + 'Halo')
+    halo.use_nodes = True
+    hn = halo.node_tree
+    for n in list(hn.nodes):
+        hn.nodes.remove(n)
+    lw = hn.nodes.new('ShaderNodeLayerWeight')
+    lw.inputs['Blend'].default_value = 0.6
+    pw = hn.nodes.new('ShaderNodeMath')
+    pw.operation = 'POWER'
+    pw.inputs[1].default_value = 3.0
+    e = hn.nodes.new('ShaderNodeEmission')
+    e.inputs['Color'].default_value = kit.linear(glow_color)
+    e.inputs['Strength'].default_value = 3.0
+    tr = hn.nodes.new('ShaderNodeBsdfTransparent')
+    mx = hn.nodes.new('ShaderNodeMixShader')
+    out = hn.nodes.new('ShaderNodeOutputMaterial')
+    hn.links.new(lw.outputs['Facing'], pw.inputs[0])
+    hn.links.new(pw.outputs[0], mx.inputs['Fac'])
+    hn.links.new(tr.outputs[0], mx.inputs[1])
+    hn.links.new(e.outputs[0], mx.inputs[2])
+    hn.links.new(mx.outputs[0], out.inputs['Surface'])
+    try:
+        halo.surface_render_method = 'BLENDED'
+    except AttributeError:
+        pass
+    sphere(name + 'Halo', halo, loc, r * 1.06, seg=seg)
+    return o
+
+
+@scene
+def stage():
+    """Vote/results backdrop (vote-stage.webp): a party planet's horizon under a
+    candy nebula with ringed planets, the crew saucer and drifting gold stars."""
+    begin()
+    scene = bpy.context.scene
+    scene.render.resolution_x, scene.render.resolution_y = 1600, 1000
+    rnd = random.Random(21)
+    dome = sky_dome([(0.0, '#160c40'), (0.47, '#3a1a86'), (0.5, '#ff9ad8'), (0.53, '#c06ae8'), (0.6, '#5a30c0'),
+                     (0.75, '#2a1888'), (1.0, '#0c0838')], strength=1.0)
+    nebula(dome)
+    ambient('#6a5ad8', 0.6)
+    stars(520, 9)
+    # The party planet's horizon right under the camera, with a glowing limb.
+    turf = scan('Turf', 'leafy_grass', tint='#6ad84a', rough=0.85)
+    ground = sphere('Planet', turf, (0, 70, -92), 90, seg=128)
+    kit.world_uvs(ground, 0.35)
+    sphere('Limb', mat('LimbGlow', '#7affea', emit=1.5, alpha=0.18), (0, 70, -92), 90.5, seg=128)
+    for i in range(22):
+        x = rnd.uniform(-60, 60)
+        y = rnd.uniform(52, 92)
+        z = math.sqrt(max(0.0, 90 ** 2 - x * x - (y - 70) ** 2)) - 92
+        if z < -14:
+            continue
+        if i % 3 == 0:
+            palm((x, y, z - 0.3), rnd.uniform(7, 10), rnd.uniform(5, 20), rnd.uniform(0, 360), i)
+        else:
+            mushroom((x, y, z - 0.2), rnd.uniform(2.2, 4.2), rnd.uniform(1.6, 2.8),
+                     rnd.choice(['#ff5a6e', '#ffd23f', '#5ac8ff', '#b47aff']))
+    # Ringed gas giant (top right), a minty planet (top left) and a little moon.
+    toon_planet('Giant', (66, 150, 62), 24, '#ffd8a0', '#e0508a', '#ff9a6a', '#ffd0f0')
+    for k, (rad, col) in enumerate(((34, '#ffe6b8'), (38, '#ffb0d8'))):
+        torus('Ring', mat(f'Ring{k}', col, rough=0.4, emit=1.2, alpha=0.8), (66, 150, 62), rad * 1.08, 0.9,
+              (74, -18, 0), (1, 1, 0.25))
+    toon_planet('Mint', (-66, 140, 66), 14, '#c8fff0', '#2a9aa8', '#5affc8', '#c8fff4')
+    toon_planet('Moonlet', (-30, 90, 44), 3.6, '#e8e0ff', '#7a6ad0', None, '#ffffff', 40)
+    # The crew saucer cruising past.
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=UFO)
+    ufo = next(o for o in bpy.data.objects if o not in before and o.parent is None)
+    for name in list(o.name for o in bpy.data.objects if o not in before):
+        if name.split('.')[0].startswith('Ramp'):
+            bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
+    ufo.location = (24, 62, 14)
+    ufo.rotation_mode = 'XYZ'
+    ufo.rotation_euler = (math.radians(12), math.radians(-16), math.radians(30))
+    ufo.scale = (1.7, 1.7, 1.7)
+    lamp((24, 62, 11), '#7affea', 4000, 2.0, shadow=False)
+    beam = mat('Beam', '#7affea', rough=1, emit=2.0, alpha=0.18)
+    cone('Beam', beam, (24, 62, 6.5), 4.5, 1.2, 12, (0, 0, 0), 32)
+    # Gold stars and coins drifting near the lens (soft bokeh) and far out.
+    starm = mat('StarGold', '#ffd84a', rough=0.25, metal=0.3, emit=1.2, emit_color='#ffb21a')
+    coinm = mat('CoinGold', '#ffc93a', rough=0.2, metal=0.4, emit=0.9, emit_color='#ffa21a')
+    for i in range(20):
+        near = False
+        side = -1 if i % 2 else 1
+        x = side * rnd.uniform(6, 12) if near else rnd.uniform(-40, 40)
+        y = rnd.uniform(6, 12) if near else rnd.uniform(30, 60)
+        z = rnd.uniform(-1, 7) if near else rnd.uniform(4, 24)
+        rot = (rnd.uniform(60, 110), rnd.uniform(-30, 30), rnd.uniform(0, 360))
+        if i % 3 == 0:
+            star_prop('Star', starm, (x, y, z), rnd.uniform(0.6, 1.0) * (1 if near else 1.8), rot)
+        else:
+            cyl('Coin', coinm, (x, y, z), rnd.uniform(0.5, 0.8) * (1 if near else 1.6), 0.18, rot, 32)
+    sun((50, 0, 150), '#fff0e0', 3.0, 3)
+    area((0, -10, 12), (0, 40, 0), '#ffe0f0', 6000, 30)
+    bloom(0.9, 0.85, 0.85, 1.15)
+    camera((0, -2, 2.6), (0, 40, 10), 26, (0, 60, 8), 1.4)
+    render('vote-stage')
 def cheer_cutout(name, shirt, pose, face, tilt):
     """Transparent close-up of a cheering crew alien for the vote stage corners."""
     begin()
@@ -2013,6 +2404,42 @@ def cheer_cutout(name, shirt, pose, face, tilt):
 def crew():
     cheer_cutout('crew-left', SHIRTS[0], 'wave', 25, (0, -8))
     cheer_cutout('crew-right', SHIRTS[1], 'cheer', -25, (0, 8))
+
+
+def cast_cutout(name, shirt, pose, face, tilt, mouth='grin', brows=None, rim=('#ff5ad1', '#4ad8ff')):
+    """Transparent hero render of one cast member for the vote/results stages.
+
+    Strong warm key, two saturated rim lights and a soft under-bounce so the
+    cut-out pops on any backdrop (game/art-minigames.tsx CastCutout).
+    """
+    begin()
+    scene = bpy.context.scene
+    scene.render.film_transparent = True
+    scene.render.image_settings.color_mode = 'RGBA'
+    scene.render.resolution_x, scene.render.resolution_y = 560, 700
+    ambient('#d8d0ff', 0.55)
+    sun((52, 8, 205), '#fff0dc', 3.4, 3)
+    area((-3.0, -4.0, 3.6), (0, 0, 1.4), '#ffe6cc', 700, 3.0)          # key
+    area((2.2, 1.9, 2.6), (0, 0, 1.6), rim[0], 2600, 1.2)            # rim right
+    area((-2.2, 1.8, 2.0), (0, 0, 1.3), rim[1], 2300, 1.2)           # rim left
+    area((0, -2.0, -1.4), (0, 0, 1.0), '#ffd27a', 300, 2.5)           # bounce
+    root = alien((0, 0, 0.1), face, shirt, pose, 1.0, tilt, mouth=mouth, brows=brows)
+    cam = camera((0.0, -6.4, 1.9), (0, 0, 1.3), 55)
+    frame_objects(root.children_recursive, cam, 1.04)
+    bloom(0.25, 1.1, 0.4, 1.25)
+    render(name)
+    scene.render.image_settings.color_mode = 'RGB'
+
+
+@scene
+def cast():
+    """Per-player hero cut-outs: cast-<who>-leap (solo hero) and -cheer (team)."""
+    rims = {'frankie': ('#ff5ad1', '#4ad8ff'), 'chorizo': ('#ffd23f', '#ff4fa0'),
+            'coco': ('#4ad8ff', '#b88aff'), 'bratley': ('#ff7a3a', '#5aff9a')}
+    for shirt, look in CAST.items():
+        who = look['who']
+        cast_cutout(f'cast-{who}-leap', shirt, 'leap', 18, (-8, -14), 'shout', 'up', rims[who])
+        cast_cutout(f'cast-{who}-cheer', shirt, 'cheer', -14, (0, 6), 'grin', None, rims[who])
 
 
 def main():

@@ -3,15 +3,20 @@
 /*
  * "Console party" minigame HUD. Everything is scoped under
  * `:root .mg-hud.mg-hud` so it outranks the older light-UI and sticker layers
- * (globals.css / skin.css) without editing them. The scene gets the middle of
- * the screen: four corner player plates, a stopwatch badge at the top, a
- * slanted callout banner and a slim control strip at the bottom.
+ * (globals.css / skin.css) without editing them.
+ *
+ * Layout philosophy: the scene owns the screen. Four compact portrait chips sit
+ * in the corners, one timer cluster sits top centre (with the race progress
+ * rail tucked under it when a game has one), objective lines pop in and fade,
+ * and the key hints only show during the intro.
  */
 :root .mg-hud.mg-hud {
   --mg-ink: #141a3a;
   --mg-ink-2: #232a5c;
-  --mg-plate: #262c66;
-  --mg-plate-2: #1a1f4c;
+  --mg-chip-a: #343b8fee;
+  --mg-chip-b: #1b1f57f2;
+  --mg-chip-line: #ffffff26;
+  --mg-chip-shadow: 0 2px 0 #0b0f33aa, 0 10px 22px #0a0e2a40;
   --mg-cream: #fffaf0;
   --mg-sun: #ffd23f;
   --mg-sun-2: #ffa81f;
@@ -21,133 +26,149 @@
   font-family: var(--mg-font);
 }
 
-/* ── Stopwatch timer + round buttons (top centre) ──────────────────────────── */
+/* Shared glossy chip surface. */
+:root .mg-hud.mg-hud :is(.mg-timer, .mg-plate-body, .mg-banner, .mg-controls),
+:root .mg-hud.mg-hud .mg-track::before {
+  background:
+    linear-gradient(180deg, #ffffff1c 0%, #ffffff00 48%),
+    linear-gradient(180deg, var(--mg-chip-a), var(--mg-chip-b));
+  box-shadow:
+    inset 0 0 0 1.5px var(--mg-chip-line),
+    inset 0 2px 0 #ffffff22,
+    var(--mg-chip-shadow);
+}
+
+/* ── Timer cluster (top centre) ───────────────────────────────────────────── */
 :root .mg-hud.mg-hud .mg-top {
   position: absolute;
-  top: 14px;
+  top: 16px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 12px;
   z-index: 4;
   pointer-events: none;
+  animation: mg-drop-in 0.6s 0.1s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes mg-drop-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-24px);
+  }
+}
+:root .mg-hud.mg-hud .mg-top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 :root .mg-hud.mg-hud .mg-round-btn {
   pointer-events: auto;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
+  margin: 0;
   border-radius: 50%;
-  border: 3px solid var(--mg-ink);
-  background: linear-gradient(#ffffff, #dfe8ff);
-  color: var(--mg-ink);
-  box-shadow: 0 4px 0 var(--mg-ink);
+  border: 0;
+  background: #141a3a73;
+  box-shadow: inset 0 0 0 1.5px #ffffff38;
+  color: #fff;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-  margin-top: -14px;
+  opacity: 0.78;
+  backdrop-filter: blur(6px);
+  transition: transform 0.14s ease, opacity 0.14s ease, background 0.14s ease;
 }
 :root .mg-hud.mg-hud .mg-round-btn svg {
-  width: 19px;
-  height: 19px;
-  stroke-width: 2.8;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.6;
 }
-:root .mg-hud.mg-hud .mg-round-btn:hover {
-  transform: translateY(-2px) rotate(-6deg);
+:root .mg-hud.mg-hud .mg-round-btn:hover,
+:root .mg-hud.mg-hud .mg-round-btn:focus-visible {
+  opacity: 1;
+  background: #141a3acc;
+  transform: scale(1.08);
 }
 :root .mg-hud.mg-hud .mg-round-btn:active {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 var(--mg-ink);
+  transform: scale(0.94);
 }
 :root .mg-hud.mg-hud .mg-timer {
   position: relative;
-  width: 96px;
-  height: 96px;
-  display: grid;
-  place-items: center;
-  filter: drop-shadow(0 5px 0 var(--mg-ink)) drop-shadow(0 12px 14px #0b103066);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  min-width: 118px;
+  padding: 0 20px 0 8px;
+  border-radius: 999px;
 }
 :root .mg-hud.mg-hud .mg-timer svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  flex: none;
+  width: 36px;
+  height: 36px;
   overflow: visible;
+  filter: drop-shadow(0 2px 0 #0b0f3388);
 }
 :root .mg-hud.mg-hud .mg-timer-face {
-  fill: #fffdf6;
-  stroke: var(--mg-ink);
+  fill: #ffffff;
+  stroke: #ffffff;
   stroke-width: 6;
 }
 :root .mg-hud.mg-hud .mg-timer-fill {
   fill: none;
-  stroke: var(--mg-go);
-  stroke-width: 9;
-  stroke-linecap: round;
+  stroke: #ffd65a;
+  stroke-width: 34;
   transform: rotate(-90deg) scaleY(-1);
   transform-origin: 50% 50%;
   transition: stroke-dasharray 0.25s linear, stroke 0.3s ease;
 }
-:root .mg-hud.mg-hud .mg-timer-knob {
-  position: absolute;
-  top: -11px;
-  left: 50%;
-  width: 22px;
-  height: 15px;
-  transform: translateX(-50%);
-  border: 3px solid var(--mg-ink);
-  border-radius: 6px 6px 3px 3px;
-  background: var(--mg-sun);
+:root .mg-hud.mg-hud .mg-timer-ticks {
+  fill: none;
+  stroke: #9aa3cf;
+  stroke-width: 6;
+  stroke-linecap: round;
 }
-:root .mg-hud.mg-hud .mg-timer-knob::before,
-:root .mg-hud.mg-hud .mg-timer-knob::after {
-  content: '';
-  position: absolute;
-  top: 9px;
-  width: 11px;
-  height: 7px;
-  border: 3px solid var(--mg-ink);
-  border-radius: 3px;
-  background: var(--mg-sun);
+:root .mg-hud.mg-hud .mg-timer-hand {
+  stroke: var(--mg-ink);
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: transform 0.25s linear;
 }
-:root .mg-hud.mg-hud .mg-timer-knob::before {
-  left: -30px;
-  transform: rotate(-38deg) translateY(10px);
-}
-:root .mg-hud.mg-hud .mg-timer-knob::after {
-  right: -30px;
-  transform: rotate(38deg) translateY(10px);
+:root .mg-hud.mg-hud .mg-timer-hub {
+  fill: var(--mg-hot);
+  stroke: var(--mg-ink);
+  stroke-width: 4;
 }
 :root .mg-hud.mg-hud .mg-timer b {
   position: relative;
+  flex: 1;
+  text-align: center;
   font-family: var(--mg-font);
-  font-size: 44px;
+  font-size: 32px;
   font-weight: 700;
   line-height: 1;
-  color: var(--mg-ink);
-  letter-spacing: -1px;
-  font-variant-numeric: tabular-nums;
-  margin-top: 2px;
-}
-:root .mg-hud.mg-hud .mg-timer.is-low .mg-timer-face {
-  fill: var(--mg-hot);
-}
-:root .mg-hud.mg-hud .mg-timer.is-low .mg-timer-fill {
-  stroke: #fff36b;
-}
-:root .mg-hud.mg-hud .mg-timer.is-low b {
   color: #fff;
-  -webkit-text-stroke: 7px var(--mg-ink);
-  paint-order: stroke fill;
-  animation: mg-tick 1s ease-out;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 0 #0b0f3399;
+  margin-top: 1px;
 }
 :root .mg-hud.mg-hud .mg-timer.is-low {
+  --mg-chip-a: #ff5a5af2;
+  --mg-chip-b: #c8183af5;
   animation: mg-alarm 1s ease-in-out infinite;
+}
+:root .mg-hud.mg-hud .mg-timer.is-low .mg-timer-fill {
+  stroke: var(--mg-hot);
+}
+:root .mg-hud.mg-hud .mg-timer.is-low b {
+  animation: mg-tick 1s ease-out;
 }
 @keyframes mg-tick {
   0% {
-    transform: scale(1.55);
+    transform: scale(1.5);
   }
   45% {
     transform: scale(0.92);
@@ -159,52 +180,108 @@
 @keyframes mg-alarm {
   0%,
   100% {
-    transform: rotate(0deg);
+    transform: scale(1);
   }
-  10% {
-    transform: rotate(-7deg);
+  12% {
+    transform: scale(1.07);
   }
-  20% {
-    transform: rotate(6deg);
+  28% {
+    transform: scale(1);
   }
-  30% {
-    transform: rotate(0deg);
-  }
-}
-:root .mg-hud.mg-hud .mg-title {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translate(-50%, 4px);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-:root .mg-hud.mg-hud .mg-title h1 {
-  margin: 0;
-  font-family: var(--mg-font);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #fff;
-  -webkit-text-stroke: 5px var(--mg-ink);
-  paint-order: stroke fill;
-  text-shadow: 0 3px 0 var(--mg-ink);
-}
-:root .mg-hud.mg-hud .mg-title span {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--mg-ink);
-  background: var(--mg-sun);
-  border: 2px solid var(--mg-ink);
-  border-radius: 999px;
-  padding: 1px 7px;
 }
 
-/* ── Corner player plates ─────────────────────────────────────────────────── */
+/* ── Race progress rail (inside the timer cluster) ────────────────────────── */
+:root .mg-hud.mg-hud .mg-track {
+  position: relative;
+  width: 260px;
+  height: 30px;
+  pointer-events: none;
+}
+:root .mg-hud.mg-hud .mg-track::before {
+  content: '';
+  position: absolute;
+  inset: 0 -40px 0 -18px;
+  border-radius: 999px;
+}
+:root .mg-hud.mg-hud .mg-track-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 8px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: #0b0f3399;
+  box-shadow: inset 0 1px 2px #00000055, 0 1px 0 #ffffff1f;
+}
+:root .mg-hud.mg-hud .mg-track-done {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4fe08a, #b6f06a 70%, var(--mg-sun));
+  box-shadow: inset 0 2px 0 #ffffff66;
+  transition: width 0.5s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+:root .mg-hud.mg-hud .mg-track-rail > span {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border-radius: 2px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  box-shadow: 0 0 0 1.5px #0b0f33aa;
+}
+:root .mg-hud.mg-hud .mg-track-flag {
+  position: absolute;
+  right: -34px;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin-top: -13px;
+  color: #fff;
+  fill: var(--mg-hot);
+  stroke-width: 2.4;
+  filter: drop-shadow(0 1px 0 #0b0f33);
+}
+:root .mg-hud.mg-hud .mg-track-head {
+  position: absolute;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--pc);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 3.5px #0b0f3399,
+    0 3px 6px #0006;
+  transition: left 0.3s linear;
+}
+:root .mg-hud.mg-hud .mg-track-head .art {
+  width: 24px;
+  height: 24px;
+
+}
+:root .mg-hud.mg-hud .mg-track-head.is-you {
+  width: 30px;
+  height: 30px;
+  box-shadow:
+    0 0 0 2.5px var(--mg-sun),
+    0 0 0 4.5px #0b0f33aa,
+    0 0 14px 3px #ffd23f88;
+}
+:root .mg-hud.mg-hud .mg-track-head.is-you .art {
+  width: 28px;
+  height: 28px;
+}
+
+/* ── Corner player chips ──────────────────────────────────────────────────── */
 :root .mg-hud.mg-hud .mg-plates {
   position: absolute;
   inset: 0;
@@ -216,354 +293,288 @@
   position: absolute;
   display: flex;
   align-items: center;
-  width: 262px;
-  height: 74px;
+  width: 184px;
+  height: 64px;
   animation: mg-plate-in 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) both;
 }
 :root .mg-hud.mg-hud .mg-tl {
-  top: 14px;
-  left: 16px;
+  top: 16px;
+  left: 18px;
 }
 :root .mg-hud.mg-hud .mg-tr {
-  top: 14px;
-  right: 16px;
+  top: 16px;
+  right: 18px;
   flex-direction: row-reverse;
   animation-delay: 0.06s;
 }
 :root .mg-hud.mg-hud .mg-bl {
-  bottom: 14px;
-  left: 16px;
+  bottom: 16px;
+  left: 18px;
   animation-delay: 0.12s;
 }
 :root .mg-hud.mg-hud .mg-br {
-  bottom: 14px;
-  right: 16px;
+  bottom: 16px;
+  right: 18px;
   flex-direction: row-reverse;
   animation-delay: 0.18s;
 }
 @keyframes mg-plate-in {
   from {
     opacity: 0;
-    transform: translateY(-14px) scale(0.85);
+    transform: translateY(-12px) scale(0.88);
   }
 }
 :root .mg-hud.mg-hud .mg-medal {
   position: relative;
   z-index: 2;
   flex: none;
-  width: 74px;
-  height: 74px;
+  width: 60px;
+  height: 60px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--pc);
-  border: 3px solid var(--mg-ink);
+  background:
+    radial-gradient(circle at 50% 30%, #ffffff66, #ffffff00 60%),
+    var(--pc);
   box-shadow:
-    0 4px 0 var(--mg-ink),
-    inset 0 -6px 0 #0000002a,
-    inset 0 4px 0 #ffffff66;
+    0 0 0 3px #fff,
+    0 0 0 5px #0b0f3355,
+    0 6px 14px #0a0e2a55,
+    inset 0 -5px 0 #0000001f;
+  overflow: visible;
 }
 :root .mg-hud.mg-hud .mg-medal .art {
   display: block;
+  border-radius: 50%;
 }
 :root .mg-hud.mg-hud .mg-medal i {
   position: absolute;
-  bottom: -6px;
+  bottom: -7px;
   left: 50%;
   transform: translateX(-50%);
   font-style: normal;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
+  letter-spacing: 0.06em;
   line-height: 1;
   color: #fff;
-  background: var(--mg-ink);
-  border: 2px solid var(--pc);
+  background: var(--pc);
   border-radius: 999px;
   padding: 2px 6px 3px;
+  box-shadow: 0 0 0 2px #fff, 0 2px 4px #0005;
+  text-shadow: 0 1px 0 #0b0f3388;
 }
 :root .mg-hud.mg-hud .mg-plate-body {
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 58px;
-  margin-left: -22px;
-  padding: 5px 16px 0 32px;
+  height: 46px;
+  margin-left: -26px;
+  padding: 0 16px 0 36px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  background:
-    linear-gradient(180deg, #ffffff1f, #ffffff00 50%),
-    linear-gradient(90deg, var(--mg-plate), var(--mg-plate-2));
-  border: 3px solid var(--mg-ink);
-  border-radius: 0 18px 18px 0;
-  transform: skewX(-10deg);
-  transform-origin: left center;
-  box-shadow: 0 4px 0 var(--mg-ink), 0 10px 18px #0a0e2a44;
+  border-radius: 0 999px 999px 0;
   overflow: hidden;
 }
+/* Player-colour edge accent. */
 :root .mg-hud.mg-hud .mg-plate-body::after {
   content: '';
   position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 9px;
+  right: 10px;
+  top: 50%;
+  width: 4px;
+  height: 22px;
+  margin-top: -11px;
+  border-radius: 4px;
   background: var(--pc);
-  border-left: 3px solid var(--mg-ink);
+  box-shadow: 0 0 8px var(--pc);
+  opacity: 0.9;
 }
 :root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-plate-body {
   margin-left: 0;
-  margin-right: -22px;
-  padding: 5px 32px 0 16px;
-  border-radius: 18px 0 0 18px;
-  transform: skewX(10deg);
-  transform-origin: right center;
+  margin-right: -26px;
+  padding: 0 36px 0 16px;
+  border-radius: 999px 0 0 999px;
   text-align: right;
   align-items: flex-end;
 }
 :root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-plate-body::after {
   right: auto;
-  left: 0;
-  border-left: 0;
-  border-right: 3px solid var(--mg-ink);
-}
-:root .mg-hud.mg-hud .mg-plate-body > * {
-  transform: skewX(10deg);
-}
-:root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-plate-body > * {
-  transform: skewX(-10deg);
+  left: 10px;
 }
 :root .mg-hud.mg-hud .mg-name {
+  order: 2;
   display: block;
   max-width: 100%;
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: 0.02em;
-  color: color-mix(in srgb, var(--pc) 55%, white);
+  line-height: 1.15;
+  letter-spacing: 0.03em;
+  color: color-mix(in srgb, var(--pc) 35%, #dfe4ff);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 :root .mg-hud.mg-hud .mg-stat {
+  order: 1;
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 5px;
   line-height: 1;
   white-space: nowrap;
 }
 :root .mg-hud.mg-hud .mg-stat span {
-  font-size: 31px;
+  font-size: 25px;
   font-weight: 700;
   color: #fff;
-  letter-spacing: -0.5px;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
-  -webkit-text-stroke: 6px var(--mg-ink);
-  paint-order: stroke fill;
-  text-shadow: 0 3px 0 var(--mg-ink);
+  text-shadow: 0 2px 0 #0b0f3399;
 }
 :root .mg-hud.mg-hud .mg-stat small {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #c9d2ff;
+  color: #c3cbf5;
   text-transform: uppercase;
 }
 :root .mg-hud.mg-hud .mg-stat.is-word small {
-  font-size: 17px;
+  font-size: 15px;
   color: #fff;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
+}
+/* Name-only chips (games without a per-player readout). */
+:root .mg-hud.mg-hud .mg-plate.is-bare .mg-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 0 #0b0f3399;
+}
+/* Race placing: a big ordinal tinted by medal colour. */
+:root .mg-hud.mg-hud .mg-plate.is-rank .mg-stat span {
+  font-size: 30px;
+  font-style: italic;
+  margin-right: -3px;
+}
+:root .mg-hud.mg-hud .mg-plate.is-rank .mg-stat small {
+  font-size: 15px;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+:root .mg-hud.mg-hud .mg-plate.rank-1 .mg-stat :is(span, small) {
+  color: var(--mg-sun);
+}
+:root .mg-hud.mg-hud .mg-plate.rank-2 .mg-stat :is(span, small) {
+  color: #e6ecff;
+}
+:root .mg-hud.mg-hud .mg-plate.rank-3 .mg-stat :is(span, small) {
+  color: #ffb27a;
+}
+:root .mg-hud.mg-hud .mg-plate.rank-4 .mg-stat :is(span, small) {
+  color: #aab3e0;
 }
 :root .mg-hud.mg-hud .mg-you {
   position: absolute;
   z-index: 3;
-  top: -9px;
-  left: 60px;
+  top: -10px;
+  left: 30px;
+  transform: translateX(-50%);
   font-style: normal;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  line-height: 1;
   color: var(--mg-ink);
-  background: var(--mg-sun);
-  border: 2px solid var(--mg-ink);
-  border-radius: 6px;
-  padding: 1px 7px 2px;
-  transform: rotate(-6deg);
-  box-shadow: 0 2px 0 var(--mg-ink);
+  background: linear-gradient(#fff27a, var(--mg-sun));
+  border-radius: 999px;
+  padding: 3px 7px 3px 8px;
+  box-shadow: 0 0 0 2px #fff, 0 3px 6px #0006;
   animation: mg-bob 1.6s ease-in-out infinite;
 }
 :root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-you {
   left: auto;
-  right: 60px;
-  transform: rotate(6deg);
-}
-:root .mg-hud.mg-hud :is(.mg-bl, .mg-br) .mg-you {
-  top: auto;
-  bottom: -8px;
+  right: 30px;
+  transform: translateX(50%);
 }
 @keyframes mg-bob {
   50% {
-    translate: 0 -3px;
+    translate: 0 -2px;
   }
 }
 :root .mg-hud.mg-hud .mg-plate.is-you .mg-medal {
   box-shadow:
-    0 4px 0 var(--mg-ink),
-    0 0 0 5px #ffffffcc,
-    0 0 22px 6px color-mix(in srgb, var(--pc) 70%, transparent),
-    inset 0 -6px 0 #0000002a;
+    0 0 0 3px var(--mg-sun),
+    0 0 0 5px #fff,
+    0 0 18px 6px #ffd23f66,
+    0 6px 14px #0a0e2a55,
+    inset 0 -5px 0 #0000001f;
 }
 :root .mg-hud.mg-hud .mg-plate.is-out {
   filter: grayscale(0.9) brightness(0.8);
+  opacity: 0.85;
 }
 
-/* ── Sky progress track (bottom centre) ───────────────────────────────────── */
-:root .mg-hud.mg-hud .mg-track {
-  position: absolute;
-  bottom: 74px;
-  left: 50%;
-  width: min(440px, calc(100% - 640px));
-  min-width: 260px;
-  height: 20px;
-  transform: translateX(-50%);
-  pointer-events: none;
-  z-index: 3;
-}
-:root .mg-hud.mg-hud .mg-track-rail {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  border: 3px solid var(--mg-ink);
-  background: linear-gradient(#bfe9ff, #7fcdf6);
-  box-shadow: 0 4px 0 var(--mg-ink), inset 0 3px 0 #ffffff88;
-}
-:root .mg-hud.mg-hud .mg-track-done {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 999px;
-  background: linear-gradient(#7af08f, #2fbd5b);
-  box-shadow: inset 0 3px 0 #ffffff77;
-  transition: width 0.4s cubic-bezier(0.3, 1.4, 0.5, 1);
-}
-:root .mg-hud.mg-hud .mg-track-rail > span {
-  position: absolute;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ffffffcc;
-  transform: translate(-50%, -50%);
-}
-:root .mg-hud.mg-hud .mg-track-rail > span.is-hit {
-  background: #ffffff;
-}
-:root .mg-hud.mg-hud .mg-track-rail > span:first-of-type {
-  left: 6px !important;
-}
-:root .mg-hud.mg-hud .mg-track-rail > span.is-goal {
-  display: none;
-}
-:root .mg-hud.mg-hud .mg-track-flag {
-  position: absolute;
-  right: -14px;
-  top: -24px;
-  width: 30px;
-  height: 30px;
-  color: var(--mg-ink);
-  fill: var(--mg-hot);
-  stroke-width: 2.6;
-  transform: rotate(8deg);
-  filter: drop-shadow(0 2px 0 #fff);
-}
-:root .mg-hud.mg-hud .mg-track-head {
-  position: absolute;
-  bottom: 12px;
-  width: 34px;
-  height: 34px;
-  margin-left: var(--dx, 0px);
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: var(--pc);
-  border: 3px solid var(--mg-ink);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 3px 0 var(--mg-ink);
-  transition: left 0.5s cubic-bezier(0.3, 1.5, 0.5, 1);
-}
-:root .mg-hud.mg-hud .mg-track-head .art {
-  width: 25px;
-  height: 25px;
-}
-:root .mg-hud.mg-hud .mg-track-head.is-you {
-  bottom: 16px;
-  width: 40px;
-  height: 40px;
-}
-:root .mg-hud.mg-hud .mg-track-head.is-you::after {
-  content: '';
-  position: absolute;
-  bottom: -9px;
-  left: 50%;
-  border: 6px solid transparent;
-  border-top-color: var(--mg-ink);
-  transform: translateX(-50%);
-}
-:root .mg-hud.mg-hud .mg-track-head.is-you .art {
-  width: 30px;
-  height: 30px;
-}
-
-/* ── Slanted callout banner ───────────────────────────────────────────────── */
+/* ── Objective callout ────────────────────────────────────────────────────── */
 :root .mg-hud.mg-hud .arena-callout.mg-banner {
   position: absolute;
-  top: 152px;
+  top: 80px;
   left: 50%;
-  transform: translateX(-50%) skewX(-9deg);
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 0;
   min-width: 0;
-  max-width: min(640px, calc(100% - 40px));
+  max-width: min(560px, calc(100% - 40px));
   padding: 0;
-  border: 3px solid var(--mg-ink);
-  border-radius: 12px;
-  background: linear-gradient(180deg, #fff27a 0%, var(--mg-sun) 45%, var(--mg-sun-2) 100%);
-  color: var(--mg-ink);
-  box-shadow:
-    0 5px 0 var(--mg-ink),
-    0 14px 24px #0a0e2a55;
-  overflow: visible;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  overflow: hidden;
   text-align: left;
   font-family: var(--mg-font);
-  animation: mg-banner-in 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+  animation: mg-banner-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
   z-index: 4;
+}
+:root .mg-hud.mg-hud.arena-sky .arena-callout.mg-banner {
+  top: 126px;
 }
 @keyframes mg-banner-in {
   0% {
     opacity: 0;
-    transform: translateX(-50%) translateX(-90px) skewX(-9deg) scale(0.6);
+    transform: translateX(-50%) translateY(-10px) scale(0.8);
   }
-  60% {
-    opacity: 1;
+}
+:root .mg-hud.mg-hud .arena-callout.mg-banner.is-transient {
+  animation:
+    mg-banner-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both,
+    mg-banner-out 0.45s 2.6s ease-in forwards;
+}
+@keyframes mg-banner-out {
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) scale(0.92);
+    visibility: hidden;
   }
 }
 :root .mg-hud.mg-hud .mg-banner-icon {
   flex: none;
   display: grid;
   place-items: center;
-  width: 44px;
-  align-self: stretch;
-  background: var(--mg-ink);
-  color: var(--mg-sun);
-  border-radius: 8px 0 0 8px;
+  width: 28px;
+  height: 28px;
+  margin: 5px 0 5px 6px;
+  border-radius: 50%;
+  background: linear-gradient(#fff27a, var(--mg-sun));
+  color: var(--mg-ink);
+  box-shadow: 0 2px 0 #0b0f3366;
 }
 :root .mg-hud.mg-hud .mg-banner-icon svg {
-  width: 22px;
-  height: 22px;
+  width: 15px;
+  height: 15px;
   stroke-width: 2.6;
-  transform: skewX(9deg);
   animation: mg-wiggle 2.4s ease-in-out infinite;
 }
 @keyframes mg-wiggle {
@@ -580,57 +591,60 @@
   }
 }
 :root .mg-hud.mg-hud .mg-banner-body {
-  transform: skewX(9deg);
-  padding: 8px 20px 9px 14px;
+  padding: 6px 18px 7px 10px;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  column-gap: 10px;
-  row-gap: 2px;
+  column-gap: 8px;
+  row-gap: 1px;
   min-width: 0;
 }
 :root .mg-hud.mg-hud .mg-banner-body em {
   font-style: normal;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #fff;
-  -webkit-text-stroke: 5px var(--mg-ink);
-  paint-order: stroke fill;
+  color: var(--mg-sun);
   white-space: nowrap;
 }
 :root .mg-hud.mg-hud .mg-banner-body > span,
 :root .mg-hud.mg-hud .mg-banner-body > strong {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--mg-ink);
+  color: #fff;
 }
 :root .mg-hud.mg-hud .mg-banner-body > strong {
   font-weight: 700;
-  font-size: 18px;
+  font-size: 15px;
+  color: var(--mg-sun);
 }
 :root .mg-hud.mg-hud .mg-banner-body small,
 :root .mg-hud.mg-hud.mg-hud .arena-callout small {
   flex-basis: 100%;
   display: block;
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  color: #3a3218;
+  color: #c9d0f5;
 }
 :root .mg-hud.mg-hud .mg-banner > i {
-  left: 44px;
-  bottom: 0;
-  height: 5px;
-  background: var(--mg-ink);
-  border-radius: 0 0 0 0;
+  left: 40px;
+  right: 18px;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--mg-sun);
 }
 :root .mg-hud.mg-hud .mg-banner .rpm-meter {
   flex-basis: 100%;
   margin: 4px 0;
-  min-width: 300px;
-  border: 2px solid var(--mg-ink);
+  min-width: 280px;
+  border: 1.5px solid #ffffff55;
+}
+/* Readouts with two lines sit in a softer rounded card rather than a pill. */
+:root .mg-hud.mg-hud .arena-callout.mg-banner:has(small, .rpm-meter) {
+  border-radius: 20px;
 }
 /* Race and team-duo modes draw their own split-screen frames: tuck the banner. */
 :root .mg-hud.mg-hud.arena-race .arena-callout.mg-banner,
@@ -648,7 +662,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   pointer-events: none;
   text-shadow: none;
   z-index: 6;
@@ -657,15 +671,23 @@
 :root .mg-hud.mg-hud .mg-countdown strong,
 :root .mg-hud.mg-hud .mg-finish strong {
   display: block;
-  font-size: 190px;
+  font-size: 180px;
   font-weight: 700;
   line-height: 0.95;
   color: var(--mg-sun);
-  -webkit-text-stroke: 16px var(--mg-ink);
-  paint-order: stroke fill;
-  text-shadow:
-    0 12px 0 var(--mg-ink),
-    0 24px 40px #0a0e2a77;
+  background: linear-gradient(180deg, #fffbd0 0%, #ffe14a 38%, #ff9f1c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0;
+  filter:
+    drop-shadow(0 0 0 var(--mg-ink))
+    drop-shadow(5px 0 0 var(--mg-ink))
+    drop-shadow(-5px 0 0 var(--mg-ink))
+    drop-shadow(0 5px 0 var(--mg-ink))
+    drop-shadow(0 -5px 0 var(--mg-ink))
+    drop-shadow(0 9px 0 var(--mg-ink))
+    drop-shadow(0 20px 30px #0a0e2a66);
   animation: mg-count 0.9s cubic-bezier(0.2, 1.7, 0.4, 1) both;
 }
 @keyframes mg-count {
@@ -683,55 +705,72 @@
 }
 :root .mg-hud.mg-hud .mg-countdown > span,
 :root .mg-hud.mg-hud .mg-finish > span {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--mg-ink);
-  background: #fff;
-  border: 3px solid var(--mg-ink);
+  color: #fff;
+  background:
+    linear-gradient(180deg, #ffffff1c 0%, #ffffff00 48%),
+    linear-gradient(180deg, var(--mg-chip-a), var(--mg-chip-b));
+  border: 0;
   border-radius: 999px;
-  padding: 6px 22px;
-  box-shadow: 0 5px 0 var(--mg-ink);
+  padding: 8px 24px;
+  box-shadow:
+    inset 0 0 0 1.5px var(--mg-chip-line),
+    var(--mg-chip-shadow);
   white-space: nowrap;
   text-shadow: none;
 }
 :root .mg-hud.mg-hud .mg-finish strong {
-  font-size: 150px;
-  color: #ffffff;
-  background: none;
+  font-size: 140px;
+  background: linear-gradient(180deg, #ffffff 0%, #fff3a8 45%, #ffc83d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
   transform-origin: center;
 }
 :root .mg-hud.mg-hud .mg-finish > span {
-  background: var(--mg-sun);
-  font-size: 26px;
+  font-size: 22px;
+  color: var(--mg-ink);
+  background: linear-gradient(180deg, #fff27a 0%, var(--mg-sun) 45%, var(--mg-sun-2) 100%);
+  box-shadow: 0 0 0 3px #fff, var(--mg-chip-shadow);
   animation: mg-plate-in 0.5s 0.35s cubic-bezier(0.2, 1.5, 0.4, 1) both;
 }
 
-/* ── Control strip (bottom centre) ────────────────────────────────────────── */
+/* ── Key hints (bottom centre, intro only) ────────────────────────────────── */
 :root .mg-hud.mg-hud .arena-controls.mg-controls {
   position: absolute;
   left: 50%;
   right: auto;
-  bottom: 20px;
+  bottom: 22px;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 14px;
   width: max-content;
-  max-width: calc(100% - 600px);
-  padding: 6px 14px 6px 8px;
-  background: #141a3acc;
-  border: 2px solid #ffffff2e;
+  max-width: calc(100% - 520px);
+  padding: 6px 16px 6px 8px;
+  border: 0;
   border-radius: 999px;
-  box-shadow: 0 6px 18px #0a0e2a44;
-  backdrop-filter: blur(6px);
   color: #fff;
   font-family: var(--mg-font);
   font-size: 13px;
   font-weight: 600;
   z-index: 3;
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s cubic-bezier(0.5, 0, 0.7, 0.4),
+    visibility 0s 0s;
+}
+:root .mg-hud.mg-hud .arena-controls.mg-controls.is-tucked {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(20px);
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s cubic-bezier(0.5, 0, 0.7, 0.4),
+    visibility 0s 0.5s;
 }
 :root .mg-hud.mg-hud .mg-controls > span {
   display: flex;
@@ -755,17 +794,16 @@
   place-items: center;
   min-width: 26px;
   height: 24px;
-  padding: 0 7px;
+  padding: 0 8px;
   font-family: var(--mg-font);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--mg-ink);
   background: linear-gradient(#ffffff, #dfe6ff);
-  border: 2px solid var(--mg-ink);
-  border-bottom-width: 4px;
-  border-radius: 7px;
-  box-shadow: none;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: inset 0 -2px 0 #0b0f3333, 0 1px 0 #0b0f3388;
 }
 :root .mg-hud.mg-hud .mg-controls kbd.is-a {
   background: linear-gradient(#8ff5a6, var(--mg-go));
@@ -773,8 +811,7 @@
 :root .mg-hud.mg-hud .mg-controls kbd.is-b {
   background: linear-gradient(#ff9aa3, #ff5b6a);
   color: #fff;
-  -webkit-text-stroke: 3px var(--mg-ink);
-  paint-order: stroke fill;
+  text-shadow: 0 1px 0 #0b0f3388;
 }
 
 /* ── Briefing / pause card ────────────────────────────────────────────────── */
@@ -973,10 +1010,10 @@
   color: #3b4570;
 }
 
-/* ── Touch layout: lift the virtual pad above the bottom plates ───────────── */
+/* ── Touch layout: lift the virtual pad above the bottom chips ────────────── */
 @media (pointer: coarse) {
   :root .mg-hud.mg-hud .touch-input {
-    bottom: 104px;
+    bottom: 96px;
   }
   :root .mg-hud.mg-hud .arena-controls.mg-controls {
     display: none;
@@ -986,64 +1023,70 @@
 /* ── Smaller screens ──────────────────────────────────────────────────────── */
 @media (max-width: 1000px) {
   :root .mg-hud.mg-hud .mg-plate {
-    width: 210px;
+    width: 180px;
   }
   :root .mg-hud.mg-hud .arena-controls.mg-controls {
-    max-width: calc(100% - 470px);
-    bottom: 88px;
-  }
-  :root .mg-hud.mg-hud .mg-controls > span + span {
-    display: flex;
+    max-width: calc(100% - 420px);
+    bottom: 84px;
   }
   :root .mg-hud.mg-hud .mg-track {
-    width: calc(100% - 500px);
-    bottom: 34px;
+    width: 200px;
   }
 }
 @media (max-width: 760px) {
   :root .mg-hud.mg-hud .mg-plate {
-    width: 150px;
-    height: 54px;
+    width: 138px;
+    height: 48px;
   }
   :root .mg-hud.mg-hud .mg-medal {
-    width: 52px;
-    height: 52px;
+    width: 44px;
+    height: 44px;
   }
   :root .mg-hud.mg-hud .mg-medal .art {
-    width: 42px;
-    height: 42px;
+    width: 38px;
+    height: 38px;
   }
   :root .mg-hud.mg-hud .mg-plate-body {
-    height: 42px;
+    height: 36px;
+    margin-left: -20px;
     padding-left: 26px;
   }
   :root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-plate-body {
+    margin-right: -20px;
     padding-right: 26px;
     padding-left: 10px;
   }
   :root .mg-hud.mg-hud .mg-name {
-    font-size: 10px;
+    font-size: 9.5px;
   }
-  :root .mg-hud.mg-hud .mg-stat span {
-    font-size: 21px;
-    -webkit-text-stroke-width: 4px;
+  :root .mg-hud.mg-hud .mg-stat span,
+  :root .mg-hud.mg-hud .mg-plate.is-rank .mg-stat span {
+    font-size: 19px;
   }
   :root .mg-hud.mg-hud .mg-stat small {
     font-size: 9px;
   }
+  :root .mg-hud.mg-hud .mg-plate.is-bare .mg-name {
+    font-size: 13px;
+  }
   :root .mg-hud.mg-hud .mg-you {
-    left: 40px;
-    font-size: 9px;
+    left: 22px;
+    font-size: 8px;
   }
   :root .mg-hud.mg-hud :is(.mg-tr, .mg-br) .mg-you {
-    right: 40px;
+    right: 22px;
   }
   :root .mg-hud.mg-hud .mg-timer {
-    width: 70px;
-    height: 70px;
+    height: 40px;
+    min-width: 92px;
+    padding-right: 14px;
+  }
+  :root .mg-hud.mg-hud .mg-timer svg {
+    width: 28px;
+    height: 28px;
   }
   :root .mg-hud.mg-hud .mg-timer b {
-    font-size: 30px;
+    font-size: 24px;
   }
   :root .mg-hud.mg-hud .mg-round-btn {
     display: none;
@@ -1051,20 +1094,22 @@
   :root .mg-hud.mg-hud .mg-top {
     top: 74px;
   }
+  :root .mg-hud.mg-hud .mg-track {
+    width: calc(100vw - 120px);
+    max-width: 260px;
+  }
   :root .mg-hud.mg-hud .arena-callout.mg-banner {
-    top: 182px;
+    top: 126px;
     max-width: calc(100% - 24px);
   }
-  :root .mg-hud.mg-hud .mg-banner-body em {
-    font-size: 15px;
+  :root .mg-hud.mg-hud.arena-sky .arena-callout.mg-banner {
+    top: 166px;
   }
-  :root .mg-hud.mg-hud .mg-banner-body > span {
+  :root .mg-hud.mg-hud .mg-banner-body em {
     font-size: 13px;
   }
-  :root .mg-hud.mg-hud .mg-track {
-    width: calc(100% - 60px);
-    min-width: 0;
-    bottom: 86px;
+  :root .mg-hud.mg-hud .mg-banner-body > span {
+    font-size: 12px;
   }
   :root .mg-hud.mg-hud .arena-controls.mg-controls {
     display: none;
@@ -1107,5 +1152,10 @@
   }
   :root .mg-hud.mg-hud .mg-brief .primary {
     padding: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root .mg-hud.mg-hud :is(.mg-you, .mg-banner-icon svg, .mg-timer.is-low) {
+    animation: none;
   }
 }

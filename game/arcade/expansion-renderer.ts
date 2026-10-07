@@ -372,6 +372,37 @@ export function createExpansionRenderer(
     );
     return { g, name, you, carry };
   });
+  // Skybridge Sprint: squash and stretch through every jump, a forward lean
+  // while sprinting and a slight tuck in the air.
+  const skyPose = (
+    g: T.Group,
+    p: Arena['actors'][number],
+    a: Avatar,
+    dt: number,
+    reduced: boolean,
+  ) => {
+    const air = p.y > 0.06,
+      st = (g.userData.sky ??= { air: false, land: 0 }) as {
+        air: boolean;
+        land: number;
+      };
+    if (st.air && !air) st.land = 0.22;
+    st.air = air;
+    st.land = Math.max(0, st.land - dt);
+    let s = 0;
+    if (!reduced) {
+      if (air) s = Math.max(-0.1, Math.min(0.16, p.vy * 0.022));
+      else if (st.land > 0) s = -0.2 * Math.sin((st.land / 0.22) * Math.PI);
+    }
+    g.scale.set(
+      a.width * 0.82 * (1 - s * 0.55),
+      a.height * 0.82 * (1 + s),
+      a.width * 0.82 * (1 - s * 0.55),
+    );
+    const speed = Math.hypot(p.vx, p.vz);
+    g.rotation.order = 'YXZ';
+    g.rotation.x = reduced ? 0 : Math.min(0.2, speed * 0.035) + (air ? -0.08 : 0);
+  };
   const bomb = dynamicMesh(new T.SphereGeometry(0.43, 14, 10), '#4a324b');
   const fuse = dynamicMesh(new T.SphereGeometry(0.12, 8, 6), '#ffd164');
   bomb.visible = false;
@@ -502,6 +533,7 @@ export function createExpansionRenderer(
       if (kind === 'paint' && p.charge > 0)
         v.g.scale.y = players[i].avatar.height * 0.82 * (1 - p.charge * 0.14);
       else v.g.scale.y = players[i].avatar.height * 0.82;
+      if (sky) skyPose(v.g, p, players[i].avatar, dt, reduced);
       v.name.position.set(p.x, p.y + 2.6, p.z);
       v.name.visible = false;
       v.you.position.set(p.x, p.y + 3.25, p.z);
@@ -582,7 +614,9 @@ export function createExpansionRenderer(
     }
     const renderStart = performance.now();
     renderer.render(scene, view);
-    perf.frame(now, now - lastNow, performance.now() - renderStart);
+    // Software rasterisers keep one fixed sky setup: the meter's shadow
+    // toggle would recompile every shader mid-race.
+    if (!sky?.software) perf.frame(now, now - lastNow, performance.now() - renderStart);
     lastNow = now;
   }
   const ray = new T.Raycaster(),

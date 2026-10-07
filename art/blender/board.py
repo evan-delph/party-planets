@@ -44,7 +44,7 @@ THEMES = {
         hills=1.5, island=7.5, sea_level=0.0, seabed=-1.6, water='#2bb6c4', surface='sea', shelf=2.5,
         landmark='volcano', props='tropical', canopy=('#f25265', '#fff4dc'), fallback='#6fae4f'),
     'crater': dict(
-        land=('Regolith', ('moon_dusted_02', '#5b6274', '#d3d8e3', 1.0)), beach=('Maria', ('moon_dusted_02', '#262a35', '#727a8e', 1.0)), rock=('MoonRock', 'moon_meteor_01'),
+        land=('Regolith', ('moon_dusted_02', '#5b6274', '#d3d8e3', 1.0)), beach=('Maria', ('moon_dusted_02', '#4f566b', '#98a0b4', 1.0)), rock=('MoonRock', 'moon_meteor_01'),
         road=('Road', 'concrete_panels'), branch=('Catwalk', 'metal_plate'),
         hills=1.1, island=11.0, sea_level=-0.2, seabed=-2.0, water='#24365e', surface='ground', shelf=3.0,
         landmark='impact', props='lunar', canopy=('#8a7cff', '#e9ecff'), fallback='#9aa1b0'),
@@ -142,6 +142,45 @@ def crater_shape(x, z):
     return h
 
 
+# Reef terraces stay off the set-piece footprints: shops, bank, lottery,
+# district centres, the landing site and the palace plaza.
+FLAT_ZONES = []
+if TH['props'] == 'reef':
+    FLAT_ZONES += [(s['x'], s['z'], 9.5) for s in spaces if s['type'] in ('shop', 'bank', 'lottery')]
+    FLAT_ZONES += [(q['x'], q['z'], 9.5 if q['kind'] == 'heart' else 6.5) for q in districts]
+    FLAT_ZONES.append((spaces[0]['x'], spaces[0]['z'], 9.0))
+PLAZAS = [(landmark[0], landmark[1], 8.4)] + [(q['x'], q['z'], 4.6) for q in districts if q['kind'] == 'village']
+
+
+def closest_on_roads(x, z):
+    best = (1e9, x, z)
+    for (ax, az), (bx, bz) in segments:
+        dx, dz = bx - ax, bz - az
+        t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz + 1e-9)))
+        px, pz = ax + t * dx, az + t * dz
+        d = math.hypot(x - px, z - pz)
+        if d < best[0]:
+            best = (d, px, pz)
+    return best[1], best[2]
+
+
+# Sand footpaths from set-piece doors to the road (reef).
+FOOTPATHS = []
+if TH['props'] == 'reef':
+    gate = (landmark[0], landmark[1] + 7.0)
+    FOOTPATHS.append((gate, closest_on_roads(*gate)))
+
+
+def terrace(x, z, d):
+    """Stepped grassy plateaus with steep risers (the risers splat to rock strata)."""
+    mask = smoothstep(3.6, 7.5, d) * max(0.0, fbm(x + 11, z - 7, 0.05, 3) + 0.42) * 1.25
+    for fx, fz, fr in FLAT_ZONES:
+        mask *= smoothstep(fr - 2.0, fr + 1.5, math.hypot(x - fx, z - fz))
+    t = mask * 2.6 / 0.9
+    f = math.floor(t)
+    return (f + smoothstep(0.8, 0.98, t - f)) * 0.9
+
+
 def height(x, z):
     d = path_dist(x, z)
     dl = math.hypot(x - landmark[0], z - landmark[1])
@@ -151,8 +190,11 @@ def height(x, z):
     shore = TH['island'] + fbm(x, z, 0.09) * 3.2
     cd = max(shore - d, 9 - dd, 12 - dl)
     if TH['surface'] == 'ground':
-        cd = radius * 1.35 - math.hypot(x, z) + fbm(x, z, 0.05) * 4
+        # The lunar plain runs past the frame edge instead of ending in a lip.
+        cd = radius * 3.2 - math.hypot(x, z)
     hills = max(0.0, fbm(x + 40, z - 15, 0.07, 5)) * TH['hills'] * smoothstep(2.2, 8, d)
+    if TH['props'] == 'reef':
+        hills = terrace(x, z, d) + max(0.0, fbm(x + 40, z - 15, 0.11, 3)) * 0.12
     inland = PATH_Y - 0.05 + hills * smoothstep(2.0, 5.0, cd)
     if TH['landmark'] == 'volcano':
         # A steep cone with a lava crater at the landmark.
@@ -170,6 +212,10 @@ def height(x, z):
     elif cd >= 0:
         # Beach (or ash/cliff-top) shelf sloping to the waterline.
         h = TH['sea_level'] + 0.06 + (inland - TH['sea_level'] - 0.06) * smoothstep(0, shelf, cd)
+    elif TH['props'] == 'reef':
+        # A pale beach ledge at the cliff foot, then a shelving drop to deep water.
+        sea = TH['sea_level']
+        h = sea + 0.16 - 0.4 * smoothstep(0.8, 3.0, -cd) + (TH['seabed'] - sea) * smoothstep(3.0, 7.0, -cd)
     else:
         drop = 2.0 if TH['surface'] == 'clouds' else 5.5
         h = TH['sea_level'] + 0.06 + (TH['seabed'] - TH['sea_level'] - 0.06) * smoothstep(0, drop, -cd)
@@ -178,6 +224,8 @@ def height(x, z):
     # Lagoons: carved basins (only away from the roads).
     deep = lagoon_depth(x, z) * smoothstep(1.6, 3.0, d)
     h -= deep * 1.6
+    if MESAS:
+        h += mesa_lift(x, z)
     # Little sandbar islets out in the sea frame the main island.
     for ix, iz, ir in ISLETS:
         t = math.hypot(x - ix, z - iz) / ir
@@ -193,8 +241,46 @@ if TH['props'] == 'reef':
         ISLETS.append((math.cos(ang) * radius * dist, math.sin(ang) * radius * dist * 0.92, r))
 
 
+def mesa_lift(x, z):
+    lift = 0.0
+    for mx, mz, mr, lv, tiered in MESAS:
+        dist = math.hypot(x - mx, z - mz)
+        if dist > mr + 1.0:
+            continue
+        wob = fbm(x, z, 0.45, 2) * 0.45
+        lift += lv * (1 - smoothstep(-0.22, 0.22, dist - mr + wob))
+        if tiered:
+            lift += lv * 0.75 * (1 - smoothstep(-0.2, 0.2, dist - mr * 0.52 + wob * 0.6))
+    return lift
+
+
+# Tiered mesas on the open reef lawns: grassy tops, rock-strata cliffs, some
+# with a second tier. Sites are picked on flat ground well clear of the roads,
+# the set-piece footprints and the sea pits.
+MESAS = []
+if TH['props'] == 'reef':
+    mrnd = random.Random(77)
+    for k in range(3000):
+        x, z = mrnd.uniform(-radius, radius), mrnd.uniform(-radius, radius)
+        r = mrnd.uniform(1.9, 3.1)
+        if path_dist(x, z) < r + 2.5:
+            continue
+        if any(math.hypot(x - fx, z - fz) < fr + r - 2.5 for fx, fz, fr in FLAT_ZONES):
+            continue
+        if any(math.hypot(x - mx, z - mz) < r + mr + 3.0 for mx, mz, mr, _, _ in MESAS):
+            continue
+        ring_ok = all(height(x + math.cos(a) * (r + 0.9), z + math.sin(a) * (r + 0.9)) > PATH_Y - 0.6
+                      for a in [i * math.tau / 10 for i in range(10)])
+        if not ring_ok or abs(height(x, z) - (PATH_Y - 0.05)) > 0.5:
+            continue
+        MESAS.append((x, z, r, mrnd.uniform(0.95, 1.35), mrnd.random() < 0.5))
+        if len(MESAS) >= 6:
+            break
+    print('MESAS', [(round(m[0], 1), round(m[1], 1), round(m[2], 1)) for m in MESAS])
+
+
 # ── Terrain heightfield ─────────────────────────────────────────────────────
-size = radius * (3.1 if ISLETS else 2.5)
+size = radius * (3.1 if ISLETS else 4.2 if TH['surface'] == 'ground' else 2.5)
 step = 0.65
 n = int(size / step)
 mesh = bpy.data.meshes.new('Terrain')
@@ -230,7 +316,8 @@ layer_assets = {}
 for key in ('land', 'beach', 'rock'):
     name, asset = TH[key]
     if isinstance(asset, tuple):  # (scan, dark, light, gamma) → recolored set
-        asset = kit.recolor(asset[0], asset[1], asset[2], asset[3], tag=BOARD)
+        # One output per layer: two layers may recolour the same scan.
+        asset = kit.recolor(asset[0], asset[1], asset[2], asset[3], tag=f'{BOARD}_{key}')
     layer_assets[key] = asset
     mats[key] = kit.scanned(name, asset, metal=0.0)
 # Splat terrain: per-vertex weights (R sand, G grass, B rock) blended per pixel
@@ -246,6 +333,15 @@ for v in mesh.vertices:
         # Dark maria fill crater bowls and the impact basin floor.
         sand = 1 - smoothstep(PATH_Y - 0.55, PATH_Y - 0.2, v.co.z + wobble)
     rock = max(smoothstep(0.86, 0.66, v.normal.z + wobble * 0.5), smoothstep(2.3, 3.0, v.co.z + wobble * 4))
+    if TH['props'] == 'reef':
+        # Plateau tops stay grassy; only the risers and sea cliffs show rock.
+        rock = smoothstep(0.84, 0.62, v.normal.z + wobble * 0.5)
+        # Pale sand plazas around the palace and the conch village.
+        for (ax, az), (bx, bz) in FOOTPATHS:
+            sand = max(sand, 1 - smoothstep(0.75, 1.25, seg_dist(x, z, (ax, az), (bx, bz)) + wobble * 3))
+        for px, pz, pr in PLAZAS:
+            sand = max(sand, 1 - smoothstep(pr - 1.2, pr + 0.6, math.hypot(x - px, z - pz) + wobble * 6))
+        sand *= 1 - rock
     grass = max(0.0, 1 - sand - rock)
     total = sand + grass + rock or 1
     splat.data[v.index].color = (sand / total, grass / total, rock / total, 1.0)
@@ -1137,15 +1233,15 @@ def model_jelly_lighthouse():
     return join_parts(parts, 'JellyLighthouse')
 
 
-def model_coral_arch():
+def model_coral_arch(span=2.9, tall=3.1, thick=1.0):
     coral = kit.flat('ArchCoral', '#ff7a52', rough=0.5)
     polyp = kit.flat('ArchPolyp', '#ffd3a8', rough=0.4, emit=0.4)
     n = 22
     pts, radii = [], []
     for k in range(n):
         a = math.pi * k / (n - 1)
-        pts.append(Vector((math.cos(a) * 2.9, 0.25 * math.sin(a * 3), -0.2 + math.sin(a) * 3.1)))
-        radii.append(0.62 + 0.25 * abs(math.cos(a)) + 0.08 * math.sin(k * 2.3))
+        pts.append(Vector((math.cos(a) * span, 0.25 * math.sin(a * 3), -0.2 + math.sin(a) * tall)))
+        radii.append((0.62 + 0.25 * abs(math.cos(a)) + 0.08 * math.sin(k * 2.3)) * thick)
     arch = skin_branches('Arch', [(k, k + 1) for k in range(n - 1)], pts, radii, coral, subdiv=2)
     for v in arch.data.vertices:
         v.co += v.normal * noise.noise(v.co * 1.7) * 0.18
@@ -1266,6 +1362,106 @@ def model_tubes(color, lip_color):
         parts.append(ring(r * 1.12, 0.06, (x, y, h), lip))
         parts.append(cyl(r * 1.0, 0.02, (x, y, h - 0.02), inner, verts=16))
     return join_parts(parts, 'Tubes')
+
+
+def fluted(name, profile, mat, flutes=12, depth=0.07, loc=(0, 0, 0), steps=48):
+    """Lathe with scalloped flutes (shell roofs, palace walls)."""
+    o = kit.lathe(name, profile, steps=steps)
+    for v in o.data.vertices:
+        a = math.atan2(v.co.y, v.co.x)
+        k = 1 + depth * math.cos(a * flutes)
+        v.co.x *= k
+        v.co.y *= k
+    o.data.materials.append(mat)
+    for p in o.data.polygons:
+        p.use_smooth = True
+    o.location = loc
+    return o
+
+
+def spiral_spire(name, base_r, height_, turns, mat, loc):
+    """Conch-shell spire: a tapering skin tube wound around the axis."""
+    n = 44
+    pts, radii = [], []
+    for k in range(n):
+        t = k / (n - 1)
+        a = t * turns * math.tau
+        rc = base_r * 0.42 * (1 - t) ** 1.1
+        pts.append(Vector((math.cos(a) * rc, math.sin(a) * rc, height_ * t ** 0.9)))
+        radii.append(base_r * (1 - t) ** 0.95 + 0.06)
+    o = skin_branches(name, [(k, k + 1) for k in range(n - 1)], pts, radii, mat, subdiv=2)
+    o.location = loc
+    return o
+
+
+def model_coral_palace():
+    """Tide Heart: the reef's hero landmark, a tiered shell palace crowned by a
+    conch spire and a glowing pearl, ringed by fluted turrets."""
+    plinth_m = kit.flat('PalacePlinth', '#ff7f86', rough=0.6)
+    wall_m = kit.flat('PalaceWall', '#ffe3ea', rough=0.5)
+    trim_m = kit.flat('PalaceTrim', '#fffaf4', rough=0.35)
+    spire_m = kit.flat('PalaceSpire', '#ff7fae', rough=0.35)
+    roofs = [kit.flat('PalaceRoofTeal', '#1fc2c2', rough=0.35), kit.flat('PalaceRoofViolet', '#8a63ff', rough=0.35),
+             kit.flat('PalaceRoofCoral', '#ff5f7e', rough=0.35)]
+    door_m = kit.flat('PalaceDoor', '#5a2a4a', rough=0.7)
+    glow = kit.flat('PalaceWindow', '#ffe6a0', rough=0.3, emit=2.4)
+    pearl = kit.flat('PalacePearl', '#fff4fd', rough=0.06, metal=0.15, emit=1.6)
+    banner = kit.flat('PalaceBanner', '#ff4f9a', rough=0.7)
+    parts = []
+    # Two-step coral plinth with a front stair.
+    parts.append(fluted('PalaceBase', [(5.4, 0.0), (5.45, 0.25), (5.15, 0.5), (0.0, 0.5)], plinth_m, flutes=18, depth=0.03))
+    for k in range(3):
+        parts.append(box((2.6 - k * 0.25, 0.7, 0.22), (0, -5.55 + k * 0.45 + 0.35, 0.11 + k * 0.17), trim_m))
+    # Fluted curtain wall with scalloped battlements.
+    parts.append(fluted('PalaceWall', [(3.75, 0.5), (3.6, 1.9), (3.85, 2.05), (3.85, 2.3), (0.0, 2.3)], wall_m, flutes=20, depth=0.025))
+    for k in range(22):
+        a = k * math.tau / 22
+        parts.append(ball(0.36, (math.cos(a) * 3.72, math.sin(a) * 3.72, 2.32), trim_m, scale=(1, 0.55, 0.9), seg=12, rings=8))
+        parts[-1].rotation_euler = (0, 0, a + math.pi / 2)
+    # Gate with a gold shell arch, banners either side.
+    parts.append(box((1.5, 0.5, 1.45), (0, -3.6, 1.2), door_m))
+    parts.append(ball(0.75, (0, -3.62, 1.92), door_m, scale=(1, 0.33, 0.85), seg=20, rings=10))
+    parts.append(ring(0.98, 0.13, (0, -3.78, 1.55), gold, rot=(math.pi / 2, 0, 0)))
+    for s in (-1, 1):
+        parts.append(box((0.62, 0.08, 1.15), (s * 1.75, -3.7, 1.35), banner, rot=(0, 0, s * 0.12)))
+        parts.append(ball(0.16, (s * 1.75, -3.78, 1.85), gold))
+    # Central keep and its conch spire, crowned with the pearl.
+    parts.append(fluted('PalaceKeep', [(2.25, 2.3), (2.05, 3.0), (1.8, 5.2), (2.1, 5.35), (2.1, 5.65), (0.0, 5.65)], wall_m, flutes=14, depth=0.03))
+    parts.append(ring(2.12, 0.1, (0, 0, 5.62), gold))
+    for k in range(6):
+        a = math.pi * 1.5 + (k - 2.5) * 0.42
+        parts.append(box((0.38, 0.18, 0.62), (math.cos(a) * 1.93, math.sin(a) * 1.93, 4.15 - (k % 2) * 0.9), glow, rot=(0, 0, a + math.pi / 2)))
+    parts.append(spiral_spire('PalaceSpire', 1.75, 3.9, 3.2, spire_m, (0, 0, 5.6)))
+    parts.append(ring(0.55, 0.09, (0, 0, 9.55), gold))
+    for k in range(6):
+        a = k * math.tau / 6
+        parts.append(cyl(0.09, 0.5, (math.cos(a) * 0.52, math.sin(a) * 0.52, 9.85), gold, verts=6, r2=0.0))
+    parts.append(ball(0.62, (0, 0, 10.2), pearl, seg=32, rings=16))
+    # Four fluted turrets on the wall, each with a coloured shell roof and pennant.
+    for k, a in enumerate((math.radians(-130), math.radians(-50), math.radians(40), math.radians(140))):
+        x, y = math.cos(a) * 3.75, math.sin(a) * 3.75
+        tall = 3.9 + (k % 2) * 0.7
+        parts.append(fluted(f'Turret{k}', [(0.95, 0.5), (0.85, 0.8), (0.8, tall), (1.02, tall + 0.12), (1.02, tall + 0.35), (0.0, tall + 0.35)],
+                            wall_m, flutes=10, depth=0.04, loc=(x, y, 0)))
+        roof_m = roofs[k % 3]
+        parts.append(fluted(f'TurretRoof{k}', [(1.25, 0.0), (0.95, 0.35), (0.6, 0.9), (0.25, 1.55), (0.0, 2.05)],
+                            roof_m, flutes=10, depth=0.09, loc=(x, y, tall + 0.3)))
+        parts.append(box((0.3, 0.12, 0.45), (x * 1.205, y * 1.205, tall - 0.6), glow, rot=(0, 0, a + math.pi / 2)))
+        parts.append(cyl(0.04, 0.9, (x, y, tall + 2.7), trim_m, verts=6))
+        m = bpy.data.meshes.new('PalacePennant')
+        m.from_pydata([(x, y, tall + 3.12), (x + 0.85, y, tall + 2.95), (x, y, tall + 2.75)], [], [(0, 1, 2)])
+        pen = bpy.data.objects.new('PalacePennant', m)
+        bpy.context.scene.collection.objects.link(pen)
+        pen.data.materials.append(banner)
+        solidify(pen, 0.03)
+        parts.append(pen)
+    # Coral growing up the plinth at the back corners.
+    for k, (a, col, tip, h) in enumerate(((2.3, '#ff8f2e', '#fff0b3', 3.0), (0.9, '#16bfb8', '#c9fff7', 2.7),
+                                          (3.5, '#b48cff', '#efe6ff', 2.4))):
+        c = coral_tree(f'PalaceCoral{k}', col, tip, h, 70 + k, depth=3, base_r=0.26)
+        c.location = (math.cos(a) * 4.7, math.sin(a) * 4.7, 0.3)
+        parts.append(c)
+    return join_parts(parts, 'CoralPalace')
 
 
 # ── Theme prop sets ─────────────────────────────────────────────────────────
@@ -1439,6 +1635,109 @@ def sign(text, x, z, plank_hex, width=3.4):
     return obj
 
 
+# ── Set dressing shared by the island boards ────────────────────────────────
+# Small cottages in clusters, lamps along the roads, flower beds by the road
+# edges and boats out at sea: instanced, so each adds only a few draw calls.
+
+
+def cottage_clusters(protos, hubs, scale=(0.6, 0.78), per=2, seed=31):
+    crnd = random.Random(seed)
+    count = 0
+    for hx, hz in hubs:
+        placed = 0
+        for k in range(60):
+            a, r = crnd.uniform(0, math.tau), crnd.uniform(3.5, 9.0)
+            x, z = hx + math.cos(a) * r, hz + math.sin(a) * r
+            h = height(x, z)
+            level = max(abs(height(x + 0.9, z) - h), abs(height(x - 0.9, z) - h), abs(height(x, z + 0.9) - h), abs(height(x, z - 0.9) - h))
+            if h > PATH_Y - 0.1 and level < 0.25 and clear(x, z, 1.4):
+                instance(protos[count % len(protos)], x, z, crnd.uniform(*scale), rot=FACE_CAMERA + crnd.uniform(-0.6, 0.6), sink=0.05)
+                occupied.append((x, z, 1.4))
+                count += 1
+                placed += 1
+                if placed >= per:
+                    break
+    print('COTTAGES', count)
+
+
+def road_lamps(proto, offset=2.05):
+    lamps = 0
+    for road in LAYOUT['roads']:
+        pts = road['points']
+        for k in range(1, len(pts) - 1, 2):
+            (ax, az), (bx, bz) = pts[k], pts[k + 1]
+            dx, dz = bx - ax, bz - az
+            ln = math.hypot(dx, dz) or 1
+            side = 1 if (k // 2) % 2 else -1
+            x = (ax + bx) / 2 + (-dz / ln) * offset * side
+            z = (az + bz) / 2 + (dx / ln) * offset * side
+            if path_dist(x, z) < 1.85 or height(x, z) < PATH_Y - 0.15 or math.hypot(x - start['x'], z - start['z']) < 6:
+                continue
+            if any(math.hypot(x - ox, z - oz) < orr + 0.3 for ox, oz, orr in occupied):
+                continue
+            instance(proto, x, z, 1.0, sink=0.02)
+            occupied.append((x, z, 0.4))
+            lamps += 1
+    print('LAMPS', lamps)
+
+
+def flower_beds(leaf_hex, petals, count=46, seed=57):
+    bed_leaf = kit.flat('BedLeaf', leaf_hex, rough=0.8)
+    beds = []
+    for k, petal_hex in enumerate(petals):
+        petal = kit.flat(f'BedPetal{k}', petal_hex, rough=0.5)
+        frnd = random.Random(90 + k)
+        parts = [ball(0.95, (0, 0, 0), bed_leaf, scale=(1, 0.75, 0.34), seg=16, rings=8)]
+        for j in range(11):
+            a, r = frnd.uniform(0, math.tau), frnd.uniform(0.0, 0.72)
+            parts.append(ball(0.16, (math.cos(a) * r, math.sin(a) * r * 0.75, 0.25 + frnd.uniform(0, 0.06)), petal,
+                              scale=(1, 1, 0.6), seg=8, rings=5))
+        beds.append(stash(join_parts(parts, f'FlowerBed{k}')))
+    brnd = random.Random(seed)
+    placed = 0
+    for k in range(4000):
+        x, z = brnd.uniform(-radius * 1.1, radius * 1.1), brnd.uniform(-radius * 1.1, radius * 1.1)
+        pd = path_dist(x, z)
+        if not 2.5 < pd < 4.2 or height(x, z) < PATH_Y - 0.1 or in_lagoon(x, z, 0.5):
+            continue
+        if math.hypot(x - start['x'], z - start['z']) < 7:
+            continue
+        if any(math.hypot(x - ox, z - oz) < orr + 0.9 for ox, oz, orr in occupied):
+            continue
+        instance(beds[placed % len(beds)], x, z, brnd.uniform(0.8, 1.15), sink=0.08)
+        occupied.append((x, z, 0.9))
+        placed += 1
+        if placed >= count:
+            break
+    print('BEDS', placed)
+
+
+def sailboats(spots):
+    boat_hull = kit.flat('BoatHull', '#ff5f6e', rough=0.45)
+    boat_trim = kit.flat('BoatTrim', '#fff4ea', rough=0.4)
+    boat_sail = kit.flat('BoatSail', '#ffffff', rough=0.8)
+    boat_flag = kit.flat('BoatFlag', '#ffd23f', rough=0.6)
+    parts = [ball(1.0, (0, 0, 0), boat_hull, scale=(2.1, 0.85, 0.62), seg=24, rings=12),
+             ring(0.98, 0.07, (0, 0, 0.42), boat_trim),
+             cyl(0.06, 3.6, (0.2, 0, 2.2), boat_trim, verts=8)]
+    parts[1].scale = (1.6, 0.66, 1)
+    for verts_, mat_ in ((((0.32, 0, 0.8), (0.32, 0, 3.9), (1.9, 0, 0.8)), boat_sail),
+                         (((0.08, 0, 0.9), (0.08, 0, 3.3), (-1.4, 0, 0.9)), boat_sail),
+                         (((0.2, 0, 4.0), (0.2, 0.0, 3.6), (-0.6, 0, 3.8)), boat_flag)):
+        me = bpy.data.meshes.new('BoatSailMesh')
+        me.from_pydata(list(verts_), [], [(0, 1, 2)])
+        so = bpy.data.objects.new('BoatSailPart', me)
+        bpy.context.scene.collection.objects.link(so)
+        so.data.materials.append(mat_)
+        solidify(so, 0.04)
+        parts.append(so)
+    boat = stash(join_parts(parts, 'Sailboat'))
+    for ang, dist, yaw in spots:
+        bx_, bz_ = math.cos(ang) * radius * dist, math.sin(ang) * radius * dist * 0.92
+        b_ = instance(boat, bx_, bz_, 1.25, rot=yaw)
+        b_.location.z = TH['sea_level'] - 0.18
+
+
 if TH['props'] == 'reef':
     # District centres are free for the set-pieces; each claims its own footprint.
     occupied[:] = [o for o in occupied if o[2] != 2.5]
@@ -1453,7 +1752,7 @@ if TH['props'] == 'reef':
         kind = space['type']
         if kind not in ('shop', 'bank', 'lottery'):
             continue
-        r = {'bank': 4.3, 'lottery': 3.1, 'shop': 2.4}[kind]
+        r = {'bank': 5.0, 'lottery': 3.7, 'shop': 2.8}[kind]
         # The bank ship sits inland of its space so the overview sees it whole.
         spot = beside(space, back=r + 2.0, r=r, inward=kind == 'bank') or beside(space, back=r + 2.0, r=r)
         if not spot:
@@ -1462,13 +1761,13 @@ if TH['props'] == 'reef':
         x, z, _ = spot
         if kind == 'bank':
             # Turned three-quarters to the camera so hull, deck and sail all show.
-            obj = put(model_shipbank(), x, z, r, face=FACE_CAMERA + 0.7, scale=1.4)
+            obj = put(model_shipbank(), x, z, r, face=FACE_CAMERA + 0.7, scale=1.65)
             label, hue = 'BANK', '#f2a91e'
         elif kind == 'lottery':
-            obj = put(model_clam(), x, z, r, scale=1.35)
+            obj = put(model_clam(), x, z, r, scale=1.6)
             label, hue = 'LOTTO', '#e04fb4'
         else:
-            obj = put(model_scallop_shop(), x, z, r, scale=1.1)
+            obj = put(model_scallop_shop(), x, z, r, scale=1.3)
             label, hue = 'SHOP', '#14b386'
         obj.name = {'bank': 'Bank', 'lottery': 'Lottery', 'shop': 'Shop'}[kind]
         # Sign in front (toward the camera), else to either side; only the
@@ -1488,32 +1787,38 @@ if TH['props'] == 'reef':
     for q in districts:
         kind, qx, qz = q['kind'], q['x'], q['z']
         if kind == 'heart':
-            put(model_anemone(), qx, qz, 3.0, face=random.uniform(0, math.tau), scale=1.15)
+            put(model_coral_palace(), qx, qz, 7.6, face=FACE_CAMERA, scale=1.32)
         elif kind == 'village':
             for k, (body_hex, lip_hex, sc) in enumerate(conch_colors):
+                sc *= 1.3
                 a = k * 2.1 + 0.4
                 s = spot_near(qx + math.cos(a) * 2.6, qz + math.sin(a) * 2.6, 1.6 * sc)
                 if s:
                     put(model_conch(f'Conch{k}', body_hex, lip_hex), s[0], s[1], 1.7 * sc,
                         face=FACE_CAMERA + random.uniform(-0.4, 0.4), scale=sc)
         elif kind == 'mist':
-            s = spot_near(qx, qz, 2.0)
+            s = spot_near(qx, qz, 2.8)
             if s:
-                put(model_jelly_lighthouse(), s[0], s[1], 2.3)
+                put(model_jelly_lighthouse(), s[0], s[1], 3.0, scale=1.4)
         elif kind == 'arch':
-            s = spot_near(qx, qz, 3.0)
+            s = spot_near(qx, qz, 4.2)
             if s:
-                put(model_coral_arch(), s[0], s[1], 3.2, face=FACE_CAMERA + 0.35)
+                put(model_coral_arch(span=2.9, tall=4.0, thick=0.75), s[0], s[1], 4.4, face=FACE_CAMERA + 0.35, scale=1.4)
         elif kind == 'windmill':
-            s = spot_near(qx, qz, 2.6)
+            s = spot_near(qx, qz, 3.2)
             if s:
-                put(model_windmill2(), s[0], s[1], 2.8, scale=1.3)
+                put(model_windmill2(), s[0], s[1], 3.4, scale=1.65)
         elif kind == 'kelp':
             for k, (kc, tc) in enumerate(kite_colors):
                 s = spot_near(qx + math.cos(k * 2.1) * 3.0, qz + math.sin(k * 2.1) * 3.0, 0.8)
                 if s:
                     put(model_kite(kc, tc, 50 + k), s[0], s[1], 1.0, face=FACE_CAMERA + random.uniform(-0.5, 0.5),
                         scale=1.9)
+    # Shell cottages: little clusters of conch homes around the districts and
+    # shops, so every corner of the reef reads as lived-in.
+    cottage_clusters([stash(model_conch('Cottage0', '#ffc2d4', '#fff4ea')), stash(model_conch('Cottage1', '#ffe2a6', '#fff8ea'))],
+                     [(q['x'], q['z']) for q in districts if q['kind'] in ('village', 'mist', 'windmill', 'arch', 'kelp')] +
+                     [(s['x'], s['z']) for s in spaces if s['type'] in ('shop', 'lottery')])
 
 for space in (spaces if TH['props'] != 'reef' else []):
     kind = space['type']
@@ -1547,6 +1852,20 @@ for q in (districts if TH['props'] != 'reef' else []):
         if clear(x, z, 2.0):
             buildings.append(hut(x, z, -math.atan2(q['x'] - x, q['z'] - z), random.uniform(0.85, 1.1)))
             occupied.append((x, z, 2.2))
+if TH['props'] == 'tropical':
+    hut_proto = stash(hut(0.0, 0.0, 0.0))
+    hut_proto.name = 'CottageHut'
+    cottage_clusters([hut_proto], [(q['x'], q['z']) for q in districts if q['kind'] != 'volcano'] +
+                     [(s['x'], s['z']) for s in spaces if s['type'] in ('shop', 'lottery')], scale=(0.62, 0.8))
+    torch_pole = kit.flat('TorchPole', '#7a4a2b', rough=0.7)
+    torch_wrap = kit.flat('TorchWrap', '#e8c27a', rough=0.8)
+    torch_flame = kit.flat('TorchFlame', '#ffb02e', rough=0.3, emit=4.0)
+    road_lamps(stash(join_parts([cyl(0.07, 1.7, (0, 0, 0.85), torch_pole, verts=8),
+                                 cyl(0.15, 0.32, (0, 0, 1.78), torch_wrap, verts=10, r2=0.19),
+                                 cyl(0.15, 0.42, (0, 0, 2.15), torch_flame, verts=10, r2=0.0)], 'TikiTorch')))
+    flower_beds('#3f8f3a', ('#ff5f7a', '#ffd23f', '#ffffff'), count=40)
+    sailboats(((0.15, 1.3, 0.6), (3.3, 1.28, -0.4), (4.1, 1.3, 1.9)))
+
 # Theme set-pieces: moon masts and a dish; volcano vents; harbor-side huts.
 if TH['props'] == 'lunar':
     mast, dish = stash(model_mast()), stash(model_dish())
@@ -1579,16 +1898,27 @@ if TH['props'] == 'reef':
     kelp_proto = stash(model_kelp())
     accents = corals + corals + [shell_proto, kelp_proto] + rocks
     rnd = random.Random(23)
+    # Palace gardens: big hero corals framing the plaza's back and sides.
+    lx, lz = landmark
+    for k, a in enumerate((-2.6, -2.0, -1.35, -0.6, 0.1, 2.75, 3.4)):
+        x, z = lx + math.cos(a) * 9.6, lz + math.sin(a) * 9.6
+        if path_dist(x, z) > 3.0 and not in_lagoon(x, z, 0.8) and height(x, z) > PATH_Y - 0.12:
+            instance(heroes[k % len(heroes)], x, z, rnd.uniform(1.3, 1.6), sink=0.05)
+            occupied.append((x, z, 1.6))
     centres = []
+    anchors = [(q['x'], q['z']) for q in districts] + [(s['x'], s['z']) for s in spaces if s['type'] in ('shop', 'bank', 'lottery')]
     for k in range(6000):
         x, z = rnd.uniform(-radius * 1.1, radius * 1.1), rnd.uniform(-radius * 1.1, radius * 1.1)
         h = height(x, z)
-        if h < PATH_Y - 0.12 or h > 2.6 or path_dist(x, z) < 3.4:
+        if h < PATH_Y - 0.12 or path_dist(x, z) < 3.4:
             continue
-        if any(math.hypot(x - cx, z - cz) < 5.6 for cx, cz in centres) or not clear(x, z, 1.4):
+        # Clumps gather around the districts; open lawns stay open between them.
+        if min(math.hypot(x - ax, z - az) for ax, az in anchors) > 12 and rnd.random() < 0.75:
+            continue
+        if any(math.hypot(x - cx, z - cz) < 5.2 for cx, cz in centres) or not clear(x, z, 1.4):
             continue
         centres.append((x, z))
-        if len(centres) >= 40:
+        if len(centres) >= 32:
             break
     for i, (cx, cz) in enumerate(centres):
         hero = heroes[i % len(heroes)]
@@ -1625,6 +1955,32 @@ if TH['props'] == 'reef':
             a = rnd.uniform(0, math.tau)
             x, z = ix + math.cos(a) * ir * 0.5, iz + math.sin(a) * ir * 0.5
             instance(rnd.choice(corals + rocks), x, z, rnd.uniform(0.4, 0.7), sink=0.15)
+    # A coral arch the left-hand road runs through (decor only; it spans the
+    # widest gap between two spaces so no space sits under it).
+    sa, sb = spaces[19], spaces[20]
+    ax_, az_ = sa['x'] + (sb['x'] - sa['x']) * 0.42, sa['z'] + (sb['z'] - sa['z']) * 0.42
+    rdx, rdz = sb['x'] - sa['x'], sb['z'] - sa['z']
+    rl = math.hypot(rdx, rdz) or 1
+    road_arch = model_coral_arch(span=2.75, tall=4.3, thick=0.62)
+    road_arch.name = 'RoadArch'
+    place_obj(road_arch, ax_, az_, math.atan2(-rdx, -rdz), 1.0)
+    buildings.append(road_arch)
+    for s_ in (-1, 1):
+        occupied.append((ax_ - rdz / rl * 2.67 * s_, az_ + rdx / rl * 2.67 * s_, 1.0))
+    for (fax, faz), (fbx, fbz) in FOOTPATHS:
+        steps_ = int(math.hypot(fbx - fax, fbz - faz)) + 1
+        for k in range(steps_ + 1):
+            occupied.append((fax + (fbx - fax) * k / steps_, faz + (fbz - faz) * k / steps_, 0.9))
+    # Pearl lamp posts line the roads, alternating sides.
+    lamp_post = kit.flat('LampPost', '#fff4ea', rough=0.4)
+    lamp_cup = kit.flat('LampCup', '#ff7fae', rough=0.35)
+    lamp_light = kit.flat('LampPearl', '#fff1c4', rough=0.2, emit=3.0)
+    road_lamps(stash(join_parts([cyl(0.2, 0.18, (0, 0, 0.09), lamp_cup, verts=12),
+                                 cyl(0.06, 1.55, (0, 0, 0.85), lamp_post, verts=8),
+                                 cyl(0.08, 0.26, (0, 0, 1.68), lamp_cup, verts=12, r2=0.24),
+                                 ball(0.17, (0, 0, 1.9), lamp_light, seg=12, rings=8)], 'PearlLamp')))
+    flower_beds('#2f9a5a', ('#ff5fa2', '#ffd23f', '#ffffff'))
+    sailboats(((0.15, 1.38, 0.6), (3.35, 1.36, -0.4), (4.15, 1.34, 1.9)))
     flora = []
 
 # Scatter flora and rocks.

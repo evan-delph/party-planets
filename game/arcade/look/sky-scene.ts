@@ -12,15 +12,24 @@ import {
   arrowTexture,
   bannerTexture,
   blobTexture,
+  edgeAoTexture,
   glowTexture,
   checkerTexture,
-  chipTexture,
   cloudPuff,
   grassTexture,
   hash,
   starGeometry,
 } from './sky-geo';
-import { Birds, Particles, SKY, Wind, cloudSea, skyDome } from './sky-fx';
+import {
+  Birds,
+  Particles,
+  SKY,
+  Wind,
+  cloudMaterial,
+  cloudSea,
+  raysTexture,
+  skyDome,
+} from './sky-fx';
 
 /** Signature racer colours: rings, chips, bunting and bursts all share these. */
 export const SKY_RACERS = ['#ffbb12', '#ff4a86', '#22adff', '#9a62ff'];
@@ -52,39 +61,39 @@ export function buildSkyScene(o: {
   renderer.toneMappingExposure = 1.0;
   const shared = scene.getObjectByName('Sky dome');
   if (shared) shared.visible = false;
-  scene.environmentIntensity = 0.3;
-  scene.fog = new T.Fog(SKY.horizon, 48, 210);
-  hemi.color.set('#bfdcff');
-  hemi.groundColor.set('#6f7f93');
-  hemi.intensity = 0.95;
-  sun.color.set('#fff0d0');
-  sun.intensity = 3.4;
-  sun.shadow.mapSize.set(1024, 1024);
+  scene.environmentIntensity = 0.2;
+  // Aerial perspective: everything past the next few islands drifts into a
+  // pale blue haze, so the course in front of the racer pops.
+  scene.fog = new T.Fog(SKY.haze, 16, 125);
+  hemi.color.set('#b4d4ff');
+  hemi.groundColor.set('#5d6d84');
+  hemi.intensity = 0.6;
+  sun.color.set('#ffe8c2');
+  sun.intensity = 4.6;
+  sun.castShadow = !low;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.radius = 3.5;
+  sun.shadow.intensity = 0.9;
   // Software rasterisers (SwiftShader, llvmpipe) stall for many seconds when
-  // the adaptive meter later toggles shadows and every shader recompiles, so
-  // they skip the sun's shadow pass from the start; contact blobs still
-  // ground the props.
+  // the adaptive meter toggles shadows and every shader recompiles, so the
+  // renderer keeps one fixed setup for them (see `software`).
   const gl = renderer.getContext(),
     gpuInfo = gl.getExtension('WEBGL_debug_renderer_info'),
     gpu = gpuInfo ? String(gl.getParameter(gpuInfo.UNMASKED_RENDERER_WEBGL)) : '';
-  if (/swiftshader|llvmpipe|softpipe|software|basic render/i.test(gpu)) {
-    sun.castShadow = false;
-    // Start at the adaptive floor so the meter never resizes (and blanks)
-    // the canvas in the middle of a multi-second software frame.
-    renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
-  }
+  const software = /swiftshader|llvmpipe|softpipe|software|basic render/i.test(gpu);
+  if (software) renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
   Object.assign(sun.shadow.camera, {
-    left: -16,
-    right: 16,
-    top: 16,
-    bottom: -16,
+    left: -30,
+    right: 30,
+    top: 30,
+    bottom: -30,
     near: 1,
-    far: 80,
+    far: 110,
   });
   sun.shadow.camera.updateProjectionMatrix();
-  sun.shadow.bias = -0.0006;
-  sun.shadow.normalBias = 0.03;
-  const rim = new T.DirectionalLight('#dcefff', 1.6);
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.035;
+  const rim = new T.DirectionalLight('#cfe4ff', 1.4);
   scene.add(rim, rim.target);
 
   const root = new T.Group();
@@ -103,9 +112,24 @@ export function buildSkyScene(o: {
       opacity: 0.85,
     }),
   );
-  sunGlow.scale.setScalar(170);
+  sunGlow.scale.setScalar(150);
   sunGlow.renderOrder = -4;
   scene.add(sunGlow);
+  // Slow-turning god rays fanning out of the sun corner.
+  const rays = new T.Sprite(
+    new T.SpriteMaterial({
+      map: raysTexture(),
+      color: '#fff3d6',
+      blending: T.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+      opacity: 0.55,
+    }),
+  );
+  rays.scale.setScalar(420);
+  rays.renderOrder = -3;
+  scene.add(rays);
   scene.add(dome);
   const sea = cloudSea(-12);
   scene.add(sea.mesh);
@@ -162,6 +186,21 @@ export function buildSkyScene(o: {
       at(x - r * 0.38, y + 0.012, z + r * 0.06, 0, 1.4, 1, 1),
       '#000000',
     );
+  // Baked edge occlusion on every lawn (one merged decal mesh per shape).
+  const aoMat = (round: boolean) =>
+    new T.MeshBasicMaterial({
+      color: '#0f3a14',
+      alphaMap: edgeAoTexture(round),
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+    });
+  const aoRect = new Bucket(),
+    aoRound = new Bucket();
+  const ao = (b: Bucket, x: number, y: number, z: number, w: number, d: number) =>
+    b.add(new T.PlaneGeometry(w, d).rotateX(-Math.PI / 2), at(x, y + 0.008, z), '#ffffff');
 
   // ── Course islands ────────────────────────────────────────────────────
   const pads = coursePlatforms(0);
@@ -181,6 +220,7 @@ export function buildSkyScene(o: {
       flowers: p.checkpoint ? 18 : p.w < 2 ? 3 : 7,
       depth: moving ? 1.3 : undefined,
     });
+    if (!moving) ao(aoRect, x, 0, z, p.w, p.d);
     if (moving) {
       // Chevrons telling the player this island slides side to side.
       for (const side of [-1, 1]) {
@@ -202,6 +242,14 @@ export function buildSkyScene(o: {
       }
       const g = new T.Group();
       flush(b, g);
+      const gAo = new Bucket();
+      ao(gAo, 0, 0, 0, p.w, p.d);
+      const gAoMesh = gAo.build(aoMat(false), false);
+      if (gAoMesh) {
+        gAoMesh.receiveShadow = false;
+        gAoMesh.renderOrder = 1;
+        g.add(gAoMesh);
+      }
       g.position.set(p.x, 0, p.z);
       root.add(g);
       movers.push({ group: g, i });
@@ -418,25 +466,22 @@ export function buildSkyScene(o: {
   }
 
   // ── Scenery islands, trees and windmills ──────────────────────────────
+  // A few hero islands with clear silhouettes, kept well off the racing line
+  // and stepping down into the haze, rather than a crowd at course height.
   const DECOR: [number, number, number, number][] = [
-    [-9.5, -1.4, 7, 3.2],
-    [10.5, -0.8, 1, 3.6],
-    [-11.5, 0.3, -10, 4.2],
-    [10, -2, -17, 3],
-    [-9.5, -2.4, -27, 3.4],
-    [11.5, 0.6, -31, 4.5],
-    [-12.5, 1.0, -42, 4.8],
-    [9.5, -1.6, -47, 3.2],
-    [-9, -1, -58, 3],
-    [12.5, 1.4, -62, 5],
-    [-14, 1.8, -73, 5.5],
-    [10.5, 0.3, -78, 3.8],
-    [-31, 4, -62, 9],
-    [36, 6, -88, 11],
-    [-38, 2, -110, 12],
-    [27, -1, -122, 10],
-    [-2, 3, -138, 14],
+    [-13, -2.6, 2, 4.2],
+    [14, -3.4, -12, 4.6],
+    [-14.5, -1.2, -30, 5.2],
+    [15.5, -2.2, -47, 5],
+    [-15, -3, -64, 4.8],
+    [14, -1.5, -80, 5.2],
+    [-36, 1, -70, 10],
+    [40, 3, -96, 12],
+    [-40, -1, -118, 12],
+    [30, -2, -135, 10],
+    [-4, 2, -150, 14],
   ];
+  const FAR = 6;
   const blades: T.Mesh[] = [];
   const bladeGeo = new Bucket();
   for (let k = 0; k < 4; k++)
@@ -447,7 +492,7 @@ export function buildSkyScene(o: {
     );
   const bladeMesh = bladeGeo.build(M.paint);
   DECOR.forEach(([x, y, z, r], i) => {
-    const far = i >= 12,
+    const far = i >= FAR,
       seed = 100 + i * 17;
     addIsland(stat, {
       x,
@@ -462,6 +507,7 @@ export function buildSkyScene(o: {
       fringe: far ? 0.7 : 0.32,
       depth: r * (far ? 1.6 : 1.3),
     });
+    if (!far) ao(aoRound, x, y, z, r * 2, r * 1.7);
     const trees = far ? 3 : 1 + Math.floor(r / 1.6);
     for (let k = 0; k < trees; k++) {
       const a = hash(seed + k) * Math.PI * 2,
@@ -478,7 +524,7 @@ export function buildSkyScene(o: {
         addBush(stat, x + Math.cos(a) * r * 0.65, y, z + Math.sin(a) * r * 0.5, 1, seed + k);
         blob(x + Math.cos(a) * r * 0.65, y, z + Math.sin(a) * r * 0.5, 0.7);
       }
-    if ((i === 2 || i === 9) && bladeMesh) {
+    if ((i === 2 || i === 5) && bladeMesh) {
       const wx = x + r * 0.35,
         wz = z - r * 0.2;
       stat.rock.add(
@@ -500,6 +546,14 @@ export function buildSkyScene(o: {
   if (bladeMesh && !blades.length) bladeMesh.geometry.dispose();
 
   flush(stat, root);
+  for (const [bk, round] of [[aoRect, false], [aoRound, true]] as const) {
+    const m = bk.build(aoMat(round), false);
+    if (m) {
+      m.receiveShadow = false;
+      m.renderOrder = 1;
+      root.add(m);
+    }
+  }
   const blobMesh = blobs.build(blobMat, false);
   if (blobMesh) {
     blobMesh.receiveShadow = false;
@@ -514,17 +568,17 @@ export function buildSkyScene(o: {
   for (let i = 0; i < 18; i++) {
     const side = i % 2 ? 1 : -1;
     puffs.push([
-      side * (5 + hash(i) * 11),
-      -8 + hash(i + 50) * 2.2,
+      side * (6 + hash(i) * 12),
+      -10.5 + hash(i + 50) * 2,
       18 - i * 4.6,
-      2.6 + hash(i + 90) * 3,
+      2.4 + hash(i + 90) * 2,
     ]);
   }
   for (let i = 0; i < (low ? 8 : 16); i++) {
     const side = i % 2 ? 1 : -1;
     puffs.push([
-      side * (17 + hash(i + 200) * 10),
-      -6 + hash(i + 210) * 2.5,
+      side * (19 + hash(i + 200) * 12),
+      -8 + hash(i + 210) * 2.5,
       12 - i * 6.5,
       5 + hash(i + 220) * 3,
     ]);
@@ -538,14 +592,10 @@ export function buildSkyScene(o: {
     ]);
   const clouds = new T.InstancedMesh(
     cloudPuff(),
-    new T.MeshLambertMaterial({
-      color: '#eef3fb',
-      vertexColors: true,
-      emissive: '#cfe0f7',
-      emissiveIntensity: 0.1,
-    }),
+    cloudMaterial(),
     puffs.length,
   );
+  const cloudMat = clouds.material as T.ShaderMaterial;
   puffs.forEach(([x, y, z, s], i) =>
     clouds.setMatrixAt(i, at(x, y, z, hash(i + 7) * 6, s, s * 0.62, s * 0.8)),
   );
@@ -585,7 +635,7 @@ export function buildSkyScene(o: {
   const starHidden = new Float32Array(starPos.length).fill(-99);
 
   // ── Racer markers ─────────────────────────────────────────────────────
-  const racers = o.names.map((name, i) => {
+  const racers = o.names.map((_name, i) => {
     const color = SKY_RACERS[i % 4];
     const ring = new T.Mesh(
       new T.RingGeometry(0.42, 0.6, 40).rotateX(-Math.PI / 2),
@@ -607,14 +657,16 @@ export function buildSkyScene(o: {
       }),
     );
     ring.renderOrder = disc.renderOrder = 2;
+    // One small chevron in the racer's colour instead of stacked name tags.
     const chip = new T.Sprite(
       new T.SpriteMaterial({
-        map: chipTexture(name, color),
+        map: arrowTexture(color),
         depthTest: false,
         toneMapped: false,
       }),
     );
-    chip.scale.set(1.35, 0.44, 1);
+    chip.center.set(0.5, 0);
+    chip.scale.set(0.3, 0.375, 1);
     chip.renderOrder = 30;
     const shade = new T.Mesh(
       new T.PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2),
@@ -638,7 +690,7 @@ export function buildSkyScene(o: {
     new T.SpriteMaterial({ map: arrowMaps[0], depthTest: false, toneMapped: false }),
   );
   arrow.center.set(0.5, 0);
-  arrow.scale.set(0.62, 0.78, 1);
+  arrow.scale.set(0.46, 0.58, 1);
   arrow.renderOrder = 31;
   root.add(arrow);
 
@@ -716,15 +768,17 @@ export function buildSkyScene(o: {
       me = w.actors[meIndex];
     // Chase camera: low 3/4 view behind the local racer.
     const gy = Math.max(-2, Math.min(me.y, 3));
-    want.set(me.x * 0.7, 4.3 + gy * 0.45, me.z + 8.4);
-    wantLook.set(me.x * 0.85, 0.75 + gy * 0.35, me.z - 8);
+    // Low and close behind the racer, so the current island and the next
+    // jump target fill the frame.
+    want.set(me.x * 0.8, 3.0 + gy * 0.45, me.z + 6.3);
+    wantLook.set(me.x * 0.9, 0.55 + gy * 0.35, me.z - 9);
     const k = first ? 1 : 1 - Math.exp(-dt * 4.5);
     camPos.lerp(want, k);
     look.lerp(wantLook, k);
     camera.position.copy(camPos);
     camera.lookAt(look);
-    sun.target.position.set(me.x, 0, me.z - 5);
-    sun.position.copy(sun.target.position).add(new T.Vector3(12, 14, -3));
+    sun.target.position.set(me.x * 0.5, 0, me.z - 12);
+    sun.position.copy(sun.target.position).add(new T.Vector3(20, 28, -14));
     rim.target.position.copy(sun.target.position);
     rim.position.copy(sun.target.position).add(new T.Vector3(-10, 6, -8));
 
@@ -732,6 +786,9 @@ export function buildSkyScene(o: {
     movers.forEach((m) => (m.group.position.x = live[m.i].x));
     domeMat.uniforms.time.value = t;
     sunGlow.position.copy(camera.position).addScaledVector(SKY.sunDir, 260);
+    rays.position.copy(camera.position).addScaledVector(SKY.sunDir, 255);
+    rays.material.rotation = reduced ? 0 : t * 0.025;
+    cloudMat.uniforms.camPos.value.copy(camera.position);
     sea.mat.uniforms.time.value = reduced ? 0 : t;
     sea.mat.uniforms.camPos.value.copy(camera.position);
     sea.mesh.position.x = camera.position.x;
@@ -828,14 +885,11 @@ export function buildSkyScene(o: {
       r.shade.scale.setScalar(s);
       (r.ring.material as T.MeshBasicMaterial).opacity = 0.95 * s;
       r.chip.visible = a.alive && i !== meIndex;
-      // Stack chips of racers bunched together so names never overlap.
-      let lift2 = 0;
-      for (let j = 0; j < i; j++) {
-        const b = w.actors[j];
-        if (j !== meIndex && b.alive && Math.abs(b.x - a.x) < 1.4 && Math.abs(b.z - a.z) < 2.5)
-          lift2 += 0.42;
-      }
-      r.chip.position.set(a.x, a.y + 2.05 + lift2, a.z);
+      r.chip.position.set(
+        a.x,
+        a.y + 1.62 + (reduced ? 0 : Math.abs(Math.sin(t * 4.5 + i * 1.3)) * 0.1),
+        a.z,
+      );
       const air = a.y > 0.06;
       if (!first) {
         if (!r.air && air && a.vy > 0) puff(a.x, 0, a.z, 5, 1.2);
@@ -859,6 +913,7 @@ export function buildSkyScene(o: {
     first = false;
   }
   return {
+    software,
     update,
     resize(height: number) {
       const scale = height / (2 * Math.tan(T.MathUtils.degToRad(camera.fov / 2)));

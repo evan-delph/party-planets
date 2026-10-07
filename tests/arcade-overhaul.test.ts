@@ -261,8 +261,12 @@ assert.ok(
 assert.ok(straight.remix!.seats[0].skiSpeed <= 13.5);
 const ui = fs.readFileSync('game/Party.tsx', 'utf8');
 assert.ok(ui.includes('product of keperoni industries incorporated'));
+// The menu carries no alien characters (user rule), so the logo no longer
+// uses the alien-piloted UFO sticker; the arcade still ships the image.
+assert.ok(fs.existsSync('public/ufo-sticker.webp'));
 assert.ok(
-  ui.includes('/ufo-sticker.webp') && fs.existsSync('public/ufo-sticker.webp'),
+  !ui.includes('/ufo-sticker.webp'),
+  'The menu and title logo carry no alien-piloted UFO',
 );
 assert.ok(
   ui.includes('if (reduced || !orbital)'),

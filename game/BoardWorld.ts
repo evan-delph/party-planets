@@ -17,7 +17,7 @@ export type WorldStyle = {
   ocean?: { deep: string; mid: string; shallow: string; foam: string };
   path: { top: string; rim: string; branch: string; arrow: string; outline: string };
   /** Calm painterly turf blended over the scanned grass layer. */
-  turf?: { color: string; calm: number };
+  turf?: { color: string; calm: number; tone?: number };
   /** Terrain stand-in colours while the scanned textures download. */
   flats?: { sand: string; grass: string; rock: string };
   fog?: { color: string; near: number; far: number };
@@ -41,9 +41,18 @@ export const WORLD_STYLE: Record<string, WorldStyle> = {
   },
   crater: {
     path: { top: '#d4d9e6', rim: '#3a4058', branch: '#8c93a8', arrow: '#ffffff', outline: '#1d2236' },
+    // Calm painted regolith hides the scan's tiling across the open plain.
+    turf: { color: '#c4c9d6', calm: 0.6, tone: 0.3 },
+    flats: { sand: '#6a7186', grass: '#a3aaba', rock: '#7d8496' },
+    // Night haze kept beyond the board so the regolith stays crisp.
+    fog: { color: '#2a3558', near: 3.4, far: 9 },
   },
   fissure: {
     path: { top: '#5a4a50', rim: '#1a1214', branch: '#6e5a52', arrow: '#ffd27a', outline: '#2a0f08' },
+    // Warm the near-black ash scan toward a readable cinder brown.
+    turf: { color: '#8a6a5e', calm: 0.55, tone: 0.5 },
+    flats: { sand: '#3a3036', grass: '#7a5e54', rock: '#2e2529' },
+    fog: { color: '#3a2438', near: 3.4, far: 9 },
   },
 };
 
@@ -370,36 +379,37 @@ export function createOcean(
         vec2 p = vWorld.xz;
         float t = time;
         // Wobbly lookup so foam lines breathe.
-        vec4 n0 = texture2D(noise, p * 0.021 + vec2(t * 0.006, t * 0.004));
-        float d = shoreDist(p + (n0.rg - 0.5) * 1.6);
-        vec3 col = mix(shallow, mid, smoothstep(0.2, 5.5, d));
-        col = mix(col, deep, smoothstep(4.0, 22.0, d));
-        // Caustic web over the shelf: two drifting layers multiplied.
-        float shelf = 1.0 - smoothstep(1.0, 10.0, d);
-        float c = texture2D(noise, p * 0.035 + vec2(t * 0.011, t * 0.007)).b
-          * texture2D(noise, p * 0.028 - vec2(t * 0.008, -t * 0.009) + 0.37).b;
-        col += vec3(0.75, 1.0, 0.95) * c * shelf * 1.1;
-        col *= 0.9 + 0.2 * n0.r;
-        // Wave normal from the noise slope, for glints and a sky sheen.
-        vec2 wuv = p * 0.012 + vec2(t * 0.002, t * 0.0014);
+        vec4 n0 = texture2D(noise, p * 0.018 + vec2(t * 0.004, t * 0.003));
+        float d = shoreDist(p + (n0.rg - 0.5) * 1.2);
+        // Depth bands: bright lagoon shelf, a clear turquoise step, then deep blue.
+        vec3 col = mix(shallow, mid, smoothstep(0.6, 7.0, d));
+        col = mix(col, deep, smoothstep(6.0, 30.0, d));
+        // Broad, slow value drift (cloud shade on the water), never busy.
+        float broad = texture2D(noise, p * 0.0045 + vec2(t * 0.0008, 0.0)).a;
+        col *= 0.92 + 0.16 * broad;
+        // Soft caustic light over the shelf only.
+        float shelf = 1.0 - smoothstep(0.5, 8.0, d);
+        float c = texture2D(noise, p * 0.05 + vec2(t * 0.012, t * 0.008)).b
+          * texture2D(noise, p * 0.041 - vec2(t * 0.009, -t * 0.011) + 0.37).b;
+        col += vec3(0.8, 1.0, 0.95) * smoothstep(0.03, 0.3, c) * shelf * 0.2;
+        // Sky sheen toward the horizon from a gentle, low-frequency swell.
+        vec2 wuv = p * 0.006 + vec2(t * 0.0012, t * 0.0009);
         float h0 = texture2D(noise, wuv).r;
-        float hx = texture2D(noise, wuv + vec2(0.01, 0.0)).r;
-        float hz = texture2D(noise, wuv + vec2(0.0, 0.01)).r;
-        vec3 n = normalize(vec3((h0 - hx) * 9.0, 1.0, (h0 - hz) * 9.0));
+        float hx = texture2D(noise, wuv + vec2(0.012, 0.0)).r;
+        float hz = texture2D(noise, wuv + vec2(0.0, 0.012)).r;
+        vec3 n = normalize(vec3((h0 - hx) * 3.0, 1.0, (h0 - hz) * 3.0));
         vec3 view = normalize(cameraPosition - vWorld);
         float fres = pow(1.0 - max(dot(n, view), 0.0), 5.0);
-        col = mix(col, horizon, fres * 0.35);
+        col = mix(col, horizon, fres * 0.3);
         vec3 r = reflect(-view, n);
-        float glint = pow(max(dot(r, normalize(sunDir)), 0.0), 40.0);
-        col += vec3(1.0, 0.96, 0.85) * glint * 0.25 * (1.0 - shelf);
-        // Soft swell bands catching the light in open water.
-        col += vec3(0.6, 0.85, 1.0) * smoothstep(0.55, 0.7, n0.a) * 0.07 * (1.0 - shelf);
-        // Surf: a solid lip at the shore plus rings rolling in.
-        float lip = 1.0 - smoothstep(0.15, 0.55 + n0.g * 0.5, d);
-        float phase = fract(d * 0.55 - t * 0.35);
-        float rings = smoothstep(0.0, 0.12, phase) * (1.0 - smoothstep(0.12, 0.4, phase));
-        rings *= (1.0 - smoothstep(0.5, 2.8, d)) * smoothstep(0.35, 0.6, n0.a);
-        float f = clamp(lip + rings * 0.45, 0.0, 1.0);
+        col += vec3(1.0, 0.96, 0.85) * pow(max(dot(r, normalize(sunDir)), 0.0), 12.0) * 0.08 * (1.0 - shelf);
+        // Surf: a solid lip at the shore, a soft wet band, and slow rings rolling in.
+        float lip = 1.0 - smoothstep(0.12, 0.5 + n0.g * 0.45, d);
+        float wet = (1.0 - smoothstep(0.4, 2.2, d)) * 0.18;
+        float phase = fract(d * 0.32 - t * 0.22);
+        float rings = smoothstep(0.0, 0.07, phase) * (1.0 - smoothstep(0.07, 0.24, phase));
+        rings *= (1.0 - smoothstep(0.6, 4.2, d)) * smoothstep(0.42, 0.62, n0.a);
+        float f = clamp(lip + rings * 0.55 + wet, 0.0, 1.0);
         col = mix(col, foam, f * 0.92);
         float dist = length(cameraPosition - vWorld);
         col = mix(col, horizon, smoothstep(fogRange.x, fogRange.y, dist));
@@ -413,6 +423,84 @@ export function createOcean(
   mesh.position.y = field.box.w;
   mesh.renderOrder = -5;
   mesh.receiveShadow = false;
+  return {
+    mesh,
+    update(time: number) {
+      material.uniforms.time.value = time;
+    },
+    dispose() {
+      mesh.geometry.dispose();
+      material.dispose();
+    },
+  };
+}
+
+// ── Molten sea ──────────────────────────────────────────────────────────────
+/**
+ * Ember lava sea: drifting dark crust plates split by glowing seams (two
+ * scales of the shared noise's ridged web), melting to bright molten lava
+ * along the shore. Seamless at any distance, unlike a tiled photo map.
+ */
+export function createLavaSea(field: Field, horizon: string, radius: number) {
+  const material = new T.ShaderMaterial({
+    uniforms: {
+      time: { value: 0 },
+      field: { value: field.texture },
+      box: { value: field.box },
+      horizon: { value: new T.Color(horizon) },
+      fogRange: { value: new T.Vector2(radius * 3.2, radius * 8) },
+      noise: { value: sharedNoise() },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vWorld;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vWorld = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float time;
+      uniform sampler2D field;
+      uniform vec4 box;
+      uniform vec3 horizon;
+      uniform vec2 fogRange;
+      uniform sampler2D noise;
+      varying vec3 vWorld;
+      float shoreDist(vec2 p) {
+        vec2 uv = (p - box.xy) / box.z;
+        float outside = max(max(-uv.x, uv.x - 1.0), max(-uv.y, uv.y - 1.0));
+        return texture2D(field, clamp(uv, 0.0, 1.0)).b + max(outside, 0.0) * box.z;
+      }
+      void main() {
+        vec2 p = vWorld.xz;
+        float t = time;
+        vec4 n0 = texture2D(noise, p * 0.017 + vec2(t * 0.003, t * 0.002));
+        float d = shoreDist(p + (n0.rg - 0.5) * 1.5);
+        vec2 warp = (n0.rg - 0.5) * 0.06;
+        float web1 = texture2D(noise, p * 0.016 + warp + vec2(t * 0.0025, -t * 0.0018)).b;
+        float web2 = texture2D(noise, p * 0.043 - warp + vec2(-t * 0.004, t * 0.0015) + 0.41).b;
+        float crack = max(web1, web2 * 0.55);
+        vec3 crust = mix(vec3(0.075, 0.04, 0.045), vec3(0.24, 0.11, 0.08), smoothstep(0.3, 0.8, n0.a));
+        vec3 hot = mix(vec3(1.0, 0.26, 0.04), vec3(1.0, 0.78, 0.28), smoothstep(0.55, 1.0, crack));
+        // Seams glow brightest near the island and cool off across the open field.
+        float glow = smoothstep(0.3, 0.75, crack) * mix(1.0, 0.55, smoothstep(8.0, 40.0, d));
+        // Crust melts into a bright molten band along the shore.
+        float melt = 1.0 - smoothstep(0.15, 2.6, d);
+        glow = max(glow, melt * (0.5 + 0.35 * n0.r + 0.25 * crack));
+        float pulse = 0.88 + 0.14 * sin(t * 1.6 + n0.r * 11.0);
+        vec3 col = mix(crust, hot * 1.7 * pulse, glow);
+        col += vec3(0.5, 0.12, 0.02) * (1.0 - smoothstep(0.0, 9.0, d)) * 0.35;
+        float dist = length(cameraPosition - vWorld);
+        col = mix(col, horizon, smoothstep(fogRange.x, fogRange.y, dist));
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  const mesh = new T.Mesh(new T.PlaneGeometry(radius * 16, radius * 16, 1, 1), material);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = field.box.w;
+  mesh.renderOrder = -5;
   return {
     mesh,
     update(time: number) {
