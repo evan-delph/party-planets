@@ -142,6 +142,8 @@ HOW TO WORK
 - Don't change game rules or simulations (engine.ts, simulation and rules files) unless purely visual.
 - Keep it fast enough for an ordinary laptop GPU: no huge textures (stay at or under 2K), and don't add hundreds of draw calls.
 - Large new files in public/ can briefly crash the dev-server watcher; scripts/shot.mjs restarts it automatically.
+- Never leave debug overlays, helper spheres, console text boxes or other diagnostics on screen, not even briefly: other tracks capture the same game while you work. Remove any you add before your next capture.
+- Removing earlier work is fine when it makes the frame better; you don't have to keep everything from previous rounds.
 - Before finishing: run npx tsc --noEmit -p . and make sure it is clean for your files. If you touched shared game code, also run node scripts/test.mjs.
 Return a short summary of what you changed (written for the user), the files you touched, and whether the typecheck was clean.`
 }
